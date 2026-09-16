@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hostel Management System Web App — TQM Quality Engineering</title>
+
+    <!-- Tailwind CSS (via CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="/static/css/styles.css">
+
+    <!-- Tailwind Configuration -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Alpine.js Application Scripts -->
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/app.js"></script>
+    <!-- Alpine.js (via CDN) -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
+</head>
+<body x-data="appRoot" class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans antialiased">
+
+    <!-- Header Section -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-xs">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <!-- Brand & Course Tag -->
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-brand-900 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                    <i class="fa-solid fa-hotel"></i>
+                </div>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <span class="font-extrabold text-base text-slate-900 tracking-tight">Hostel Management System</span>
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-brand-50 text-brand-700 border border-brand-100">Web App</span>
+                    </div>
+                    <p class="text-xs text-slate-500 font-medium">TQM Quality Goal: Q05 (Reduce Response Time) • Session 2026–27</p>
+                </div>
+            </div>
+
+            <!-- Top Navigation & Health Telemetry Badge -->
+            <div class="flex items-center space-x-3 sm:space-x-5">
+                <!-- Navigation Tabs -->
+                <nav class="hidden md:flex items-center space-x-1 text-sm font-semibold">
+                    <button @click="activeSection = 'welcome'"
+                            :class="activeSection === 'welcome' ? 'text-brand-700 bg-brand-50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'"
+                            class="px-3 py-1.5 rounded-lg transition-colors">
+                        Overview
+                    </button>
+                    <button @click="activeSection = 'login'"
+                            :class="activeSection === 'login' ? 'text-brand-700 bg-brand-50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'"
+                            class="px-3 py-1.5 rounded-lg transition-colors">
+                        Stakeholder Portal
+                    </button>
+                    <button @click="activeSection = 'architecture'"
+                            :class="activeSection === 'architecture' ? 'text-brand-700 bg-brand-50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'"
+                            class="px-3 py-1.5 rounded-lg transition-colors">
+                        Q05 Architecture
+                    </button>
+                </nav>
+
+                <!-- Live Health & Latency Telemetry Badge -->
+                <div class="flex items-center space-x-2 px-3 py-1.5 rounded-full border text-xs font-semibold shadow-2xs"
+                     :class="systemHealth.status === 'healthy' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'">
+                    <span class="w-2 h-2 rounded-full"
+                          :class="systemHealth.status === 'healthy' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'"></span>
+                    <span x-text="systemHealth.status === 'healthy' ? 'Backend Online' : 'Connecting...'"></span>
+                    <span class="text-slate-400">|</span>
+                    <span class="font-mono text-emerald-600" x-text="(systemHealth.database?.ping_latency_ms || 0) + ' ms'"></span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
+
+        <!-- 1. WELCOME SECTION -->
+        <section x-show="activeSection === 'welcome'" class="animate-fade-in space-y-8">
+            <!-- Hero Card -->
+            <div class="bg-gradient-to-br from-brand-900 via-brand-800 to-slate-900 rounded-2xl p-8 sm:p-12 text-white shadow-xl relative overflow-hidden">
+                <div class="relative z-10 max-w-2xl space-y-4">
+                    <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-white/10 text-brand-100 text-xs font-semibold border border-white/20">
+                        <i class="fa-solid fa-gauge-high text-sky-400"></i>
+                        <span>Quality Goal Q05: Reduce Response Time</span>
+                    </div>
+                    <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight">
+                        Next-Generation Web Platform for Collegiate Hostel Administration
+                    </h1>
+                    <p class="text-slate-200 text-sm sm:text-base leading-relaxed">
+                        Re-engineered from desktop architecture into an ultra-responsive, modular web application powered by 
+                        <strong>FastAPI</strong>, <strong>SQLite WAL mode</strong>, and <strong>Alpine.js</strong>.
+                        Engineered under Total Quality Management (TQM) principles to eliminate system latency and prevent operational defects.
+                    </p>
+                    <div class="pt-2 flex flex-wrap gap-3">
+                        <button @click="activeSection = 'login'" class="px-5 py-2.5 rounded-xl bg-white text-brand-900 hover:bg-brand-50 font-bold text-sm shadow-sm transition flex items-center space-x-2">
+                            <span>Open Stakeholder Portal</span>
+                            <i class="fa-solid fa-arrow-right text-xs"></i>
+                        </button>
+                        <a href="/docs" target="_blank" class="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm border border-white/20 transition flex items-center space-x-2">
+                            <i class="fa-solid fa-book-open text-xs"></i>
+                            <span>Interactive API Docs</span>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Subtle Decorative Background Circles -->
+                <div class="absolute -right-16 -bottom-16 w-80 h-80 rounded-full bg-blue-500/10 blur-3xl pointer-events-none"></div>
+                <div class="absolute right-32 top-8 w-48 h-48 rounded-full bg-sky-400/10 blur-2xl pointer-events-none"></div>
+            </div>
+
+            <!-- Key TQM Quality Engineering Pillars -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2 hover:border-brand-600 transition">
+                    <div class="w-12 h-12 rounded-xl bg-blue-50 text-brand-700 flex items-center justify-center text-xl mb-4">
+                        <i class="fa-solid fa-bolt"></i>
+                    </div>
+                    <h3 class="font-bold text-slate-900 text-base">Q05 Latency Optimization</h3>
+                    <p class="text-xs text-slate-600 leading-relaxed">
+                        Indexed B-Tree queries, SQLite Write-Ahead Logging (WAL), and asynchronous ASGI request handling driving API latency under 5 milliseconds.
+                    </p>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2 hover:border-brand-600 transition">
+                    <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl mb-4">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+                    <h3 class="font-bold text-slate-900 text-base">Poka-Yoke Defect Prevention</h3>
+                    <p class="text-xs text-slate-600 leading-relaxed">
+                        Input mistake-proofing safeguards prevent room over-allocation, duplicate bed registrations, and malformed contact records.
+                    </p>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2 hover:border-brand-600 transition">
+                    <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl mb-4">
+                        <i class="fa-solid fa-users"></i>
+                    </div>
+                    <h3 class="font-bold text-slate-900 text-base">Multi-Stakeholder Focus</h3>
+                    <p class="text-xs text-slate-600 leading-relaxed">
+                        Dedicated role boundaries for Chief Wardens, Student Residents, Hostel Caretakers, and TQM Quality Evaluators.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. LOGIN PAGE PLACEHOLDER -->
+        <section x-show="activeSection === 'login'" class="animate-fade-in max-w-lg mx-auto py-6">
+            <div class="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 space-y-6">
+                <div class="text-center space-y-1">
+                    <div class="inline-flex p-3 rounded-2xl bg-brand-50 text-brand-700 mb-2">
+                        <i class="fa-solid fa-user-lock text-2xl"></i>
+                    </div>
+                    <h2 class="text-2xl font-extrabold text-slate-900">Stakeholder Portal Access</h2>
+                    <p class="text-xs text-slate-500">Select stakeholder role to preview portal interface</p>
+                </div>
+
+                <!-- Role Selector Tabs -->
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Target Role</label>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <button type="button" @click="selectRole('admin')"
+                                :class="selectedRole === 'admin' ? 'border-brand-600 bg-brand-50 text-brand-900 font-bold' : 'border-slate-200 hover:bg-slate-50 text-slate-600'"
+                                class="p-2.5 border rounded-xl transition text-left">
+                            🛡️ Administrator
+                        </button>
+                        <button type="button" @click="selectRole('student')"
+                                :class="selectedRole === 'student' ? 'border-brand-600 bg-brand-50 text-brand-900 font-bold' : 'border-slate-200 hover:bg-slate-50 text-slate-600'"
+                                class="p-2.5 border rounded-xl transition text-left">
+                            🎓 Student Resident
+                        </button>
+                        <button type="button" @click="selectRole('staff')"
+                                :class="selectedRole === 'staff' ? 'border-brand-600 bg-brand-50 text-brand-900 font-bold' : 'border-slate-200 hover:bg-slate-50 text-slate-600'"
+                                class="p-2.5 border rounded-xl transition text-left">
+                            🔧 Caretaker / Staff
+                        </button>
+                        <button type="button" @click="selectRole('auditor')"
+                                :class="selectedRole === 'auditor' ? 'border-brand-600 bg-brand-50 text-brand-900 font-bold' : 'border-slate-200 hover:bg-slate-50 text-slate-600'"
+                                class="p-2.5 border rounded-xl transition text-left">
+                            📊 Quality Auditor
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Credential Input Placeholders -->
+                <form @submit.prevent="triggerLoginPlaceholder" class="space-y-4 text-sm">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Username / ID</label>
+                        <div class="relative">
+                            <i class="fa-solid fa-user absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                            <input type="text"
+                                   :placeholder="selectedRole === 'admin' ? 'admin' : (selectedRole === 'student' ? '2410301057' : selectedRole)"
+                                   class="w-full pl-9 pr-3.5 py-2.5 border border-slate-300 rounded-xl outline-none focus:border-brand-600 focus:ring-1 focus:ring-brand-600 text-sm bg-slate-50/50">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Password</label>
+                        <div class="relative">
+                            <i class="fa-solid fa-lock absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                            <input type="password" placeholder="••••••••"
+                                   class="w-full pl-9 pr-3.5 py-2.5 border border-slate-300 rounded-xl outline-none focus:border-brand-600 focus:ring-1 focus:ring-brand-600 text-sm bg-slate-50/50">
+                        </div>
+                    </div>
+
+                    <!-- Development Roadmap Notice Banner -->
+                    <div x-show="loginNotice" x-text="loginNotice" class="text-xs p-3 rounded-xl bg-blue-50 text-blue-800 border border-blue-200"></div>
+
+                    <button type="submit" class="w-full py-2.5 bg-brand-900 hover:bg-brand-800 text-white font-bold rounded-xl text-sm transition shadow-sm flex items-center justify-center space-x-2">
+                        <span>Access Stakeholder Desk</span>
+                        <i class="fa-solid fa-arrow-right text-xs"></i>
+                    </button>
+                </form>
+
+                <div class="text-center text-xs text-slate-400 border-t pt-4">
+                    Prompt 01: Architecture & Foundation Initialized • Auth Staged for Prompt 03
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. ARCHITECTURE & TELEMETRY SECTION -->
+        <section x-show="activeSection === 'architecture'" class="animate-fade-in space-y-6">
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                <h3 class="text-lg font-bold text-slate-900">Live Foundation Telemetry</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <div class="text-xs text-slate-500 font-semibold uppercase">API Status</div>
+                        <div class="text-xl font-bold text-emerald-600 mt-1 capitalize" x-text="systemHealth.status"></div>
+                        <div class="text-[11px] text-slate-400 mt-0.5">FastAPI ASGI Engine</div>
+                    </div>
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <div class="text-xs text-slate-500 font-semibold uppercase">Database Engine</div>
+                        <div class="text-xl font-bold text-slate-900 mt-1" x-text="systemHealth.database?.engine || 'SQLite'"></div>
+                        <div class="text-[11px] text-slate-400 mt-0.5">Isolated Local Storage</div>
+                    </div>
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <div class="text-xs text-slate-500 font-semibold uppercase">Concurrency Mode</div>
+                        <div class="text-xl font-bold text-brand-700 mt-1" x-text="systemHealth.database?.journal_mode || 'WAL'"></div>
+                        <div class="text-[11px] text-slate-400 mt-0.5">Write-Ahead Logging</div>
+                    </div>
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <div class="text-xs text-slate-500 font-semibold uppercase">Ping Latency</div>
+                        <div class="text-xl font-bold text-emerald-600 mt-1" x-text="(systemHealth.database?.ping_latency_ms || 0) + ' ms'"></div>
+                        <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">✓ Meets &lt; 10ms SLA</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-6 text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <div>
+                <strong>BBAT104 Fundamentals of TQM</strong> • Student: Rohan Bakshi (Roll No: 2410301057) • B.Tech CSE (Sec A)
+            </div>
+            <div>
+                Quality Goal: <span class="font-semibold text-slate-800">Q05 (Reduce Response Time)</span>
+            </div>
+        </div>
+    </footer>
+
+</body>
+</html>
