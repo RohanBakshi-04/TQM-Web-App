@@ -18,6 +18,22 @@ def get_all_ddl() -> str:
     return f"{CORE_TABLES_SQL}\n{HOSTEL_STUDENT_TABLES_SQL}\n{OPERATIONS_FINANCE_TABLES_SQL}"
 
 
+def initialize_core_tables(conn: Optional[sqlite3.Connection] = None) -> None:
+    """Execute creation of core user and access management tables."""
+    should_close = False
+    if conn is None:
+        conn = get_db_connection()
+        should_close = True
+
+    try:
+        cursor = conn.cursor()
+        cursor.executescript(CORE_TABLES_SQL)
+        conn.commit()
+    finally:
+        if should_close:
+            conn.close()
+
+
 def initialize_all_tables(conn: Optional[sqlite3.Connection] = None) -> None:
     """Execute creation of all 39 normalized database tables."""
     should_close = False

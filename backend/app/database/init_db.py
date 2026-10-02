@@ -1,28 +1,19 @@
-"""Database initialization utility.
+"""Database Initialization & Migration Runner.
 
-Course: BBAT104 - Fundamentals of TQM
+Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
 Quality Goal: Q05 - Reduce Response Time
-Note: Business tables belong to Prompt 02. This utility initializes database connectivity and metadata.
 """
 
 import sqlite3
 from typing import Optional
 from backend.app.database.connection import get_db_connection
+from backend.app.database.migrations import run_migrations
+from backend.app.database.seeder import seed_database
 from backend.app.utils.logger import logger
 
 
-INIT_METADATA_SQL = """
-CREATE TABLE IF NOT EXISTS system_metadata (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    key TEXT NOT NULL UNIQUE,
-    value TEXT NOT NULL,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-"""
-
-
-def initialize_database(conn: Optional[sqlite3.Connection] = None) -> bool:
-    """Verify SQLite connectivity, apply PRAGMAs, and initialize system metadata."""
+def initialize_database(conn: Optional[sqlite3.Connection] = None, seed: bool = True) -> bool:
+    """Run migrations and optionally populate demonstration data."""
     should_close = False
     if conn is None:
         conn = get_db_connection()
@@ -39,22 +30,24 @@ def initialize_database(conn: Optional[sqlite3.Connection] = None) -> bool:
         cursor.execute("PRAGMA foreign_keys;")
         foreign_keys = cursor.fetchone()[0]
 
-        # Initialize base metadata table
-        cursor.executescript(INIT_METADATA_SQL)
-        cursor.execute(
-            """INSERT OR REPLACE INTO system_metadata (key, value)
-               VALUES ('schema_stage', 'prompt_01_initialized')"""
+        logger.info(
+            f"Configuring SQLite v{sqlite_ver} (journal_mode={journal_mode}, foreign_keys={'ON' if foreign_keys else 'OFF'})"
         )
+
+        # Apply schema migrations
+        run_migrations(conn)
+
+        # Maintain system_metadata for Prompt 01 compatibility
+        cursor.execute("CREATE TABLE IF NOT EXISTS system_metadata (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT UNIQUE, value TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);")
+        cursor.execute("INSERT OR REPLACE INTO system_metadata (key, value) VALUES ('schema_stage', 'prompt_01_initialized');")
         conn.commit()
 
-        logger.info(
-            f"Database initialized successfully (SQLite v{sqlite_ver}, "
-            f"journal_mode={journal_mode}, foreign_keys={'ON' if foreign_keys else 'OFF'})"
-        )
+        # Seed demonstration records if requested
+        if seed:
+            seed_database(conn)
+
+        logger.info("Database schema and data initialized successfully.")
         return True
-    except Exception as e:
-        logger.error(f"Database initialization failed: {e}")
-        raise
     finally:
         if should_close:
             conn.close()
