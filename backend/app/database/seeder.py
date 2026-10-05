@@ -4,20 +4,12 @@ Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
 Quality Goal: Q05 - Reduce Response Time
 """
 
-import hashlib
-import os
-import secrets
 import sqlite3
 from typing import Optional
 from backend.app.database.connection import get_db_connection
+from backend.app.services.rbac_data import ROLES_LIST, PERMISSIONS_LIST, ROLE_PERMISSIONS_MAP
+from backend.app.services.security import hash_password
 from backend.app.utils.logger import logger
-
-
-def _hash_demo_password(password: str) -> tuple[str, str]:
-    """Hash password using PBKDF2-HMAC-SHA256 for safe demonstration data."""
-    salt = secrets.token_hex(16)
-    key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000)
-    return key.hex(), salt
 
 
 def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
@@ -38,59 +30,78 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
 
         logger.info("Beginning database demonstration data seeding...")
 
-        # 1. Seed Roles
-        roles_data = [
-            ("admin", "Full system administrator access", 1),
-            ("warden", "Hostel chief warden operations and student welfare", 1),
-            ("student", "Hostel resident self-service portal", 1),
-            ("staff", "Maintenance technician and caretaker desk", 1),
-            ("auditor", "TQM compliance and quality assurance evaluator", 1)
-        ]
+        # 1. Seed 12 User Roles
+        roles_data = [(name, desc, 1) for name, desc in ROLES_LIST]
         cursor.executemany("INSERT INTO roles (name, description, is_system) VALUES (?, ?, ?);", roles_data)
 
-        # 2. Seed Permissions
-        permissions_data = [
-            ("users.manage", "users", "Manage system accounts and roles"),
-            ("hostel.manage", "hostel", "Manage rooms, beds, and buildings"),
-            ("students.manage", "students", "Manage student profiles and admissions"),
-            ("allocations.manage", "allocations", "Perform bed allotments and checkout"),
-            ("complaints.redress", "complaints", "Update and resolve grievance tickets"),
-            ("finance.invoicing", "finance", "Generate invoices and record payments"),
-            ("audit.read", "audit", "Inspect Q05 performance telemetry and audit logs")
-        ]
-        cursor.executemany("INSERT INTO permissions (name, module, description) VALUES (?, ?, ?);", permissions_data)
+        # Build role_name -> role_id lookup
+        cursor.execute("SELECT id, name FROM roles;")
+        role_id_map = {name: r_id for r_id, name in cursor.fetchall()}
 
-        # 3. Seed Users (Safe demo credentials: admin123, warden123, student123, staff123, audit123)
-        h_admin, s_admin = _hash_demo_password("admin123")
-        h_warden, s_warden = _hash_demo_password("warden123")
-        h_student, s_student = _hash_demo_password("student123")
-        h_staff, s_staff = _hash_demo_password("staff123")
-        h_audit, s_audit = _hash_demo_password("audit123")
-
-        users_data = [
-            ("admin", "admin@univ.edu", h_admin, s_admin, "System", "Administrator", "9800000001"),
-            ("warden", "warden@univ.edu", h_warden, s_warden, "Dr. Anand", "Kulkarni", "9800000002"),
-            ("rohan", "rohan.bakshi@univ.edu", h_student, s_student, "Rohan", "Bakshi", "9810301057"),
-            ("caretaker", "caretaker@univ.edu", h_staff, s_staff, "Ramesh", "Kumar", "9800000004"),
-            ("evaluator", "evaluator@univ.edu", h_audit, s_audit, "TQM Faculty", "Auditor", "9800000005")
-        ]
+        # 2. Seed Granular Permissions
         cursor.executemany(
-            """INSERT INTO users (username, email, password_hash, salt, first_name, last_name, phone)
-               VALUES (?, ?, ?, ?, ?, ?, ?);""",
-            users_data
+            "INSERT INTO permissions (name, module, description) VALUES (?, ?, ?);",
+            PERMISSIONS_LIST
         )
 
-        # Map User Roles
-        cursor.execute("INSERT INTO user_roles (user_id, role_id) VALUES (1, 1);") # admin -> admin
-        cursor.execute("INSERT INTO user_roles (user_id, role_id) VALUES (2, 2);") # warden -> warden
-        cursor.execute("INSERT INTO user_roles (user_id, role_id) VALUES (3, 3);") # rohan -> student
-        cursor.execute("INSERT INTO user_roles (user_id, role_id) VALUES (4, 4);") # caretaker -> staff
-        cursor.execute("INSERT INTO user_roles (user_id, role_id) VALUES (5, 5);") # evaluator -> auditor
+        # Build perm_name -> perm_id lookup
+        cursor.execute("SELECT id, name FROM permissions;")
+        perm_id_map = {name: p_id for p_id, name in cursor.fetchall()}
+
+        # Map Role-Permissions
+        role_perm_rows = []
+        for role_name, perm_names in ROLE_PERMISSIONS_MAP.items():
+            r_id = role_id_map.get(role_name)
+            if not r_id:
+                continue
+            for p_name in perm_names:
+                p_id = perm_id_map.get(p_name)
+                if p_id:
+                    role_perm_rows.append((r_id, p_id))
+
+        cursor.executemany(
+            "INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?);",
+            role_perm_rows
+        )
+        logger.info(f"Seeded {len(roles_data)} roles and {len(role_perm_rows)} role-permission mappings.")
+
+        # 3. Seed Demo Users for Primary Roles (bcrypt hashed)
+        default_pw = "Password123!" # Consistent safe demo password for all demo accounts
+        hashed_pw = hash_password(default_pw)
+
+        demo_users = [
+            ("superadmin", "superadmin@univ.edu", hashed_pw, "", "Super", "Admin", "9800000001", "super_admin", None, None),
+            ("hosteladmin", "hosteladmin@univ.edu", hashed_pw, "", "Hostel", "Admin", "9800000002", "hostel_admin", None, 1),
+            ("warden", "warden@univ.edu", hashed_pw, "", "Dr. Anand", "Kulkarni", "9800000003", "warden", None, 1),
+            ("asstwarden", "asstwarden@univ.edu", hashed_pw, "", "Suresh", "Rao", "9800000004", "assistant_warden", None, 1),
+            ("rohan", "rohan.bakshi@univ.edu", hashed_pw, "", "Rohan", "Bakshi", "9810301057", "student", 1, 1),
+            ("accountant", "accountant@univ.edu", hashed_pw, "", "Manoj", "Sharma", "9800000006", "accountant", None, None),
+            ("messmanager", "messmanager@univ.edu", hashed_pw, "", "Rajesh", "Verma", "9800000007", "mess_manager", None, 1),
+            ("maintenance", "maintenance@univ.edu", hashed_pw, "", "Ramesh", "Kumar", "9800000008", "maintenance_staff", None, 1),
+            ("security", "security@univ.edu", hashed_pw, "", "Baljit", "Singh", "9800000009", "security_guard", None, 1),
+            ("admission", "admission@univ.edu", hashed_pw, "", "Geeta", "Iyer", "9800000010", "admission_officer", None, None),
+            ("parent", "parent@univ.edu", hashed_pw, "", "Sunil", "Bakshi", "9800000011", "parent_guardian", 1, 1),
+            ("evaluator", "evaluator@univ.edu", hashed_pw, "", "TQM Faculty", "Auditor", "9800000012", "auditor", None, None)
+        ]
+
+        user_id_map = {}
+        for (uname, email, pwd, salt, fn, ln, ph, role_name, link_s, link_h) in demo_users:
+            cursor.execute(
+                """INSERT INTO users (username, email, password_hash, salt, first_name, last_name, phone, linked_student_id, linked_hostel_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+                (uname, email, pwd, salt, fn, ln, ph, link_s, link_h)
+            )
+            u_id = cursor.lastrowid
+            user_id_map[uname] = u_id
+            r_id = role_id_map[role_name]
+            cursor.execute("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?);", (u_id, r_id))
 
         # 4. Seed Hostel, Buildings, Floors, Rooms & Beds
+        warden_user_id = user_id_map.get("warden", 3)
         cursor.execute(
             """INSERT INTO hostels (name, code, hostel_type, address, warden_id, contact_phone, contact_email)
-               VALUES ('Rabindranath Tagore Hostel', 'RTH-01', 'Boys', 'North Campus, Tech Avenue', 2, '011-2700101', 'tagore.hostel@univ.edu');"""
+               VALUES ('Rabindranath Tagore Hostel', 'RTH-01', 'Boys', 'North Campus, Tech Avenue', ?, '011-2700101', 'tagore.hostel@univ.edu');""",
+            (warden_user_id,)
         )
         hostel_id = cursor.lastrowid
 
@@ -121,8 +132,9 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
         cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, '201-B', 'Available');", (r201,))
 
         # 5. Seed Students (Fictional Demo Records)
+        rohan_user_id = user_id_map.get("rohan", 5)
         students_data = [
-            ("2410301057", 3, "Rohan", "Bakshi", "rohan.bakshi@univ.edu", "9810301057", "Male", "2005-04-12", "B+", "CSE", "3rd Year", "5th", "Hostel Resident", "2026-08-01"),
+            ("2410301057", rohan_user_id, "Rohan", "Bakshi", "rohan.bakshi@univ.edu", "9810301057", "Male", "2005-04-12", "B+", "CSE", "3rd Year", "5th", "Hostel Resident", "2026-08-01"),
             ("2410301012", None, "Priya", "Sharma", "priya.sharma@univ.edu", "9811223344", "Female", "2006-02-18", "O+", "ECE", "2nd Year", "3rd", "East Wing", "2026-08-01"),
             ("2410301034", None, "Aarav", "Patel", "aarav.patel@univ.edu", "9822334455", "Male", "2005-09-25", "A+", "CSE", "3rd Year", "5th", "North Wing", "2026-08-02")
         ]
@@ -156,16 +168,17 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
         )
 
         # 8. Seed Complaints & History
+        maintenance_user_id = user_id_map.get("maintenance", 8)
         cursor.execute(
             """INSERT INTO complaints (complaint_id, student_id, room_id, category, title, description, severity, status, assigned_to)
-               VALUES ('CMP-2026-001', ?, ?, 'Electrical', 'Study Lamp Socket Failure', 'Wall socket on study table not powering laptop charger', 'Medium', 'In_Progress', 4);""",
-            (s_rohan, r101)
+               VALUES ('CMP-2026-001', ?, ?, 'Electrical', 'Study Lamp Socket Failure', 'Wall socket on study table not powering laptop charger', 'Medium', 'In_Progress', ?);""",
+            (s_rohan, r101, maintenance_user_id)
         )
         cmp_id = cursor.lastrowid
         cursor.execute(
             """INSERT INTO complaint_updates (complaint_id, updated_by, previous_status, new_status, comment)
-               VALUES (?, 4, 'Pending', 'In_Progress', 'Caretaker Ramesh assigned to inspect and replace socket unit.');""",
-            (cmp_id,)
+               VALUES (?, ?, 'Pending', 'In_Progress', 'Caretaker Ramesh assigned to inspect and replace socket unit.');""",
+            (cmp_id, maintenance_user_id)
         )
 
         # 9. Seed Financials: Fee Structure, Invoice & Payment
@@ -214,7 +227,7 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
         cursor.execute("INSERT INTO system_settings (setting_key, setting_value, category, description) VALUES ('q05_latency_target_ms', '10.0', 'performance', 'Target response time SLA');")
 
         conn.commit()
-        logger.info("Database demonstration data seeded successfully.")
+        logger.info(f"Database seeded with {len(demo_users)} demo users across all 12 roles.")
         return True
     except Exception as e:
         logger.error(f"Seeding failed: {e}")

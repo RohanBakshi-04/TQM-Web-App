@@ -9,6 +9,7 @@ from typing import List, Optional
 from backend.app.database.connection import get_db_connection
 from backend.app.database.indexes import create_initial_indexes
 from backend.app.database.schema import initialize_all_tables
+from backend.app.database.schema_auth import AUTH_TABLES_SQL
 from backend.app.utils.logger import logger
 
 MIGRATIONS_TABLE_SQL = """
@@ -65,6 +66,20 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
             record_migration(conn, "001_initial_schema", "Complete 39-Table Normalized Architecture")
             applied_now.append("001_initial_schema")
             logger.info("Migration 001_initial_schema applied successfully.")
+
+        # Migration 002: Authentication & Security Tables (Tokens, Resets, Login History)
+        if "002_auth_tables" not in applied:
+            logger.info("Applying Migration 002_auth_tables (refresh_tokens, password_resets, login_history)...")
+            cursor = conn.cursor()
+            cursor.executescript(AUTH_TABLES_SQL)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_login_history_user ON login_history(user_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_login_history_time ON login_history(timestamp);")
+            conn.commit()
+            record_migration(conn, "002_auth_tables", "Auth Tokens, Password Resets & Login Audit History")
+            applied_now.append("002_auth_tables")
+            logger.info("Migration 002_auth_tables applied successfully.")
 
         return applied_now
     finally:

@@ -16,6 +16,10 @@ CREATE TABLE IF NOT EXISTS users (
     last_name TEXT NOT NULL,
     phone TEXT DEFAULT '',
     is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+    failed_login_attempts INTEGER NOT NULL DEFAULT 0 CHECK(failed_login_attempts >= 0),
+    locked_until TIMESTAMP NULL,
+    linked_student_id INTEGER NULL,
+    linked_hostel_id INTEGER NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
