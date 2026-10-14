@@ -6,6 +6,7 @@ Quality Goal: Q05 - Reduce Response Time
 
 import hashlib
 import sqlite3
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
 from fastapi import HTTPException, status
@@ -307,10 +308,13 @@ class AuthService:
                 conn.close()
 
     @classmethod
-    def revoke_refresh_token(cls, raw_refresh_token: str) -> bool:
+    def revoke_refresh_token(cls, raw_refresh_token: str, conn: Optional[sqlite3.Connection] = None) -> bool:
         """Revoke a single refresh token during logout."""
         token_hash = hashlib.sha256(raw_refresh_token.encode("utf-8")).hexdigest()
-        conn = get_db_connection()
+        should_close = False
+        if conn is None:
+            conn = get_db_connection()
+            should_close = True
         try:
             cursor = conn.cursor()
             cursor.execute("UPDATE refresh_tokens SET is_revoked = 1 WHERE token_hash = ?;", (token_hash,))
@@ -321,12 +325,21 @@ class AuthService:
                 conn.close()
 
     @classmethod
-    def change_user_password(cls, user_id: int, old_password: str, new_password: str) -> bool:
+    def change_user_password(
+        cls,
+        user_id: int,
+        old_password: str,
+        new_password: str,
+        conn: Optional[sqlite3.Connection] = None
+    ) -> bool:
         """Change password, hash with bcrypt, and revoke all active refresh tokens."""
         if len(new_password) < 8:
             raise HTTPException(status_code=400, detail="New password must be at least 8 characters.")
 
-        conn = get_db_connection()
+        should_close = False
+        if conn is None:
+            conn = get_db_connection()
+            should_close = True
         try:
             cursor = conn.cursor()
             cursor.execute("SELECT password_hash FROM users WHERE id = ?;", (user_id,))
@@ -346,9 +359,12 @@ class AuthService:
                 conn.close()
 
     @classmethod
-    def initiate_password_reset(cls, email: str) -> str:
+    def initiate_password_reset(cls, email: str, conn: Optional[sqlite3.Connection] = None) -> str:
         """Create a password reset token for the specified user email."""
-        conn = get_db_connection()
+        should_close = False
+        if conn is None:
+            conn = get_db_connection()
+            should_close = True
         try:
             cursor = conn.cursor()
             cursor.execute("SELECT id FROM users WHERE email = ? AND is_active = 1;", (email.strip().lower(),))
@@ -372,13 +388,21 @@ class AuthService:
                 conn.close()
 
     @classmethod
-    def complete_password_reset(cls, raw_token: str, new_password: str) -> bool:
+    def complete_password_reset(
+        cls,
+        raw_token: str,
+        new_password: str,
+        conn: Optional[sqlite3.Connection] = None
+    ) -> bool:
         """Complete password reset using valid unexpired token."""
         if len(new_password) < 8:
             raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
 
         token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
-        conn = get_db_connection()
+        should_close = False
+        if conn is None:
+            conn = get_db_connection()
+            should_close = True
         try:
             cursor = conn.cursor()
             cursor.execute("""
