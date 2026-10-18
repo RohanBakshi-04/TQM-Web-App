@@ -53,3 +53,61 @@
 - [x] Unit test verifying atomic transaction rollback on failure
 - [x] Unit test verifying migration execution and seeder integration
 - [x] 20/20 automated tests passing with 100% success rate
+
+
+---
+
+## Prompt 03: Authentication and RBAC System
+
+### 1. Cryptographic Security & Password Management
+- [x] Bcrypt password hashing (12 rounds) with salt generation
+- [x] Zero plaintext password storage in database or memory
+- [x] Safe password verification preventing timing side-channel attacks
+- [x] Self-service password change API with current password verification
+- [x] Token-based self-service password reset workflow
+
+### 2. Session Management & Token Architecture
+- [x] Stateless JSON Web Tokens (JWT) for access authentication (`HS256`, 30-min lifespan)
+- [x] Cryptographically random refresh tokens (64-byte hex string)
+- [x] Refresh tokens hashed with SHA-256 before storage in SQLite
+- [x] Strict refresh token rotation: old refresh token revoked upon single exchange
+- [x] Token reuse detection: revoked token reuse triggers immediate revocation of all user sessions
+- [x] HttpOnly cookie support for refresh tokens with `SameSite=Lax`
+
+### 3. Brute-Force Defense & Audit Logging
+- [x] Account lockout after 5 consecutive failed login attempts
+- [x] 15-minute temporary lockout cooldown period with dynamic remaining time reporting
+- [x] Automatic failed counter reset on successful authentication
+- [x] Immutable `login_history` audit table recording IP, User-Agent, status, and failure reason
+
+### 4. 12 User Roles & Granular Permissions (RBAC)
+- [x] Seeded all 12 system roles:
+  1. `super_admin`: Global system administration
+  2. `hostel_admin`: Management of assigned hostels
+  3. `warden`: Student supervision, attendance, leave, complaints, and room ops
+  4. `assistant_warden`: Delegated operational duties
+  5. `student`: Personal profile, room, fees, attendance, complaints, and leaves
+  6. `accountant`: Financial records, invoices, payments, and refunds
+  7. `mess_manager`: Mess menus, subscriptions, and dining attendance
+  8. `maintenance_staff`: Assigned maintenance work orders
+  9. `security_guard`: Visitor records, ingress/egress logs
+  10. `admission_officer`: Applications and document verification
+  11. `parent_guardian`: Authorized info on linked wards
+  12. `auditor`: Read-only compliance and latency reports
+- [x] Granular permission actions: `CREATE`, `READ`, `UPDATE`, `DELETE`, `APPROVE`, `REJECT`, `EXPORT`, `MANAGE`
+- [x] Normalized `role_permissions` mapping (173 distinct permissions mapped)
+- [x] FastAPI dependencies: `get_current_user`, `require_roles`, `require_permissions`
+
+### 5. Strict Student Data Isolation
+- [x] Backend isolation barrier in `verify_student_isolation(student_id, current_user)`
+- [x] HTTP 403 Forbidden returned when student queries another student's record
+- [x] Parent/Guardian constrained to linked student records
+- [x] Privileged roles (Wardens, Admins, Accountants) permitted authorized access
+
+### 6. Interactive Frontend & Verification
+- [x] Alpine.js reactive authentication state with automatic token renewal
+- [x] 12-Role Quick Demo selector buttons for seamless multi-stakeholder testing
+- [x] Real credential submission with inline error alerts and loading spinners
+- [x] Multi-tab dashboard: Role overview, User Directory, Student Portal, 12-Role directory
+- [x] Interactive Student Data Isolation test button verifying HTTP 403 barrier live in UI
+- [x] 36 automated unit, integration, and API tests passing (100% success rate)
