@@ -1,30 +1,34 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" :class="{ 'dark': darkMode }">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hostel Management System Web App — TQM Quality Engineering</title>
 
-    <!-- Tailwind CSS (via CDN) -->
+    <!-- Tailwind CSS (via CDN) with Dark Mode Strategy -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Awesome Icons -->
+    <!-- Font Awesome 6 Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Custom Styles -->
+    <!-- Custom Styles & Design System -->
     <link rel="stylesheet" href="/static/css/styles.css">
 
     <!-- Tailwind Configuration -->
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
                         brand: {
                             50: '#eff6ff',
                             100: '#dbeafe',
+                            200: '#bfdbfe',
+                            500: '#3b82f6',
                             600: '#2563eb',
                             700: '#1d4ed8',
                             800: '#1e40af',
-                            900: '#1e3a8a'
+                            900: '#1e3a8a',
+                            950: '#0f172a'
                         }
                     }
                 }
@@ -38,524 +42,699 @@
     <!-- Alpine.js (via CDN) -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
 </head>
-<body x-data="appRoot" class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans antialiased">
+<body x-data="appRoot" class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col font-sans antialiased transition-colors duration-200">
 
-    <!-- Header Section -->
-    <header class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-xs">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <!-- Brand & Course Tag -->
-            <div class="flex items-center space-x-3 cursor-pointer" @click="activeSection = isAuthenticated ? 'dashboard' : 'welcome'">
-                <div class="w-10 h-10 rounded-xl bg-brand-900 text-white flex items-center justify-center font-bold text-lg shadow-sm">
-                    <i class="fa-solid fa-hotel"></i>
+    <!-- GLOBAL TOAST NOTIFICATIONS -->
+    <div class="toast-container">
+        <template x-for="t in toasts" :key="t.id">
+            <div class="toast-item flex items-center justify-between p-3.5 rounded-xl shadow-lg border text-xs font-semibold animate-slide-in backdrop-blur-md"
+                 :class="{
+                     'bg-emerald-500/90 text-white border-emerald-400': t.type === 'success',
+                     'bg-rose-500/90 text-white border-rose-400': t.type === 'error',
+                     'bg-amber-500/90 text-white border-amber-400': t.type === 'warning',
+                     'bg-slate-800/90 text-white border-slate-700': t.type === 'info'
+                 }">
+                <div class="flex items-center space-x-2">
+                    <i :class="{
+                        'fa-solid fa-circle-check': t.type === 'success',
+                        'fa-solid fa-circle-exclamation': t.type === 'error',
+                        'fa-solid fa-triangle-exclamation': t.type === 'warning',
+                        'fa-solid fa-info-circle': t.type === 'info'
+                    }"></i>
+                    <span x-text="t.message"></span>
                 </div>
-                <div>
-                    <div class="flex items-center space-x-2">
-                        <span class="font-extrabold text-base text-slate-900 tracking-tight">Hostel Management System</span>
-                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-brand-50 text-brand-700 border border-brand-100">Web App</span>
-                    </div>
-                    <p class="text-xs text-slate-500 font-medium">TQM Quality Goal: Q05 (Reduce Response Time) • Session 2026–27</p>
+                <button @click="removeToast(t.id)" class="ml-3 text-white/70 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+        </template>
+    </div>
+
+    <!-- QUICK SEARCH MODAL (CTRL + K) -->
+    <div x-show="searchModalOpen" x-cloak
+         class="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in"
+         @click.self="searchModalOpen = false">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-xl w-full p-4 space-y-4">
+            <div class="relative flex items-center">
+                <i class="fa-solid fa-magnifying-glass absolute left-3.5 text-slate-400"></i>
+                <input type="text" x-model="searchQuery" placeholder="Search stakeholders, modules, rooms, students... (ESC to close)"
+                       class="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:border-brand-600 focus:ring-1 focus:ring-brand-600 dark:text-white">
+            </div>
+            <div class="text-xs text-slate-400 space-y-2">
+                <div class="font-bold uppercase tracking-wider text-[10px] text-slate-500">Quick Navigation</div>
+                <div class="grid grid-cols-2 gap-2">
+                    <template x-for="preset in rolePresets" :key="preset.role">
+                        <button type="button" @click="switchRoleDashboard(preset.role); searchModalOpen = false;"
+                                class="p-2 text-left rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center space-x-2 text-slate-700 dark:text-slate-200 transition">
+                            <i :class="'fa-solid ' + preset.icon + ' text-brand-600 text-xs'"></i>
+                            <span class="truncate" x-text="preset.label"></span>
+                        </button>
+                    </template>
                 </div>
             </div>
+        </div>
+    </div>
 
-            <!-- Top Navigation, Health Badge & User Menu -->
-            <div class="flex items-center space-x-3 sm:space-x-5">
-                <!-- Navigation Tabs -->
-                <nav class="hidden md:flex items-center space-x-1 text-sm font-semibold">
-                    <button @click="activeSection = 'welcome'"
-                            :class="activeSection === 'welcome' ? 'text-brand-700 bg-brand-50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'"
-                            class="px-3 py-1.5 rounded-lg transition-colors">
-                        Overview
+    <!-- MAIN APP SHELL -->
+    <div class="flex-1 flex overflow-hidden">
+
+        <!-- 1. SIDEBAR NAVIGATION -->
+        <!-- Mobile Backdrop Overlay -->
+        <div x-show="mobileMenuOpen" x-cloak
+             @click="mobileMenuOpen = false"
+             class="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-xs md:hidden"></div>
+
+        <!-- Sidebar Container -->
+        <aside :class="{
+                   'translate-x-0': mobileMenuOpen,
+                   '-translate-x-full md:translate-x-0': !mobileMenuOpen,
+                   'md:w-64': !sidebarCollapsed,
+                   'md:w-20': sidebarCollapsed
+               }"
+               class="fixed md:static inset-y-0 left-0 z-40 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col sidebar-transition select-none shadow-lg md:shadow-none">
+
+            <!-- Sidebar Header / Brand -->
+            <div class="h-16 flex items-center justify-between px-4 border-b border-slate-200 dark:border-slate-800">
+                <div class="flex items-center space-x-3 cursor-pointer overflow-hidden" @click="activeSection = isAuthenticated ? 'dashboard' : 'welcome'">
+                    <div class="w-10 h-10 rounded-xl bg-brand-900 text-white flex-shrink-0 flex items-center justify-center font-bold text-lg shadow-sm">
+                        <i class="fa-solid fa-hotel"></i>
+                    </div>
+                    <div x-show="!sidebarCollapsed" class="whitespace-nowrap transition-opacity">
+                        <div class="font-extrabold text-sm text-slate-900 dark:text-white leading-tight">Hostel Web App</div>
+                        <div class="text-[10px] text-brand-600 dark:text-brand-400 font-bold uppercase tracking-wider">TQM Q05 Platform</div>
+                    </div>
+                </div>
+                <!-- Desktop Sidebar Collapse Toggle -->
+                <button type="button" @click="toggleSidebar"
+                        class="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                    <i :class="sidebarCollapsed ? 'fa-solid fa-angles-right text-xs' : 'fa-solid fa-angles-left text-xs'"></i>
+                </button>
+                <!-- Mobile Close Toggle -->
+                <button type="button" @click="mobileMenuOpen = false" class="md:hidden text-slate-500 p-2">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Sidebar Navigation Links -->
+            <div class="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+
+                <!-- Primary System Views -->
+                <div class="space-y-1">
+                    <div x-show="!sidebarCollapsed" class="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
+                        Application
+                    </div>
+
+                    <button @click="activeSection = 'welcome'; mobileMenuOpen = false;"
+                            :class="activeSection === 'welcome' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
+                            class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
+                        <i class="fa-solid fa-compass w-5 text-center text-sm"></i>
+                        <span x-show="!sidebarCollapsed" class="truncate">Overview</span>
                     </button>
-                    
+
                     <template x-if="!isAuthenticated">
-                        <button @click="activeSection = 'login'"
-                                :class="activeSection === 'login' ? 'text-brand-700 bg-brand-50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'"
-                                class="px-3 py-1.5 rounded-lg transition-colors">
-                            Sign In
+                        <button @click="activeSection = 'login'; mobileMenuOpen = false;"
+                                :class="activeSection === 'login' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
+                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
+                            <i class="fa-solid fa-right-to-bracket w-5 text-center text-sm"></i>
+                            <span x-show="!sidebarCollapsed" class="truncate">Stakeholder Sign In</span>
                         </button>
                     </template>
 
                     <template x-if="isAuthenticated">
-                        <button @click="activeSection = 'dashboard'"
-                                :class="activeSection === 'dashboard' ? 'text-brand-700 bg-brand-50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'"
-                                class="px-3 py-1.5 rounded-lg transition-colors">
-                            Dashboard
+                        <button @click="activeSection = 'dashboard'; mobileMenuOpen = false;"
+                                :class="activeSection === 'dashboard' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
+                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
+                            <i class="fa-solid fa-gauge-high w-5 text-center text-sm"></i>
+                            <span x-show="!sidebarCollapsed" class="truncate">Stakeholder Portal</span>
                         </button>
                     </template>
 
-                    <button @click="activeSection = 'architecture'"
-                            :class="activeSection === 'architecture' ? 'text-brand-700 bg-brand-50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'"
-                            class="px-3 py-1.5 rounded-lg transition-colors">
-                        Architecture
+                    <button @click="activeSection = 'architecture'; mobileMenuOpen = false;"
+                            :class="activeSection === 'architecture' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
+                            class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
+                        <i class="fa-solid fa-microchip w-5 text-center text-sm"></i>
+                        <span x-show="!sidebarCollapsed" class="truncate">Q05 Architecture</span>
                     </button>
-                </nav>
-
-                <!-- Live Latency Telemetry Badge -->
-                <div class="flex items-center space-x-2 px-3 py-1.5 rounded-full border text-xs font-semibold shadow-2xs"
-                     :class="systemHealth.status === 'healthy' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'">
-                    <span class="w-2 h-2 rounded-full"
-                          :class="systemHealth.status === 'healthy' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'"></span>
-                    <span x-text="systemHealth.status === 'healthy' ? 'Online' : 'Connecting...'"></span>
-                    <span class="text-slate-300">|</span>
-                    <span class="font-mono text-emerald-700" x-text="(systemHealth.database?.ping_latency_ms || 0) + ' ms'"></span>
                 </div>
 
-                <!-- Authenticated User Menu -->
-                <template x-if="isAuthenticated">
-                    <div class="flex items-center space-x-2">
-                        <div class="text-right hidden sm:block">
-                            <div class="text-xs font-bold text-slate-800" x-text="currentUser.first_name + ' ' + currentUser.last_name"></div>
-                            <div class="text-[10px] text-brand-600 font-semibold uppercase" x-text="currentUser.roles[0]?.replace('_', ' ')"></div>
-                        </div>
-                        <button @click="handleLogout" title="Sign Out"
-                                class="p-2 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition border border-slate-200">
-                            <i class="fa-solid fa-right-from-bracket text-sm"></i>
-                        </button>
+                <!-- 12-Role Navigation Switcher (When Authenticated or Evaluating) -->
+                <div class="space-y-1">
+                    <div x-show="!sidebarCollapsed" class="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 flex items-center justify-between">
+                        <span>Stakeholder Roles</span>
+                        <span class="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">12</span>
                     </div>
-                </template>
-            </div>
-        </div>
-    </header>
 
-    <!-- Main Container -->
-    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
-
-        <!-- 1. WELCOME SECTION -->
-        <section x-show="activeSection === 'welcome'" class="animate-fade-in space-y-8">
-            <!-- Hero Card -->
-            <div class="bg-gradient-to-br from-brand-900 via-brand-800 to-slate-900 rounded-2xl p-8 sm:p-12 text-white shadow-xl relative overflow-hidden">
-                <div class="relative z-10 max-w-2xl space-y-4">
-                    <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-white/10 text-brand-100 text-xs font-semibold border border-white/20">
-                        <i class="fa-solid fa-gauge-high text-sky-400"></i>
-                        <span>Quality Goal Q05: Reduce Response Time</span>
-                    </div>
-                    <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight">
-                        Next-Generation Web Platform for Collegiate Hostel Administration
-                    </h1>
-                    <p class="text-slate-200 text-sm sm:text-base leading-relaxed">
-                        Re-engineered from desktop architecture into an ultra-responsive, modular web application powered by 
-                        <strong>FastAPI</strong>, <strong>SQLite WAL mode</strong>, and <strong>Alpine.js</strong>.
-                        Engineered under Total Quality Management (TQM) principles with comprehensive 12-Role RBAC authorization and student-level data isolation.
-                    </p>
-                    <div class="pt-2 flex flex-wrap gap-3">
-                        <button @click="activeSection = isAuthenticated ? 'dashboard' : 'login'"
-                                class="px-5 py-2.5 rounded-xl bg-white text-brand-900 hover:bg-brand-50 font-bold text-sm shadow-sm transition flex items-center space-x-2">
-                            <span x-text="isAuthenticated ? 'Open Control Dashboard' : 'Open Stakeholder Sign In'"></span>
-                            <i class="fa-solid fa-arrow-right text-xs"></i>
-                        </button>
-                        <a href="/docs" target="_blank" class="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm border border-white/20 transition flex items-center space-x-2">
-                            <i class="fa-solid fa-book-open text-xs"></i>
-                            <span>Interactive API Docs</span>
-                        </a>
-                    </div>
-                </div>
-
-                <div class="absolute -right-16 -bottom-16 w-80 h-80 rounded-full bg-blue-500/10 blur-3xl pointer-events-none"></div>
-                <div class="absolute right-32 top-8 w-48 h-48 rounded-full bg-sky-400/10 blur-2xl pointer-events-none"></div>
-            </div>
-
-            <!-- Key TQM Quality Engineering Pillars -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2 hover:border-brand-600 transition">
-                    <div class="w-12 h-12 rounded-xl bg-blue-50 text-brand-700 flex items-center justify-center text-xl mb-4">
-                        <i class="fa-solid fa-bolt"></i>
-                    </div>
-                    <h3 class="font-bold text-slate-900 text-base">Q05 Latency Optimization</h3>
-                    <p class="text-xs text-slate-600 leading-relaxed">
-                        Indexed B-Tree queries, SQLite Write-Ahead Logging (WAL), and asynchronous ASGI request handling driving API latency under 5 milliseconds.
-                    </p>
-                </div>
-
-                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2 hover:border-brand-600 transition">
-                    <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl mb-4">
-                        <i class="fa-solid fa-user-shield"></i>
-                    </div>
-                    <h3 class="font-bold text-slate-900 text-base">12-Role RBAC & Isolation</h3>
-                    <p class="text-xs text-slate-600 leading-relaxed">
-                        Granular permissions matrix for Super Admins, Wardens, Caretakers, Auditors, and Students with cryptographic data isolation barriers.
-                    </p>
-                </div>
-
-                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2 hover:border-brand-600 transition">
-                    <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl mb-4">
-                        <i class="fa-solid fa-shield-halved"></i>
-                    </div>
-                    <h3 class="font-bold text-slate-900 text-base">Poka-Yoke Security & Audit</h3>
-                    <p class="text-xs text-slate-600 leading-relaxed">
-                        Bcrypt salted password hashing, JWT access tokens, HttpOnly rotated refresh tokens, and immutable audit logging on all logins.
-                    </p>
-                </div>
-            </div>
-        </section>
-
-        <!-- 2. STAKEHOLDER SIGN IN SECTION -->
-        <section x-show="activeSection === 'login'" class="animate-fade-in max-w-2xl mx-auto py-4">
-            <div class="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 space-y-6">
-                <div class="text-center space-y-1">
-                    <div class="inline-flex p-3 rounded-2xl bg-brand-50 text-brand-700 mb-2">
-                        <i class="fa-solid fa-shield-cat text-2xl"></i>
-                    </div>
-                    <h2 class="text-2xl font-extrabold text-slate-900">Stakeholder Sign In</h2>
-                    <p class="text-xs text-slate-500">Sign in with your institutional credentials or select a quick role preset</p>
-                </div>
-
-                <!-- 12-Role Quick Preset Selector -->
-                <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
-                        <i class="fa-solid fa-bolt text-amber-500 mr-1"></i> Quick Demo Role Selector
-                    </label>
-                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                        <template x-for="preset in rolePresets" :key="preset.username">
-                            <button type="button" @click="selectPreset(preset)"
-                                    :class="loginCredentials.username === preset.username ? 'border-brand-600 bg-brand-50 text-brand-900 font-bold ring-1 ring-brand-600' : 'border-slate-200 hover:bg-slate-50 text-slate-600'"
-                                    class="p-2 border rounded-xl transition text-left flex items-center space-x-2">
-                                <i :class="'fa-solid ' + preset.icon + ' text-slate-400 text-xs'"></i>
-                                <span class="truncate" x-text="preset.label"></span>
+                    <div class="space-y-0.5">
+                        <template x-for="preset in rolePresets" :key="preset.role">
+                            <button @click="switchRoleDashboard(preset.role); mobileMenuOpen = false;"
+                                    :title="preset.label + ' — ' + preset.desc"
+                                    :class="(activeSection === 'dashboard' && activeRoleView === preset.role) ? 'bg-brand-600 text-white font-bold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
+                                    class="w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs transition">
+                                <i :class="'fa-solid ' + preset.icon + ' w-5 text-center text-sm'"></i>
+                                <span x-show="!sidebarCollapsed" class="truncate" x-text="preset.label"></span>
                             </button>
                         </template>
                     </div>
                 </div>
 
-                <!-- Credential Input Form -->
-                <form @submit.prevent="handleLogin" class="space-y-4 text-sm">
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Username or Institutional Email</label>
-                        <div class="relative">
-                            <i class="fa-solid fa-user absolute left-3.5 top-3.5 text-slate-400 text-xs"></i>
-                            <input type="text" x-model="loginCredentials.username" required
-                                   class="w-full pl-9 pr-3.5 py-2.5 border border-slate-300 rounded-xl outline-none focus:border-brand-600 focus:ring-1 focus:ring-brand-600 text-sm bg-slate-50/50">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Password</label>
-                        <div class="relative">
-                            <i class="fa-solid fa-lock absolute left-3.5 top-3.5 text-slate-400 text-xs"></i>
-                            <input type="password" x-model="loginCredentials.password" required
-                                   class="w-full pl-9 pr-3.5 py-2.5 border border-slate-300 rounded-xl outline-none focus:border-brand-600 focus:ring-1 focus:ring-brand-600 text-sm bg-slate-50/50">
-                        </div>
-                    </div>
-
-                    <!-- Notice & Error Messages -->
-                    <div x-show="loginNotice" x-text="loginNotice" class="text-xs p-3 rounded-xl bg-blue-50 text-blue-800 border border-blue-200"></div>
-                    <div x-show="loginError" x-text="loginError" class="text-xs p-3 rounded-xl bg-rose-50 text-rose-800 border border-rose-200"></div>
-
-                    <button type="submit" :disabled="loginLoading"
-                            class="w-full py-2.5 bg-brand-900 hover:bg-brand-800 text-white font-bold rounded-xl text-sm transition shadow-sm flex items-center justify-center space-x-2 disabled:opacity-50">
-                        <template x-if="loginLoading">
-                            <i class="fa-solid fa-circle-notch fa-spin text-xs"></i>
-                        </template>
-                        <span x-text="loginLoading ? 'Authenticating...' : 'Sign In to Portal'"></span>
-                        <template x-if="!loginLoading">
-                            <i class="fa-solid fa-arrow-right text-xs"></i>
-                        </template>
-                    </button>
-                </form>
-
-                <div class="text-center text-xs text-slate-400 border-t pt-4">
-                    Protected by Argon/Bcrypt Salted Hashing & JWT Refresh Rotation • Session 2026–27
-                </div>
-            </div>
-        </section>
-
-        <!-- 3. ROLE-BASED DASHBOARD SECTION (AUTHENTICATED) -->
-        <section x-show="activeSection === 'dashboard' && isAuthenticated" class="animate-fade-in space-y-6">
-            
-            <!-- User Welcome & Active Role Banner -->
-            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div class="flex items-center space-x-4">
-                    <div class="w-14 h-14 rounded-2xl bg-brand-50 text-brand-700 flex items-center justify-center text-2xl font-bold border border-brand-100">
-                        <i class="fa-solid fa-user-shield"></i>
-                    </div>
-                    <div>
-                        <div class="flex items-center space-x-2">
-                            <h2 class="text-xl font-extrabold text-slate-900" x-text="'Welcome, ' + currentUser.first_name + ' ' + currentUser.last_name"></h2>
-                            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Authenticated</span>
-                        </div>
-                        <p class="text-xs text-slate-500 mt-0.5">
-                            Username: <code class="font-mono text-slate-700 font-semibold" x-text="currentUser.username"></code> •
-                            Email: <span class="font-mono text-slate-700 font-semibold" x-text="currentUser.email"></span> •
-                            Role: <span class="font-bold text-brand-700 capitalize" x-text="currentUser.roles[0]?.replace('_', ' ')"></span>
-                        </p>
-                    </div>
-                </div>
-
-                <div class="flex items-center space-x-3">
-                    <div class="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
-                        <span class="text-slate-400">Permissions:</span>
-                        <strong class="text-slate-800" x-text="userPermissions.length"></strong> actions granted
-                    </div>
-                    <button @click="handleLogout" class="px-4 py-2 rounded-xl text-xs font-semibold bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition">
-                        Sign Out
-                    </button>
-                </div>
             </div>
 
-            <!-- Dashboard Navigation Sub-tabs -->
-            <div class="flex border-b border-slate-200 space-x-4 text-sm font-semibold">
-                <button @click="activeDashboardTab = 'overview'"
-                        :class="activeDashboardTab === 'overview' ? 'border-b-2 border-brand-700 text-brand-700' : 'text-slate-500 hover:text-slate-800'"
-                        class="pb-3 px-1 transition">
-                    Role Overview
-                </button>
+            <!-- Sidebar Footer Status -->
+            <div class="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+                <div x-show="!sidebarCollapsed" class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                    <span class="font-semibold">Q05 Latency:</span>
+                    <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400" x-text="(systemHealth.database?.ping_latency_ms || 0) + ' ms'"></span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 2. MAIN APPLICATION CONTENT AREA -->
+        <div class="flex-1 flex flex-col min-w-0 overflow-y-auto">
+
+            <!-- TOP NAVBAR -->
+            <header class="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 flex items-center justify-between px-4 sm:px-6 lg:px-8 shadow-xs">
                 
-                <template x-if="hasRole('super_admin') || hasRole('hostel_admin')">
-                    <button @click="activeDashboardTab = 'users'; loadUsers();"
-                            :class="activeDashboardTab === 'users' ? 'border-b-2 border-brand-700 text-brand-700' : 'text-slate-500 hover:text-slate-800'"
-                            class="pb-3 px-1 transition">
-                        User Directory (RBAC)
+                <!-- Left: Hamburger & Breadcrumbs -->
+                <div class="flex items-center space-x-3 sm:space-x-4">
+                    <button type="button" @click="toggleMobileMenu" class="md:hidden p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
+                        <i class="fa-solid fa-bars text-lg"></i>
                     </button>
-                </template>
 
-                <template x-if="hasRole('student')">
-                    <button @click="activeDashboardTab = 'student_portal'; loadMyStudentProfile();"
-                            :class="activeDashboardTab === 'student_portal' ? 'border-b-2 border-brand-700 text-brand-700' : 'text-slate-500 hover:text-slate-800'"
-                            class="pb-3 px-1 transition">
-                        Student Portal & Isolation Test
-                    </button>
-                </template>
-
-                <button @click="activeDashboardTab = 'roles'"
-                        :class="activeDashboardTab === 'roles' ? 'border-b-2 border-brand-700 text-brand-700' : 'text-slate-500 hover:text-slate-800'"
-                        class="pb-3 px-1 transition">
-                    12 System Roles
-                </button>
-            </div>
-
-            <!-- TAB 1: ROLE OVERVIEW -->
-            <div x-show="activeDashboardTab === 'overview'" class="space-y-6">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-                        <div class="text-xs uppercase font-bold text-slate-400">Assigned Roles</div>
-                        <div class="flex flex-wrap gap-1.5 pt-1">
-                            <template x-for="r in userRoles" :key="r">
-                                <span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-brand-50 text-brand-800 border border-brand-200" x-text="r"></span>
-                            </template>
-                        </div>
-                    </div>
-
-                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-                        <div class="text-xs uppercase font-bold text-slate-400">Linked Records</div>
-                        <div class="text-sm font-semibold text-slate-700 pt-1">
-                            <div>Student ID: <span class="font-mono text-slate-900" x-text="currentUser.linked_student_id || 'None (Staff)'"></span></div>
-                            <div>Hostel ID: <span class="font-mono text-slate-900" x-text="currentUser.linked_hostel_id || 'Global / Unassigned'"></span></div>
-                        </div>
-                    </div>
-
-                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-                        <div class="text-xs uppercase font-bold text-slate-400">Q05 Latency Telemetry</div>
-                        <div class="text-2xl font-black text-emerald-600 pt-1" x-text="(systemHealth.database?.ping_latency_ms || 0) + ' ms'"></div>
-                        <div class="text-[11px] text-emerald-600">✓ Fast Search & Query Cache Active</div>
-                    </div>
-                </div>
-
-                <!-- Granted Permissions Matrix -->
-                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                    <h3 class="font-bold text-slate-900 text-base">Resolved Permissions for Current User</h3>
-                    <div class="flex flex-wrap gap-1.5 max-h-56 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200">
-                        <template x-for="perm in userPermissions" :key="perm">
-                            <span class="px-2 py-0.5 rounded-md text-[11px] font-mono bg-white text-slate-700 border border-slate-300" x-text="perm"></span>
+                    <!-- Breadcrumbs -->
+                    <nav class="hidden sm:flex items-center space-x-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        <template x-for="(crumb, idx) in breadcrumbs" :key="idx">
+                            <div class="flex items-center space-x-2">
+                                <template x-if="idx > 0">
+                                    <i class="fa-solid fa-chevron-right text-[10px] text-slate-300 dark:text-slate-600"></i>
+                                </template>
+                                <button type="button" @click="activeSection = crumb.section"
+                                        :class="idx === breadcrumbs.length - 1 ? 'text-slate-900 dark:text-white font-bold' : 'hover:text-brand-600 dark:hover:text-brand-400'"
+                                        x-text="crumb.label"></button>
+                            </div>
                         </template>
-                    </div>
+                    </nav>
                 </div>
-            </div>
 
-            <!-- TAB 2: USER DIRECTORY (ADMINS) -->
-            <div x-show="activeDashboardTab === 'users'" class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h3 class="font-bold text-slate-900 text-base">User Directory & Role Assignments</h3>
-                        <p class="text-xs text-slate-500">Live user repository managed under SQLite with bcrypt salted hashes</p>
-                    </div>
-                    <button @click="loadUsers" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700">
-                        <i class="fa-solid fa-rotate-right mr-1"></i> Refresh
+                <!-- Right: Quick Search, Telemetry, Theme Toggle, Notifications, User Menu -->
+                <div class="flex items-center space-x-2 sm:space-x-3">
+
+                    <!-- Search Trigger Button -->
+                    <button type="button" @click="searchModalOpen = true"
+                            class="hidden md:flex items-center space-x-2 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-400 text-xs hover:border-slate-300 dark:hover:border-slate-600 transition">
+                        <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                        <span>Search...</span>
+                        <kbd class="px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 text-[10px] font-mono border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-300">Ctrl K</kbd>
                     </button>
-                </div>
 
-                <div class="overflow-x-auto rounded-xl border border-slate-200">
-                    <table class="w-full text-left text-xs">
-                        <thead class="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase">
-                            <tr>
-                                <th class="p-3">ID</th>
-                                <th class="p-3">Name</th>
-                                <th class="p-3">Username</th>
-                                <th class="p-3">Email</th>
-                                <th class="p-3">Roles</th>
-                                <th class="p-3">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100">
-                            <template x-for="u in usersList" :key="u.id">
-                                <tr class="hover:bg-slate-50/80 transition">
-                                    <td class="p-3 font-mono font-bold text-slate-700" x-text="u.id"></td>
-                                    <td class="p-3 font-semibold text-slate-900" x-text="u.first_name + ' ' + u.last_name"></td>
-                                    <td class="p-3 font-mono text-brand-700" x-text="u.username"></td>
-                                    <td class="p-3 font-mono text-slate-600" x-text="u.email"></td>
-                                    <td class="p-3">
-                                        <div class="flex flex-wrap gap-1">
-                                            <template x-for="r in u.roles" :key="r">
-                                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 border" x-text="r"></span>
-                                            </template>
+                    <!-- Live Telemetry Pill -->
+                    <div class="flex items-center space-x-2 px-2.5 py-1 rounded-full border text-[11px] font-semibold"
+                         :class="systemHealth.status === 'healthy' ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'">
+                        <span class="w-2 h-2 rounded-full"
+                              :class="systemHealth.status === 'healthy' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'"></span>
+                        <span class="font-mono" x-text="(systemHealth.database?.ping_latency_ms || 0) + ' ms'"></span>
+                    </div>
+
+                    <!-- Light / Dark Theme Toggle Button -->
+                    <button type="button" @click="toggleDarkMode"
+                            title="Toggle Light / Dark Theme"
+                            class="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                        <i :class="darkMode ? 'fa-solid fa-sun text-amber-400' : 'fa-solid fa-moon text-slate-600'"></i>
+                    </button>
+
+                    <!-- Notifications Dropdown -->
+                    <div class="relative" @click.outside="notificationOpen = false">
+                        <button type="button" @click="notificationOpen = !notificationOpen"
+                                class="relative p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                            <i class="fa-solid fa-bell"></i>
+                            <template x-if="unreadNotificationCount > 0">
+                                <span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500"></span>
+                            </template>
+                        </button>
+
+                        <!-- Notification Flyout -->
+                        <div x-show="notificationOpen" x-cloak
+                             class="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 space-y-3 z-50 animate-fade-in">
+                            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                                <h4 class="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wider">Notifications</h4>
+                                <button type="button" @click="markNotificationsRead" class="text-[11px] text-brand-600 dark:text-brand-400 hover:underline">Mark all read</button>
+                            </div>
+                            <div class="space-y-2 max-h-64 overflow-y-auto">
+                                <template x-for="n in notifications" :key="n.id">
+                                    <div class="p-2.5 rounded-xl border text-xs space-y-0.5 transition"
+                                         :class="n.unread ? 'bg-brand-50/50 dark:bg-brand-950/40 border-brand-200 dark:border-brand-900' : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800'">
+                                        <div class="flex items-center justify-between">
+                                            <span class="font-bold text-slate-800 dark:text-slate-200" x-text="n.title"></span>
+                                            <span class="text-[10px] text-slate-400" x-text="n.time"></span>
                                         </div>
-                                    </td>
-                                    <td class="p-3">
-                                        <span :class="u.is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'"
-                                              class="px-2 py-0.5 rounded-full text-[10px] font-bold border"
-                                              x-text="u.is_active ? 'Active' : 'Inactive'"></span>
-                                    </td>
-                                </tr>
-                            </template>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- TAB 3: STUDENT PORTAL & STRICT ISOLATION DEMONSTRATION -->
-            <div x-show="activeDashboardTab === 'student_portal'" class="space-y-6">
-                <!-- Student Profile Card -->
-                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                    <div class="flex items-center justify-between border-b border-slate-100 pb-4">
-                        <div>
-                            <h3 class="font-bold text-slate-900 text-lg">Student Resident Profile</h3>
-                            <p class="text-xs text-slate-500">Personal academic and room allocation records</p>
-                        </div>
-                        <span class="px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                            Hostel Resident
-                        </span>
-                    </div>
-
-                    <template x-if="studentProfile">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-                            <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                                <div class="text-slate-400 font-semibold uppercase">Student ID</div>
-                                <div class="font-bold text-slate-900 text-sm mt-0.5 font-mono" x-text="studentProfile.student_id"></div>
+                                        <p class="text-[11px] text-slate-600 dark:text-slate-400" x-text="n.message"></p>
+                                    </div>
+                                </template>
                             </div>
-                            <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                                <div class="text-slate-400 font-semibold uppercase">Full Name</div>
-                                <div class="font-bold text-slate-900 text-sm mt-0.5" x-text="studentProfile.first_name + ' ' + studentProfile.last_name"></div>
-                            </div>
-                            <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                                <div class="text-slate-400 font-semibold uppercase">Academic Branch</div>
-                                <div class="font-bold text-slate-900 text-sm mt-0.5" x-text="studentProfile.branch + ' (' + studentProfile.academic_year + ')'"></div>
-                            </div>
-                            <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                                <div class="text-slate-400 font-semibold uppercase">Active Room Allocation</div>
-                                <div class="font-bold text-brand-700 text-sm mt-0.5" x-text="studentProfile.allocation ? ('Room ' + studentProfile.allocation.room_number + ' (Bed ' + studentProfile.allocation.bed_number + ')') : 'Unallocated'"></div>
-                            </div>
-                        </div>
-                    </template>
-                </div>
-
-                <!-- STUDENT DATA ISOLATION SECURITY DEMO -->
-                <div class="bg-gradient-to-br from-slate-900 to-brand-950 p-6 rounded-2xl text-white shadow-xl space-y-4">
-                    <div class="flex items-center space-x-3">
-                        <div class="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center text-lg border border-rose-500/30">
-                            <i class="fa-solid fa-lock"></i>
-                        </div>
-                        <div>
-                            <h4 class="font-extrabold text-base">Student Data Isolation Enforcement Barrier</h4>
-                            <p class="text-xs text-slate-300">Under TQM Defect Prevention, students are mathematically prohibited from inspecting other students' private records</p>
                         </div>
                     </div>
 
-                    <div class="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
-                        <div class="text-xs text-slate-300">
-                            You are logged in as <strong>Rohan Bakshi</strong> (Student Record ID: <code class="text-sky-300 font-mono font-bold">1</code>).
-                            Click below to test what happens when this account attempts to query <strong>Priya Sharma's</strong> private profile (Student Record ID: <code class="text-amber-300 font-mono font-bold">2</code>):
-                        </div>
-
-                        <div class="flex flex-wrap gap-3">
-                            <button @click="testStudentIsolation(1)" :disabled="isolationTestLoading"
-                                    class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center space-x-2">
-                                <i class="fa-solid fa-check text-xs"></i>
-                                <span>Query Own Record (ID: 1)</span>
-                            </button>
-
-                            <button @click="testStudentIsolation(2)" :disabled="isolationTestLoading"
-                                    class="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition flex items-center space-x-2">
-                                <i class="fa-solid fa-ban text-xs"></i>
-                                <span>Attempt Unauthorized Query (ID: 2)</span>
-                            </button>
-                        </div>
-
-                        <!-- Isolation Enforcement Output Banner -->
-                        <template x-if="isolationTestResult">
-                            <div class="mt-3 p-3 rounded-xl border text-xs"
-                                 :class="isolationTestResult.success ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-200' : 'bg-rose-950/80 border-rose-500/50 text-rose-200'">
-                                <div class="font-bold flex items-center space-x-2">
-                                    <i :class="isolationTestResult.success ? 'fa-solid fa-circle-check text-emerald-400' : 'fa-solid fa-triangle-exclamation text-rose-400'"></i>
-                                    <span x-text="'HTTP ' + isolationTestResult.status + ' Response'"></span>
+                    <!-- User Profile Menu -->
+                    <div class="relative" @click.outside="userMenuOpen = false">
+                        <template x-if="isAuthenticated">
+                            <button type="button" @click="userMenuOpen = !userMenuOpen"
+                                    class="flex items-center space-x-2 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                                <div class="w-8 h-8 rounded-xl bg-brand-700 text-white font-bold flex items-center justify-center text-xs shadow-xs">
+                                    <span x-text="currentUser.first_name[0] + currentUser.last_name[0]"></span>
                                 </div>
-                                <div class="mt-1 font-mono text-[11px]" x-text="isolationTestResult.message"></div>
-                            </div>
+                                <i class="fa-solid fa-chevron-down text-[10px] text-slate-400 hidden sm:block"></i>
+                            </button>
                         </template>
-                    </div>
-                </div>
-            </div>
 
-            <!-- TAB 4: 12 SYSTEM ROLES DIRECTORY -->
-            <div x-show="activeDashboardTab === 'roles'" class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                <div>
-                    <h3 class="font-bold text-slate-900 text-base">Complete 12-Role RBAC Directory</h3>
-                    <p class="text-xs text-slate-500">Configured in SQLite with normalized role-permission mappings</p>
-                </div>
+                        <template x-if="!isAuthenticated">
+                            <button type="button" @click="activeSection = 'login'"
+                                    class="px-3.5 py-1.5 rounded-xl bg-brand-900 hover:bg-brand-800 text-white font-bold text-xs transition shadow-xs flex items-center space-x-1.5">
+                                <i class="fa-solid fa-right-to-bracket text-xs"></i>
+                                <span>Sign In</span>
+                            </button>
+                        </template>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <template x-for="r in rolesList" :key="r.id">
-                        <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-brand-500 transition space-y-1.5">
-                            <div class="flex items-center justify-between">
-                                <span class="font-mono text-xs font-bold text-brand-700" x-text="r.name"></span>
-                                <span class="text-[10px] px-2 py-0.5 rounded font-bold bg-slate-200 text-slate-700" x-text="'ID: ' + r.id"></span>
+                        <!-- User Profile Flyout Dropdown -->
+                        <div x-show="userMenuOpen && isAuthenticated" x-cloak
+                             class="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-3 space-y-2 z-50 animate-fade-in">
+                            <div class="p-2 border-b border-slate-100 dark:border-slate-800 space-y-0.5">
+                                <div class="font-extrabold text-sm text-slate-900 dark:text-white" x-text="currentUser?.first_name + ' ' + currentUser?.last_name"></div>
+                                <div class="text-[11px] text-slate-500 font-mono truncate" x-text="currentUser?.email"></div>
+                                <div class="pt-1">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800"
+                                          x-text="currentUser?.roles[0]?.replace('_', ' ')"></span>
+                                </div>
                             </div>
-                            <p class="text-xs text-slate-600" x-text="r.description"></p>
+                            <div class="space-y-1 text-xs">
+                                <button type="button" @click="switchRoleDashboard(currentUser.roles[0]); userMenuOpen = false;"
+                                        class="w-full text-left px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center space-x-2">
+                                    <i class="fa-solid fa-user-circle text-slate-400"></i>
+                                    <span>My Dashboard</span>
+                                </button>
+                                <button type="button" @click="handleLogout"
+                                        class="w-full text-left px-3 py-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center space-x-2 font-semibold">
+                                    <i class="fa-solid fa-right-from-bracket"></i>
+                                    <span>Sign Out</span>
+                                </button>
+                            </div>
                         </div>
-                    </template>
+                    </div>
+
                 </div>
-            </div>
+            </header>
 
-        </section>
+            <!-- MAIN BODY SECTIONS -->
+            <main class="flex-1 p-4 sm:p-6 lg:p-8 space-y-8 max-w-7xl w-full mx-auto">
 
-        <!-- 4. ARCHITECTURE & TELEMETRY SECTION -->
-        <section x-show="activeSection === 'architecture'" class="animate-fade-in space-y-6">
-            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                <h3 class="text-lg font-bold text-slate-900">Live Foundation Telemetry</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                        <div class="text-xs text-slate-500 font-semibold uppercase">API Status</div>
-                        <div class="text-xl font-bold text-emerald-600 mt-1 capitalize" x-text="systemHealth.status"></div>
-                        <div class="text-[11px] text-slate-400 mt-0.5">FastAPI ASGI Engine</div>
+                <!-- 1. WELCOME SECTION -->
+                <section x-show="activeSection === 'welcome'" class="animate-fade-in space-y-8">
+                    <!-- Hero Card -->
+                    <div class="bg-gradient-to-br from-brand-900 via-brand-800 to-slate-900 rounded-3xl p-8 sm:p-12 text-white shadow-xl relative overflow-hidden">
+                        <div class="relative z-10 max-w-2xl space-y-4">
+                            <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-white/10 text-brand-100 text-xs font-semibold border border-white/20">
+                                <i class="fa-solid fa-gauge-high text-sky-400"></i>
+                                <span>Quality Goal Q05: Reduce Response Time</span>
+                            </div>
+                            <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight">
+                                Next-Generation Web Platform for Collegiate Hostel Administration
+                            </h1>
+                            <p class="text-slate-200 text-sm sm:text-base leading-relaxed">
+                                Re-engineered from desktop architecture into an ultra-responsive, modular web application powered by 
+                                <strong>FastAPI</strong>, <strong>SQLite WAL mode</strong>, and <strong>Alpine.js</strong>.
+                                Engineered under Total Quality Management (TQM) principles with comprehensive 12-Role RBAC authorization and student-level data isolation.
+                            </p>
+                            <div class="pt-2 flex flex-wrap gap-3">
+                                <button @click="activeSection = isAuthenticated ? 'dashboard' : 'login'"
+                                        class="px-5 py-2.5 rounded-xl bg-white text-brand-900 hover:bg-brand-50 font-bold text-sm shadow-sm transition flex items-center space-x-2">
+                                    <span x-text="isAuthenticated ? 'Open Control Dashboard' : 'Open Stakeholder Sign In'"></span>
+                                    <i class="fa-solid fa-arrow-right text-xs"></i>
+                                </button>
+                                <a href="/docs" target="_blank" class="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm border border-white/20 transition flex items-center space-x-2">
+                                    <i class="fa-solid fa-book-open text-xs"></i>
+                                    <span>Interactive API Docs</span>
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="absolute -right-16 -bottom-16 w-80 h-80 rounded-full bg-blue-500/10 blur-3xl pointer-events-none"></div>
+                        <div class="absolute right-32 top-8 w-48 h-48 rounded-full bg-sky-400/10 blur-2xl pointer-events-none"></div>
                     </div>
-                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                        <div class="text-xs text-slate-500 font-semibold uppercase">Database Engine</div>
-                        <div class="text-xl font-bold text-slate-900 mt-1" x-text="systemHealth.database?.engine || 'SQLite'"></div>
-                        <div class="text-[11px] text-slate-400 mt-0.5">Isolated Local Storage</div>
+
+                    <!-- 3 Pillars -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2 hover:border-brand-600 transition">
+                            <div class="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-brand-700 dark:text-brand-400 flex items-center justify-center text-xl mb-4">
+                                <i class="fa-solid fa-bolt"></i>
+                            </div>
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base">Q05 Latency Optimization</h3>
+                            <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                                Indexed B-Tree queries, SQLite Write-Ahead Logging (WAL), and asynchronous ASGI request handling driving API latency under 5 milliseconds.
+                            </p>
+                        </div>
+
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2 hover:border-brand-600 transition">
+                            <div class="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xl mb-4">
+                                <i class="fa-solid fa-user-shield"></i>
+                            </div>
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base">12-Role RBAC & Isolation</h3>
+                            <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                                Granular permissions matrix for Super Admins, Wardens, Caretakers, Auditors, and Students with cryptographic data isolation barriers.
+                            </p>
+                        </div>
+
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2 hover:border-brand-600 transition">
+                            <div class="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xl mb-4">
+                                <i class="fa-solid fa-shield-halved"></i>
+                            </div>
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base">Poka-Yoke Security & Audit</h3>
+                            <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                                Bcrypt salted password hashing, JWT access tokens, HttpOnly rotated refresh tokens, and immutable audit logging on all logins.
+                            </p>
+                        </div>
                     </div>
-                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                        <div class="text-xs text-slate-500 font-semibold uppercase">Concurrency Mode</div>
-                        <div class="text-xl font-bold text-brand-700 mt-1" x-text="systemHealth.database?.journal_mode || 'WAL'"></div>
-                        <div class="text-[11px] text-slate-400 mt-0.5">Write-Ahead Logging</div>
+                </section>
+
+                <!-- 2. STAKEHOLDER SIGN IN SECTION -->
+                <section x-show="activeSection === 'login'" class="animate-fade-in max-w-2xl mx-auto py-4">
+                    <div class="bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 p-8 space-y-6">
+                        <div class="text-center space-y-1">
+                            <div class="inline-flex p-3 rounded-2xl bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 mb-2">
+                                <i class="fa-solid fa-shield-cat text-2xl"></i>
+                            </div>
+                            <h2 class="text-2xl font-extrabold text-slate-900 dark:text-white">Stakeholder Sign In</h2>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Sign in with your institutional credentials or select a quick role preset</p>
+                        </div>
+
+                        <!-- 12-Role Quick Preset Selector -->
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-2">
+                                <i class="fa-solid fa-bolt text-amber-500 mr-1"></i> Quick Demo Role Selector
+                            </label>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                                <template x-for="preset in rolePresets" :key="preset.username">
+                                    <button type="button" @click="selectPreset(preset)"
+                                            :class="loginCredentials.username === preset.username ? 'border-brand-600 bg-brand-50 dark:bg-brand-950/60 text-brand-900 dark:text-brand-200 font-bold ring-1 ring-brand-600' : 'border-slate-200 dark:border-slate-750 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'"
+                                            class="p-2 border rounded-xl transition text-left flex items-center space-x-2">
+                                        <i :class="'fa-solid ' + preset.icon + ' text-slate-400 text-xs'"></i>
+                                        <span class="truncate" x-text="preset.label"></span>
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- Credential Input Form -->
+                        <form @submit.prevent="handleLogin" class="space-y-4 text-sm">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Username or Institutional Email</label>
+                                <div class="relative">
+                                    <i class="fa-solid fa-user absolute left-3.5 top-3.5 text-slate-400 text-xs"></i>
+                                    <input type="text" x-model="loginCredentials.username" required
+                                           class="w-full pl-9 pr-3.5 py-2.5 border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 rounded-xl outline-none focus:border-brand-600 focus:ring-1 focus:ring-brand-600 text-sm dark:text-white">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Password</label>
+                                <div class="relative">
+                                    <i class="fa-solid fa-lock absolute left-3.5 top-3.5 text-slate-400 text-xs"></i>
+                                    <input type="password" x-model="loginCredentials.password" required
+                                           class="w-full pl-9 pr-3.5 py-2.5 border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 rounded-xl outline-none focus:border-brand-600 focus:ring-1 focus:ring-brand-600 text-sm dark:text-white">
+                                </div>
+                            </div>
+
+                            <!-- Notice & Error Messages -->
+                            <div x-show="loginNotice" x-text="loginNotice" class="text-xs p-3 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-900"></div>
+                            <div x-show="loginError" x-text="loginError" class="text-xs p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-200 border border-rose-200 dark:border-rose-900"></div>
+
+                            <button type="submit" :disabled="loginLoading"
+                                    class="w-full py-2.5 bg-brand-900 hover:bg-brand-800 text-white font-bold rounded-xl text-sm transition shadow-sm flex items-center justify-center space-x-2 disabled:opacity-50">
+                                <template x-if="loginLoading">
+                                    <i class="fa-solid fa-circle-notch fa-spin text-xs"></i>
+                                </template>
+                                <span x-text="loginLoading ? 'Authenticating...' : 'Sign In to Portal'"></span>
+                                <template x-if="!loginLoading">
+                                    <i class="fa-solid fa-arrow-right text-xs"></i>
+                                </template>
+                            </button>
+                        </form>
                     </div>
-                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                        <div class="text-xs text-slate-500 font-semibold uppercase">Ping Latency</div>
-                        <div class="text-xl font-bold text-emerald-600 mt-1" x-text="(systemHealth.database?.ping_latency_ms || 0) + ' ms'"></div>
-                        <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">✓ Meets &lt; 10ms SLA</div>
+                </section>
+
+                <!-- 3. ROLE-BASED DASHBOARD SECTION -->
+                <section x-show="activeSection === 'dashboard'" class="animate-fade-in space-y-6">
+
+                    <!-- Dashboard Role Header Banner -->
+                    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div class="flex items-center space-x-4">
+                            <div class="w-14 h-14 rounded-2xl bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300 flex items-center justify-center text-2xl font-bold border border-brand-100 dark:border-brand-900">
+                                <i :class="'fa-solid ' + (rolePresets.find(p => p.role === activeRoleView)?.icon || 'fa-user-shield')"></i>
+                            </div>
+                            <div>
+                                <div class="flex items-center space-x-2">
+                                    <h2 class="text-xl font-extrabold text-slate-900 dark:text-white"
+                                        x-text="(rolePresets.find(p => p.role === activeRoleView)?.label || activeRoleView) + ' Dashboard'"></h2>
+                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">Operational</span>
+                                </div>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5"
+                                   x-text="rolePresets.find(p => p.role === activeRoleView)?.desc || 'Stakeholder module overview'"></p>
+                            </div>
+                        </div>
+
+                        <!-- Active Stakeholder Selector Dropdown -->
+                        <div class="flex items-center space-x-3">
+                            <label class="text-xs text-slate-500 font-semibold hidden sm:block">Switch Dashboard:</label>
+                            <select @change="switchRoleDashboard($event.target.value)" :value="activeRoleView"
+                                    class="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-brand-600">
+                                <template x-for="preset in rolePresets" :key="preset.role">
+                                    <option :value="preset.role" x-text="preset.label" :selected="activeRoleView === preset.role"></option>
+                                </template>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Role Dashboard Views Container (Will be enriched in Commit 2 and Commit 3) -->
+                    <div class="space-y-6">
+
+                        <!-- Global Shared Summary Cards -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                                <div>
+                                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Role</div>
+                                    <div class="text-lg font-black text-slate-900 dark:text-white capitalize mt-1" x-text="activeRoleView.replace('_', ' ')"></div>
+                                </div>
+                                <div class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950 text-brand-600 dark:text-brand-400 flex items-center justify-center text-lg">
+                                    <i class="fa-solid fa-id-badge"></i>
+                                </div>
+                            </div>
+
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                                <div>
+                                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">System Tables</div>
+                                    <div class="text-lg font-black text-slate-900 dark:text-white mt-1">39 Relational</div>
+                                </div>
+                                <div class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-lg">
+                                    <i class="fa-solid fa-database"></i>
+                                </div>
+                            </div>
+
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                                <div>
+                                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Performance Mode</div>
+                                    <div class="text-lg font-black text-brand-600 dark:text-brand-400 mt-1">SQLite WAL</div>
+                                </div>
+                                <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg">
+                                    <i class="fa-solid fa-gauge-high"></i>
+                                </div>
+                            </div>
+
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                                <div>
+                                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Ping Latency</div>
+                                    <div class="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-1" x-text="(systemHealth.database?.ping_latency_ms || 0) + ' ms'"></div>
+                                </div>
+                                <div class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-lg">
+                                    <i class="fa-solid fa-bolt"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- User Directory Table View (when role is super_admin or hostel_admin) -->
+                        <div x-show="activeRoleView === 'super_admin' || activeRoleView === 'hostel_admin'"
+                             class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="font-bold text-slate-900 dark:text-white text-base">User Directory & Role Assignments</h3>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">Live user repository managed under SQLite with bcrypt salted hashes</p>
+                                </div>
+                                <button @click="loadUsers" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+                                    <i class="fa-solid fa-rotate-right mr-1"></i> Refresh
+                                </button>
+                            </div>
+
+                            <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700 uppercase">
+                                        <tr>
+                                            <th class="p-3">ID</th>
+                                            <th class="p-3">Name</th>
+                                            <th class="p-3">Username</th>
+                                            <th class="p-3">Email</th>
+                                            <th class="p-3">Roles</th>
+                                            <th class="p-3">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                        <template x-for="u in usersList" :key="u.id">
+                                            <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition">
+                                                <td class="p-3 font-mono font-bold text-slate-700 dark:text-slate-300" x-text="u.id"></td>
+                                                <td class="p-3 font-semibold text-slate-900 dark:text-white" x-text="u.first_name + ' ' + u.last_name"></td>
+                                                <td class="p-3 font-mono text-brand-600 dark:text-brand-400" x-text="u.username"></td>
+                                                <td class="p-3 font-mono text-slate-600 dark:text-slate-400" x-text="u.email"></td>
+                                                <td class="p-3">
+                                                    <div class="flex flex-wrap gap-1">
+                                                        <template x-for="r in u.roles" :key="r">
+                                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700" x-text="r"></span>
+                                                        </template>
+                                                    </div>
+                                                </td>
+                                                <td class="p-3">
+                                                    <span :class="u.is_active ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' : 'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'"
+                                                          class="px-2 py-0.5 rounded-full text-[10px] font-bold border"
+                                                          x-text="u.is_active ? 'Active' : 'Inactive'"></span>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Student Portal & Strict Isolation View (when role is student) -->
+                        <div x-show="activeRoleView === 'student'" class="space-y-6">
+                            <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                                <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                                    <div>
+                                        <h3 class="font-bold text-slate-900 dark:text-white text-lg">Student Resident Profile</h3>
+                                        <p class="text-xs text-slate-500 dark:text-slate-400">Personal academic and room allocation records</p>
+                                    </div>
+                                    <span class="px-3 py-1 rounded-full text-xs font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                        Hostel Resident
+                                    </span>
+                                </div>
+
+                                <template x-if="studentProfile">
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                                        <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                                            <div class="text-slate-400 font-semibold uppercase">Student ID</div>
+                                            <div class="font-bold text-slate-900 dark:text-white text-sm mt-0.5 font-mono" x-text="studentProfile.student_id"></div>
+                                        </div>
+                                        <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                                            <div class="text-slate-400 font-semibold uppercase">Full Name</div>
+                                            <div class="font-bold text-slate-900 dark:text-white text-sm mt-0.5" x-text="studentProfile.first_name + ' ' + studentProfile.last_name"></div>
+                                        </div>
+                                        <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                                            <div class="text-slate-400 font-semibold uppercase">Academic Branch</div>
+                                            <div class="font-bold text-slate-900 dark:text-white text-sm mt-0.5" x-text="studentProfile.branch + ' (' + studentProfile.academic_year + ')'"></div>
+                                        </div>
+                                        <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                                            <div class="text-slate-400 font-semibold uppercase">Active Room Allocation</div>
+                                            <div class="font-bold text-brand-600 dark:text-brand-400 text-sm mt-0.5" x-text="studentProfile.allocation ? ('Room ' + studentProfile.allocation.room_number + ' (Bed ' + studentProfile.allocation.bed_number + ')') : 'Unallocated'"></div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Student Data Isolation Barrier Interactive Box -->
+                            <div class="bg-gradient-to-br from-slate-900 to-brand-950 p-6 rounded-2xl text-white shadow-xl space-y-4">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center text-lg border border-rose-500/30">
+                                        <i class="fa-solid fa-lock"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-extrabold text-base">Student Data Isolation Enforcement Barrier</h4>
+                                        <p class="text-xs text-slate-300">Under TQM Defect Prevention, students are mathematically prohibited from inspecting other students' private records</p>
+                                    </div>
+                                </div>
+
+                                <div class="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
+                                    <div class="text-xs text-slate-300">
+                                        Click below to verify how the backend blocks unauthorized horizontal privilege escalation:
+                                    </div>
+
+                                    <div class="flex flex-wrap gap-3">
+                                        <button @click="testStudentIsolation(1)" :disabled="isolationTestLoading"
+                                                class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center space-x-2">
+                                            <i class="fa-solid fa-check text-xs"></i>
+                                            <span>Query Own Record (ID: 1)</span>
+                                        </button>
+
+                                        <button @click="testStudentIsolation(2)" :disabled="isolationTestLoading"
+                                                class="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition flex items-center space-x-2">
+                                            <i class="fa-solid fa-ban text-xs"></i>
+                                            <span>Attempt Unauthorized Query (ID: 2)</span>
+                                        </button>
+                                    </div>
+
+                                    <template x-if="isolationTestResult">
+                                        <div class="mt-3 p-3 rounded-xl border text-xs"
+                                             :class="isolationTestResult.success ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-200' : 'bg-rose-950/80 border-rose-500/50 text-rose-200'">
+                                            <div class="font-bold flex items-center space-x-2">
+                                                <i :class="isolationTestResult.success ? 'fa-solid fa-circle-check text-emerald-400' : 'fa-solid fa-triangle-exclamation text-rose-400'"></i>
+                                                <span x-text="'HTTP ' + isolationTestResult.status + ' Response'"></span>
+                                            </div>
+                                            <div class="mt-1 font-mono text-[11px]" x-text="isolationTestResult.message"></div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </section>
+
+                <!-- 4. ARCHITECTURE & TELEMETRY SECTION -->
+                <section x-show="activeSection === 'architecture'" class="animate-fade-in space-y-6">
+                    <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                        <h3 class="text-lg font-bold text-slate-900 dark:text-white">Live Foundation Telemetry</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <div class="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase">API Status</div>
+                                <div class="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 capitalize" x-text="systemHealth.status"></div>
+                                <div class="text-[11px] text-slate-400 mt-0.5">FastAPI ASGI Engine</div>
+                            </div>
+                            <div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <div class="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase">Database Engine</div>
+                                <div class="text-xl font-bold text-slate-900 dark:text-white mt-1" x-text="systemHealth.database?.engine || 'SQLite'"></div>
+                                <div class="text-[11px] text-slate-400 mt-0.5">Isolated Local Storage</div>
+                            </div>
+                            <div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <div class="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase">Concurrency Mode</div>
+                                <div class="text-xl font-bold text-brand-600 dark:text-brand-400 mt-1" x-text="systemHealth.database?.journal_mode || 'WAL'"></div>
+                                <div class="text-[11px] text-slate-400 mt-0.5">Write-Ahead Logging</div>
+                            </div>
+                            <div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <div class="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase">Ping Latency</div>
+                                <div class="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1" x-text="(systemHealth.database?.ping_latency_ms || 0) + ' ms'"></div>
+                                <div class="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">✓ Meets &lt; 10ms SLA</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </main>
+
+            <!-- FOOTER -->
+            <footer class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-6 text-xs text-slate-500 dark:text-slate-400 mt-auto">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
+                    <div>
+                        <strong>BBAT104 Fundamentals of TQM</strong> • Student: Rohan Bakshi (Roll No: 2410301057) • B.Tech CSE (Sec A)
+                    </div>
+                    <div>
+                        Quality Goal: <span class="font-semibold text-slate-800 dark:text-slate-200">Q05 (Reduce Response Time)</span>
                     </div>
                 </div>
-            </div>
-        </section>
+            </footer>
 
-    </main>
-
-    <!-- Footer -->
-    <footer class="bg-white border-t border-slate-200 py-6 text-xs text-slate-500 mt-auto">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
-            <div>
-                <strong>BBAT104 Fundamentals of TQM</strong> • Student: Rohan Bakshi (Roll No: 2410301057) • B.Tech CSE (Sec A)
-            </div>
-            <div>
-                Quality Goal: <span class="font-semibold text-slate-800">Q05 (Reduce Response Time)</span>
-            </div>
         </div>
-    </footer>
+    </div>
 
 </body>
 </html>
