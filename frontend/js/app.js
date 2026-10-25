@@ -19,6 +19,70 @@ document.addEventListener("alpine:init", () => {
         searchQuery: "",
         searchModalOpen: false,
 
+        // Reusable Modal & Confirmation Dialog State
+        modal: {
+            open: false,
+            title: "",
+            message: "",
+            confirmText: "Confirm",
+            cancelText: "Cancel",
+            confirmType: "primary", // "primary" | "danger"
+            onConfirm: null
+        },
+
+        openConfirmModal(title, message, onConfirm, confirmText = "Confirm", confirmType = "primary") {
+            this.modal = {
+                open: true,
+                title,
+                message,
+                confirmText,
+                cancelText: "Cancel",
+                confirmType,
+                onConfirm
+            };
+        },
+
+        closeConfirmModal() {
+            this.modal.open = false;
+            this.modal.onConfirm = null;
+        },
+
+        executeModalConfirm() {
+            if (typeof this.modal.onConfirm === "function") {
+                this.modal.onConfirm();
+            }
+            this.closeConfirmModal();
+        },
+
+        // Reusable Data Table State
+        tableSearch: "",
+        tableFilter: "all",
+        tablePage: 1,
+        tablePageSize: 5,
+
+        get filteredUsers() {
+            let list = this.usersList || [];
+            if (this.tableFilter !== "all") {
+                const isActive = this.tableFilter === "active" ? 1 : 0;
+                list = list.filter(u => u.is_active === isActive);
+            }
+            if (this.tableSearch && this.tableSearch.trim() !== "") {
+                const q = this.tableSearch.toLowerCase();
+                list = list.filter(u =>
+                    (u.first_name && u.first_name.toLowerCase().includes(q)) ||
+                    (u.last_name && u.last_name.toLowerCase().includes(q)) ||
+                    (u.username && u.username.toLowerCase().includes(q)) ||
+                    (u.email && u.email.toLowerCase().includes(q)) ||
+                    (u.roles && u.roles.some(r => r.toLowerCase().includes(q)))
+                );
+            }
+            return list;
+        },
+
+        get paginatedUsers() {
+            return window.HMSComponents.paginate(this.filteredUsers, this.tablePage, this.tablePageSize);
+        },
+
         // Authentication State
         isAuthenticated: false,
         currentUser: null,

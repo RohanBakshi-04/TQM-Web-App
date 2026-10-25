@@ -25,9 +25,9 @@
     }
 }
 
-@keyframes pulseSubtle {
+@keyframes skeletonPulse {
     0%, 100% { opacity: 1; }
-    50% { opacity: 0.6; }
+    50% { opacity: 0.4; }
 }
 
 .animate-fade-in {
@@ -36,6 +36,10 @@
 
 .animate-slide-in {
     animation: slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-skeleton {
+    animation: skeletonPulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 /* Custom Scrollbars for Light and Dark Modes */
@@ -91,4 +95,27 @@
 }
 .toast-item {
     pointer-events: auto;
+}
+
+/* Accessible focus ring indicators */
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+}
+
+/* Data Table Typography & Responsive Wrap */
+.hms-table-container {
+    width: 100%;
+    overflow-x: auto;
+    border-radius: 0.75rem;
+    border-width: 1px;
+}
+
+/* Card hover elevations */
+.hover-card-elevation {
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.hover-card-elevation:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
 }
