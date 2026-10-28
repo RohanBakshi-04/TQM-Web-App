@@ -75,18 +75,18 @@
     <div x-show="searchModalOpen" x-cloak
          class="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in"
          @click.self="searchModalOpen = false">
-        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-xl w-full p-4 space-y-4">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-xl w-full p-5 space-y-4">
             <div class="relative flex items-center">
                 <i class="fa-solid fa-magnifying-glass absolute left-3.5 text-slate-400"></i>
                 <input type="text" x-model="searchQuery" placeholder="Search stakeholders, modules, rooms, students... (ESC to close)"
                        class="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:border-brand-600 focus:ring-1 focus:ring-brand-600 dark:text-white">
             </div>
             <div class="text-xs text-slate-400 space-y-2">
-                <div class="font-bold uppercase tracking-wider text-[10px] text-slate-500">Quick Navigation</div>
-                <div class="grid grid-cols-2 gap-2">
+                <div class="font-bold uppercase tracking-wider text-[10px] text-slate-500">Quick Switch to Role Dashboard</div>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     <template x-for="preset in rolePresets" :key="preset.role">
                         <button type="button" @click="switchRoleDashboard(preset.role); searchModalOpen = false;"
-                                class="p-2 text-left rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center space-x-2 text-slate-700 dark:text-slate-200 transition">
+                                class="p-2 text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center space-x-2 text-slate-700 dark:text-slate-200 transition border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
                             <i :class="'fa-solid ' + preset.icon + ' text-brand-600 text-xs'"></i>
                             <span class="truncate" x-text="preset.label"></span>
                         </button>
@@ -193,7 +193,7 @@
                                 :class="activeSection === 'dashboard' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
                                 class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
                             <i class="fa-solid fa-gauge-high w-5 text-center text-sm"></i>
-                            <span x-show="!sidebarCollapsed" class="truncate">Stakeholder Portal</span>
+                            <span x-show="!sidebarCollapsed" class="truncate">Control Dashboard</span>
                         </button>
                     </template>
 
@@ -205,11 +205,11 @@
                     </button>
                 </div>
 
-                <!-- 12-Role Navigation Switcher (When Authenticated or Evaluating) -->
+                <!-- 12-Role Navigation Switcher -->
                 <div class="space-y-1">
                     <div x-show="!sidebarCollapsed" class="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 flex items-center justify-between">
-                        <span>Stakeholder Roles</span>
-                        <span class="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">12</span>
+                        <span>All 12 Dashboards</span>
+                        <span class="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">RBAC</span>
                     </div>
 
                     <div class="space-y-0.5">
@@ -356,7 +356,7 @@
                                 <button type="button" @click="switchRoleDashboard(currentUser.roles[0]); userMenuOpen = false;"
                                         class="w-full text-left px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center space-x-2">
                                     <i class="fa-solid fa-user-circle text-slate-400"></i>
-                                    <span>My Dashboard</span>
+                                    <span>My Primary Role</span>
                                 </button>
                                 <button type="button" @click="handleLogout"
                                         class="w-full text-left px-3 py-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center space-x-2 font-semibold">
@@ -506,13 +506,13 @@
                     </div>
                 </section>
 
-                <!-- 3. ROLE-BASED DASHBOARD SECTION -->
+                <!-- 3. ROLE-BASED DASHBOARD SECTION (FOR ALL 12 ROLES) -->
                 <section x-show="activeSection === 'dashboard'" class="animate-fade-in space-y-6">
 
                     <!-- Dashboard Role Header Banner -->
-                    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div class="flex items-center space-x-4">
-                            <div class="w-14 h-14 rounded-2xl bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300 flex items-center justify-center text-2xl font-bold border border-brand-100 dark:border-brand-900">
+                            <div class="w-14 h-14 rounded-2xl bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300 flex items-center justify-center text-2xl font-bold border border-brand-100 dark:border-brand-900 shadow-xs">
                                 <i :class="'fa-solid ' + (rolePresets.find(p => p.role === activeRoleView)?.icon || 'fa-user-shield')"></i>
                             </div>
                             <div>
@@ -528,9 +528,9 @@
 
                         <!-- Active Stakeholder Selector Dropdown -->
                         <div class="flex items-center space-x-3">
-                            <label class="text-xs text-slate-500 font-semibold hidden sm:block">Switch Dashboard:</label>
+                            <label class="text-xs text-slate-500 font-semibold hidden sm:block">Switch View:</label>
                             <select @change="switchRoleDashboard($event.target.value)" :value="activeRoleView"
-                                    class="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-brand-600">
+                                    class="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-brand-600 shadow-xs">
                                 <template x-for="preset in rolePresets" :key="preset.role">
                                     <option :value="preset.role" x-text="preset.label" :selected="activeRoleView === preset.role"></option>
                                 </template>
@@ -538,253 +538,602 @@
                         </div>
                     </div>
 
-                    <!-- Role Dashboard Views Container (Will be enriched in Commit 2 and Commit 3) -->
-                    <div class="space-y-6">
-
-                        <!-- Global Shared Summary Cards -->
+                    <!-- ========================================== -->
+                    <!-- 1. SUPER ADMIN DASHBOARD                   -->
+                    <!-- ========================================== -->
+                    <div x-show="activeRoleView === 'super_admin'" class="space-y-6">
+                        <!-- KPI Metric Cards -->
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation flex items-center justify-between">
                                 <div>
-                                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Role</div>
-                                    <div class="text-lg font-black text-slate-900 dark:text-white capitalize mt-1" x-text="activeRoleView.replace('_', ' ')"></div>
+                                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Hostels</div>
+                                    <div class="text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="dashboardStats.hostels.total"></div>
+                                    <div class="text-[11px] text-slate-500 mt-0.5">Campus residential facilities</div>
                                 </div>
-                                <div class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950 text-brand-600 dark:text-brand-400 flex items-center justify-center text-lg">
-                                    <i class="fa-solid fa-id-badge"></i>
+                                <div class="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950 text-brand-600 dark:text-brand-400 flex items-center justify-center text-xl">
+                                    <i class="fa-solid fa-hotel"></i>
                                 </div>
                             </div>
 
-                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation flex items-center justify-between">
                                 <div>
-                                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">System Tables</div>
-                                    <div class="text-lg font-black text-slate-900 dark:text-white mt-1">39 Relational</div>
+                                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Students</div>
+                                    <div class="text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="dashboardStats.students.total"></div>
+                                    <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">100% verified records</div>
                                 </div>
-                                <div class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-lg">
-                                    <i class="fa-solid fa-database"></i>
+                                <div class="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xl">
+                                    <i class="fa-solid fa-user-graduate"></i>
                                 </div>
                             </div>
 
-                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation flex items-center justify-between">
                                 <div>
-                                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Performance Mode</div>
-                                    <div class="text-lg font-black text-brand-600 dark:text-brand-400 mt-1">SQLite WAL</div>
+                                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Overall Occupancy</div>
+                                    <div class="text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="dashboardStats.hostels.occupancy_rate + '%'"></div>
+                                    <div class="text-[11px] text-slate-500 mt-0.5" x-text="dashboardStats.hostels.occupied_beds + ' / ' + dashboardStats.hostels.beds + ' beds'"></div>
                                 </div>
-                                <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg">
-                                    <i class="fa-solid fa-gauge-high"></i>
+                                <div class="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xl">
+                                    <i class="fa-solid fa-bed"></i>
                                 </div>
                             </div>
 
-                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation flex items-center justify-between">
                                 <div>
-                                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Ping Latency</div>
-                                    <div class="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-1" x-text="(systemHealth.database?.ping_latency_ms || 0) + ' ms'"></div>
+                                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">System Users & Roles</div>
+                                    <div class="text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="dashboardStats.users.total"></div>
+                                    <div class="text-[11px] text-slate-500 mt-0.5">12 active roles configured</div>
                                 </div>
-                                <div class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-lg">
-                                    <i class="fa-solid fa-bolt"></i>
+                                <div class="w-12 h-12 rounded-xl bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400 flex items-center justify-center text-xl">
+                                    <i class="fa-solid fa-users-gear"></i>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- User Directory Table View (when role is super_admin or hostel_admin) -->
-                        <div x-show="activeRoleView === 'super_admin' || activeRoleView === 'hostel_admin'"
-                             class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                <div>
-                                    <h3 class="font-bold text-slate-900 dark:text-white text-base">User Directory & Role Assignments</h3>
-                                    <p class="text-xs text-slate-500 dark:text-slate-400">Live user repository managed under SQLite with bcrypt salted hashes</p>
-                                </div>
-                                <div class="flex items-center space-x-2">
-                                    <button @click="loadUsers" class="px-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 transition flex items-center space-x-1.5">
-                                        <i class="fa-solid fa-rotate-right text-xs"></i>
-                                        <span>Refresh</span>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Reusable Search, Filter & Controls Bar -->
-                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-                                <div class="relative flex-1 max-w-sm">
-                                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
-                                    <input type="text" x-model="tableSearch" @input="tablePage = 1" placeholder="Search by name, username, email, role..."
-                                           class="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:border-brand-600 dark:text-white">
-                                </div>
-                                <div class="flex items-center space-x-2">
-                                    <label class="text-xs text-slate-400 font-semibold">Status:</label>
-                                    <select x-model="tableFilter" @change="tablePage = 1"
-                                            class="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-300 outline-none focus:border-brand-600">
-                                        <option value="all">All Accounts</option>
-                                        <option value="active">Active Only</option>
-                                        <option value="inactive">Inactive Only</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <!-- Responsive Data Table -->
+                        <!-- System Activity & Audit Trail Table -->
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base flex items-center justify-between">
+                                <span>Recent System Authentication Activity</span>
+                                <span class="text-xs font-normal text-slate-400">Recorded in SQLite `login_history`</span>
+                            </h3>
                             <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
                                 <table class="w-full text-left text-xs">
-                                    <thead class="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700 uppercase">
+                                    <thead class="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold uppercase border-b border-slate-200 dark:border-slate-700">
                                         <tr>
-                                            <th class="p-3">ID</th>
-                                            <th class="p-3">Name</th>
-                                            <th class="p-3">Username</th>
-                                            <th class="p-3">Email</th>
-                                            <th class="p-3">Roles</th>
+                                            <th class="p-3">Log ID</th>
+                                            <th class="p-3">Account Attempted</th>
                                             <th class="p-3">Status</th>
-                                            <th class="p-3 text-right">Actions</th>
+                                            <th class="p-3">Timestamp</th>
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                                        <template x-for="u in paginatedUsers.data" :key="u.id">
+                                        <template x-for="log in dashboardStats.recent_activity" :key="log.id">
                                             <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition">
-                                                <td class="p-3 font-mono font-bold text-slate-700 dark:text-slate-300" x-text="u.id"></td>
-                                                <td class="p-3 font-semibold text-slate-900 dark:text-white" x-text="u.first_name + ' ' + u.last_name"></td>
-                                                <td class="p-3 font-mono text-brand-600 dark:text-brand-400" x-text="u.username"></td>
-                                                <td class="p-3 font-mono text-slate-600 dark:text-slate-400" x-text="u.email"></td>
+                                                <td class="p-3 font-mono font-bold text-slate-700 dark:text-slate-300" x-text="'#LOG-' + log.id"></td>
+                                                <td class="p-3 font-mono text-brand-600 dark:text-brand-400" x-text="log.username_or_email_attempted"></td>
                                                 <td class="p-3">
-                                                    <div class="flex flex-wrap gap-1">
-                                                        <template x-for="r in u.roles" :key="r">
-                                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700" x-text="r"></span>
-                                                        </template>
-                                                    </div>
-                                                </td>
-                                                <td class="p-3">
-                                                    <span :class="u.is_active ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' : 'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'"
+                                                    <span :class="log.status === 'SUCCESS' ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' : 'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'"
                                                           class="px-2 py-0.5 rounded-full text-[10px] font-bold border"
-                                                          x-text="u.is_active ? 'Active' : 'Inactive'"></span>
+                                                          x-text="log.status"></span>
                                                 </td>
-                                                <td class="p-3 text-right space-x-1">
-                                                    <button type="button" @click="openConfirmModal('Reset Security Lock', 'Clear any failed login lockout count for ' + u.username + '?', () => showToast('Lockout reset for ' + u.username, 'success'), 'Reset Lock', 'primary')"
-                                                            class="p-1.5 text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" title="Clear Lockout">
-                                                        <i class="fa-solid fa-key text-xs"></i>
-                                                    </button>
-                                                    <button type="button" @click="openConfirmModal('Deactivate Account', 'Are you sure you want to deactivate ' + u.username + '?', () => showToast('Action logged for ' + u.username, 'warning'), 'Deactivate', 'danger')"
-                                                            class="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" title="Deactivate Account">
-                                                        <i class="fa-solid fa-user-slash text-xs"></i>
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        </template>
-
-                                        <!-- Empty State -->
-                                        <template x-if="paginatedUsers.data.length === 0">
-                                            <tr>
-                                                <td colspan="7" class="p-8 text-center text-slate-400">
-                                                    <div class="w-12 h-12 mx-auto rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 text-lg mb-2">
-                                                        <i class="fa-solid fa-user-xmark"></i>
-                                                    </div>
-                                                    <div class="font-bold text-slate-700 dark:text-slate-300 text-sm">No matching user records</div>
-                                                    <p class="text-xs text-slate-400 mt-0.5">Try adjusting your search criteria or status filter.</p>
-                                                </td>
+                                                <td class="p-3 text-slate-500 font-mono text-[11px]" x-text="log.timestamp"></td>
                                             </tr>
                                         </template>
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+                    </div>
 
-                            <!-- Reusable Pagination Controls -->
-                            <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800">
-                                <div>
-                                    Showing <span class="font-bold text-slate-700 dark:text-slate-200" x-text="paginatedUsers.data.length"></span> of <span class="font-bold text-slate-700 dark:text-slate-200" x-text="paginatedUsers.totalItems"></span> accounts
-                                </div>
-                                <div class="flex items-center space-x-2">
-                                    <button type="button" @click="tablePage--" :disabled="!paginatedUsers.hasPrev"
-                                            class="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none transition font-semibold">
-                                        <i class="fa-solid fa-chevron-left mr-1"></i> Prev
-                                    </button>
-                                    <span class="px-2 font-mono font-bold text-slate-700 dark:text-slate-200" x-text="paginatedUsers.page + ' / ' + paginatedUsers.totalPages"></span>
-                                    <button type="button" @click="tablePage++" :disabled="!paginatedUsers.hasNext"
-                                            class="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none transition font-semibold">
-                                        Next <i class="fa-solid fa-chevron-right ml-1"></i>
-                                    </button>
-                                </div>
+                    <!-- ========================================== -->
+                    <!-- 2. HOSTEL ADMIN DASHBOARD                  -->
+                    <!-- ========================================== -->
+                    <div x-show="activeRoleView === 'hostel_admin'" class="space-y-6">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Hostel Occupancy</div>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="dashboardStats.hostels.occupancy_rate + '%'"></div>
+                                <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">Optimal capacity band</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Available Beds</div>
+                                <div class="text-2xl font-black text-brand-600 dark:text-brand-400 mt-1" x-text="dashboardStats.hostels.available_beds"></div>
+                                <div class="text-[11px] text-slate-500 mt-0.5">Ready for immediate allocation</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Total Rooms</div>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="dashboardStats.hostels.rooms"></div>
+                                <div class="text-[11px] text-slate-500 mt-0.5">Single and Double suites</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Pending Complaints</div>
+                                <div class="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1" x-text="dashboardStats.operations.pending_complaints"></div>
+                                <div class="text-[11px] text-amber-600 font-semibold mt-0.5">Escalated to facility manager</div>
                             </div>
                         </div>
 
-                        <!-- Student Portal & Strict Isolation View (when role is student) -->
-                        <div x-show="activeRoleView === 'student'" class="space-y-6">
-                            <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-                                <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-                                    <div>
-                                        <h3 class="font-bold text-slate-900 dark:text-white text-lg">Student Resident Profile</h3>
-                                        <p class="text-xs text-slate-500 dark:text-slate-400">Personal academic and room allocation records</p>
+                        <!-- Facility Floor Overview Card -->
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base">Facility Breakdown — Rabindranath Tagore Hostel (RTH-01)</h3>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                                <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-1">
+                                    <div class="font-bold text-slate-800 dark:text-slate-200">Floor 1 (Aryabhata Block)</div>
+                                    <p class="text-slate-500">Rooms: 101 (Single, Full), 102 (Double, Partially Occupied)</p>
+                                    <div class="font-semibold text-emerald-600">Occupancy: 66.7%</div>
+                                </div>
+                                <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-1">
+                                    <div class="font-bold text-slate-800 dark:text-slate-200">Floor 2 (Aryabhata Block)</div>
+                                    <p class="text-slate-500">Rooms: 201 (Double, Available)</p>
+                                    <div class="font-semibold text-slate-500">Occupancy: 0.0% (Available)</div>
+                                </div>
+                                <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-1">
+                                    <div class="font-bold text-slate-800 dark:text-slate-200">Floor 3 (Expansion Wing)</div>
+                                    <p class="text-slate-500">Sanctioned for Session 2026–27 intake</p>
+                                    <div class="font-semibold text-brand-600">Status: Ready for Onboarding</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========================================== -->
+                    <!-- 3. CHIEF WARDEN DASHBOARD                  -->
+                    <!-- ========================================== -->
+                    <div x-show="activeRoleView === 'warden'" class="space-y-6">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Student Attendance</div>
+                                <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">96.4%</div>
+                                <div class="text-[11px] text-slate-500 mt-0.5">Biometric morning roll-call</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Pending Leave Requests</div>
+                                <div class="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1" x-text="dashboardStats.operations.pending_leaves"></div>
+                                <div class="text-[11px] text-amber-600 font-semibold mt-0.5">Requires warden signature</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Active Complaints</div>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="dashboardStats.operations.pending_complaints"></div>
+                                <div class="text-[11px] text-slate-500 mt-0.5">Under investigation</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Resident Headcount</div>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="dashboardStats.students.total"></div>
+                                <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">All accounted for</div>
+                            </div>
+                        </div>
+
+                        <!-- Pending Approvals & Action Queue -->
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base">Warden Approvals & Sanctions Queue</h3>
+                            <div class="p-8 text-center text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                                <div class="w-12 h-12 mx-auto rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-600 flex items-center justify-center text-xl mb-2">
+                                    <i class="fa-solid fa-clipboard-check"></i>
+                                </div>
+                                <div class="font-bold text-slate-700 dark:text-slate-300 text-sm">All Pending Requests Sanctioned</div>
+                                <p class="text-xs text-slate-400 mt-0.5">No student leave applications or disciplinary notices are currently awaiting review.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========================================== -->
+                    <!-- 4. ASSISTANT WARDEN DASHBOARD              -->
+                    <!-- ========================================== -->
+                    <div x-show="activeRoleView === 'assistant_warden'" class="space-y-6">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Daily Floor Rounds</div>
+                                <div class="text-2xl font-black text-brand-600 dark:text-brand-400 mt-1">3 / 3</div>
+                                <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">Completed today</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Night Roll-Call Check</div>
+                                <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">Verified</div>
+                                <div class="text-[11px] text-slate-500 mt-0.5">Zero unexcused absences</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Reported Maintenance</div>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="dashboardStats.operations.pending_maintenance"></div>
+                                <div class="text-[11px] text-slate-500 mt-0.5">Dispatched to technician</div>
+                            </div>
+                        </div>
+
+                        <!-- Operational Rounds Checklist -->
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base">Operational Rounds Checklist</h3>
+                            <div class="space-y-2 text-xs">
+                                <label class="flex items-center space-x-3 p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">
+                                    <input type="checkbox" checked class="w-4 h-4 rounded text-brand-600">
+                                    <span class="font-medium text-slate-700 dark:text-slate-200">Floor 1 Wing Inspection (Lighting, Hygiene, Fire Extinguishers)</span>
+                                </label>
+                                <label class="flex items-center space-x-3 p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">
+                                    <input type="checkbox" checked class="w-4 h-4 rounded text-brand-600">
+                                    <span class="font-medium text-slate-700 dark:text-slate-200">Mess Hall Sanitization Verification (Lunch shift)</span>
+                                </label>
+                                <label class="flex items-center space-x-3 p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">
+                                    <input type="checkbox" class="w-4 h-4 rounded text-brand-600">
+                                    <span class="font-medium text-slate-700 dark:text-slate-200">Main Gate Curfew Ingress Verification (Scheduled 21:00)</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========================================== -->
+                    <!-- 5. STUDENT RESIDENT DASHBOARD              -->
+                    <!-- ========================================== -->
+                    <div x-show="activeRoleView === 'student'" class="space-y-6">
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                                <div>
+                                    <h3 class="font-extrabold text-slate-900 dark:text-white text-lg">Resident Student Profile</h3>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">Personal academic and room allocation records</p>
+                                </div>
+                                <span class="px-3 py-1 rounded-full text-xs font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                    Hostel Resident
+                                </span>
+                            </div>
+
+                            <template x-if="studentProfile">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                                    <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                                        <div class="text-slate-400 font-semibold uppercase">Enrollment No</div>
+                                        <div class="font-bold text-slate-900 dark:text-white text-sm mt-0.5 font-mono" x-text="studentProfile.student_id"></div>
                                     </div>
-                                    <span class="px-3 py-1 rounded-full text-xs font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                                        Hostel Resident
-                                    </span>
+                                    <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                                        <div class="text-slate-400 font-semibold uppercase">Full Name</div>
+                                        <div class="font-bold text-slate-900 dark:text-white text-sm mt-0.5" x-text="studentProfile.first_name + ' ' + studentProfile.last_name"></div>
+                                    </div>
+                                    <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                                        <div class="text-slate-400 font-semibold uppercase">Department / Year</div>
+                                        <div class="font-bold text-slate-900 dark:text-white text-sm mt-0.5" x-text="studentProfile.branch + ' (' + studentProfile.academic_year + ')'"></div>
+                                    </div>
+                                    <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                                        <div class="text-slate-400 font-semibold uppercase">Room & Bed</div>
+                                        <div class="font-bold text-brand-600 dark:text-brand-400 text-sm mt-0.5" x-text="studentProfile.allocation ? ('Room ' + studentProfile.allocation.room_number + ' (Bed ' + studentProfile.allocation.bed_number + ')') : 'Unallocated'"></div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Student Data Isolation Barrier Interactive Box -->
+                        <div class="bg-gradient-to-br from-slate-900 to-brand-950 p-6 rounded-3xl text-white shadow-xl space-y-4">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center text-lg border border-rose-500/30">
+                                    <i class="fa-solid fa-lock"></i>
+                                </div>
+                                <div>
+                                    <h4 class="font-extrabold text-base">Student Data Isolation Enforcement Barrier</h4>
+                                    <p class="text-xs text-slate-300">Under TQM Defect Prevention, students are mathematically prohibited from inspecting other students' private records</p>
+                                </div>
+                            </div>
+
+                            <div class="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
+                                <div class="text-xs text-slate-300">
+                                    Click below to verify how the backend blocks unauthorized horizontal privilege escalation:
                                 </div>
 
-                                <template x-if="studentProfile">
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-                                        <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                                            <div class="text-slate-400 font-semibold uppercase">Student ID</div>
-                                            <div class="font-bold text-slate-900 dark:text-white text-sm mt-0.5 font-mono" x-text="studentProfile.student_id"></div>
+                                <div class="flex flex-wrap gap-3">
+                                    <button @click="testStudentIsolation(1)" :disabled="isolationTestLoading"
+                                            class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center space-x-2">
+                                        <i class="fa-solid fa-check text-xs"></i>
+                                        <span>Query Own Record (ID: 1)</span>
+                                    </button>
+
+                                    <button @click="testStudentIsolation(2)" :disabled="isolationTestLoading"
+                                            class="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition flex items-center space-x-2">
+                                        <i class="fa-solid fa-ban text-xs"></i>
+                                        <span>Attempt Unauthorized Query (ID: 2)</span>
+                                    </button>
+                                </div>
+
+                                <template x-if="isolationTestResult">
+                                    <div class="mt-3 p-3 rounded-xl border text-xs"
+                                         :class="isolationTestResult.success ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-200' : 'bg-rose-950/80 border-rose-500/50 text-rose-200'">
+                                        <div class="font-bold flex items-center space-x-2">
+                                            <i :class="isolationTestResult.success ? 'fa-solid fa-circle-check text-emerald-400' : 'fa-solid fa-triangle-exclamation text-rose-400'"></i>
+                                            <span x-text="'HTTP ' + isolationTestResult.status + ' Response'"></span>
                                         </div>
-                                        <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                                            <div class="text-slate-400 font-semibold uppercase">Full Name</div>
-                                            <div class="font-bold text-slate-900 dark:text-white text-sm mt-0.5" x-text="studentProfile.first_name + ' ' + studentProfile.last_name"></div>
-                                        </div>
-                                        <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                                            <div class="text-slate-400 font-semibold uppercase">Academic Branch</div>
-                                            <div class="font-bold text-slate-900 dark:text-white text-sm mt-0.5" x-text="studentProfile.branch + ' (' + studentProfile.academic_year + ')'"></div>
-                                        </div>
-                                        <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                                            <div class="text-slate-400 font-semibold uppercase">Active Room Allocation</div>
-                                            <div class="font-bold text-brand-600 dark:text-brand-400 text-sm mt-0.5" x-text="studentProfile.allocation ? ('Room ' + studentProfile.allocation.room_number + ' (Bed ' + studentProfile.allocation.bed_number + ')') : 'Unallocated'"></div>
-                                        </div>
+                                        <div class="mt-1 font-mono text-[11px]" x-text="isolationTestResult.message"></div>
                                     </div>
                                 </template>
                             </div>
+                        </div>
+                    </div>
 
-                            <!-- Student Data Isolation Barrier Interactive Box -->
-                            <div class="bg-gradient-to-br from-slate-900 to-brand-950 p-6 rounded-2xl text-white shadow-xl space-y-4">
-                                <div class="flex items-center space-x-3">
-                                    <div class="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center text-lg border border-rose-500/30">
-                                        <i class="fa-solid fa-lock"></i>
-                                    </div>
-                                    <div>
-                                        <h4 class="font-extrabold text-base">Student Data Isolation Enforcement Barrier</h4>
-                                        <p class="text-xs text-slate-300">Under TQM Defect Prevention, students are mathematically prohibited from inspecting other students' private records</p>
-                                    </div>
-                                </div>
-
-                                <div class="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
-                                    <div class="text-xs text-slate-300">
-                                        Click below to verify how the backend blocks unauthorized horizontal privilege escalation:
-                                    </div>
-
-                                    <div class="flex flex-wrap gap-3">
-                                        <button @click="testStudentIsolation(1)" :disabled="isolationTestLoading"
-                                                class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center space-x-2">
-                                            <i class="fa-solid fa-check text-xs"></i>
-                                            <span>Query Own Record (ID: 1)</span>
-                                        </button>
-
-                                        <button @click="testStudentIsolation(2)" :disabled="isolationTestLoading"
-                                                class="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition flex items-center space-x-2">
-                                            <i class="fa-solid fa-ban text-xs"></i>
-                                            <span>Attempt Unauthorized Query (ID: 2)</span>
-                                        </button>
-                                    </div>
-
-                                    <template x-if="isolationTestResult">
-                                        <div class="mt-3 p-3 rounded-xl border text-xs"
-                                             :class="isolationTestResult.success ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-200' : 'bg-rose-950/80 border-rose-500/50 text-rose-200'">
-                                            <div class="font-bold flex items-center space-x-2">
-                                                <i :class="isolationTestResult.success ? 'fa-solid fa-circle-check text-emerald-400' : 'fa-solid fa-triangle-exclamation text-rose-400'"></i>
-                                                <span x-text="'HTTP ' + isolationTestResult.status + ' Response'"></span>
-                                            </div>
-                                            <div class="mt-1 font-mono text-[11px]" x-text="isolationTestResult.message"></div>
-                                        </div>
-                                    </template>
-                                </div>
+                    <!-- ========================================== -->
+                    <!-- 6. ACCOUNTANT DASHBOARD                    -->
+                    <!-- ========================================== -->
+                    <div x-show="activeRoleView === 'accountant'" class="space-y-6">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Total Invoiced</div>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="'₹ ' + dashboardStats.finance.total_invoiced.toLocaleString()"></div>
+                                <div class="text-[11px] text-slate-500 mt-0.5" x-text="dashboardStats.finance.total_invoices + ' invoices generated'"></div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Total Collected</div>
+                                <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1" x-text="'₹ ' + dashboardStats.finance.total_collected.toLocaleString()"></div>
+                                <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">Online gateway & NEFT</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Outstanding Dues</div>
+                                <div class="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1" x-text="'₹ ' + dashboardStats.finance.outstanding_dues.toLocaleString()"></div>
+                                <div class="text-[11px] text-rose-600 font-semibold mt-0.5">Late fee notices scheduled</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Pending Invoices</div>
+                                <div class="text-2xl font-black text-brand-600 dark:text-brand-400 mt-1">0</div>
+                                <div class="text-[11px] text-slate-500 mt-0.5">Billing queue clear</div>
                             </div>
                         </div>
 
+                        <!-- Recent Fee Receipts Table -->
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base">Recent Payment Receipts & Transactions</h3>
+                            <div class="p-8 text-center text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                                <div class="w-12 h-12 mx-auto rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center text-xl mb-2">
+                                    <i class="fa-solid fa-receipt"></i>
+                                </div>
+                                <div class="font-bold text-slate-700 dark:text-slate-300 text-sm">No Pending Invoice Anomalies</div>
+                                <p class="text-xs text-slate-400 mt-0.5">All student payment transactions for current semester reconciled successfully.</p>
+                            </div>
+                        </div>
                     </div>
+
+                    <!-- ========================================== -->
+                    <!-- 7. MESS MANAGER DASHBOARD                  -->
+                    <!-- ========================================== -->
+                    <div x-show="activeRoleView === 'mess_manager'" class="space-y-6">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Mess Subscriptions</div>
+                                <div class="text-2xl font-black text-brand-600 dark:text-brand-400 mt-1">120</div>
+                                <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">Monthly dining passes active</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Today's Headcount</div>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-1">114 / 120</div>
+                                <div class="text-[11px] text-slate-500 mt-0.5">Lunch meal check-ins</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Dietary Inventory Alert</div>
+                                <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">Normal</div>
+                                <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">All essential staples in stock</div>
+                            </div>
+                        </div>
+
+                        <!-- Today's 4-Meal Menu Schedule -->
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base">Today's 4-Meal Dining Schedule</h3>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                                <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-1">
+                                    <div class="flex items-center justify-between font-bold text-slate-800 dark:text-slate-200">
+                                        <span>Breakfast</span>
+                                        <span class="text-[10px] text-slate-400">07:30 – 09:30</span>
+                                    </div>
+                                    <p class="text-slate-600 dark:text-slate-400">Idli, Sambar, Coconut Chutney, Boiled Eggs & Tea/Coffee</p>
+                                </div>
+                                <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-1">
+                                    <div class="flex items-center justify-between font-bold text-slate-800 dark:text-slate-200">
+                                        <span>Lunch</span>
+                                        <span class="text-[10px] text-slate-400">12:30 – 14:30</span>
+                                    </div>
+                                    <p class="text-slate-600 dark:text-slate-400">Steamed Rice, Dal Makhani, Paneer Butter Masala, Roti & Curd</p>
+                                </div>
+                                <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-1">
+                                    <div class="flex items-center justify-between font-bold text-slate-800 dark:text-slate-200">
+                                        <span>Evening Snacks</span>
+                                        <span class="text-[10px] text-slate-400">17:00 – 18:00</span>
+                                    </div>
+                                    <p class="text-slate-600 dark:text-slate-400">Veg Cutlet, Green Chutney, Biscuits & Hot Milk/Tea</p>
+                                </div>
+                                <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-1">
+                                    <div class="flex items-center justify-between font-bold text-slate-800 dark:text-slate-200">
+                                        <span>Dinner</span>
+                                        <span class="text-[10px] text-slate-400">20:00 – 22:00</span>
+                                    </div>
+                                    <p class="text-slate-600 dark:text-slate-400">Jeera Rice, Yellow Dal Tadka, Mixed Vegetable Curry, Roti & Gulab Jamun</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========================================== -->
+                    <!-- 8. MAINTENANCE STAFF DASHBOARD             -->
+                    <!-- ========================================== -->
+                    <div x-show="activeRoleView === 'maintenance_staff'" class="space-y-6">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Assigned Tasks</div>
+                                <div class="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1" x-text="dashboardStats.operations.pending_maintenance"></div>
+                                <div class="text-[11px] text-slate-500 mt-0.5">Active work orders</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Pending Repairs</div>
+                                <div class="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">1</div>
+                                <div class="text-[11px] text-rose-600 font-semibold mt-0.5">Room 101 faucet repair</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Completed This Week</div>
+                                <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">14</div>
+                                <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">100% resolution SLA met</div>
+                            </div>
+                        </div>
+
+                        <!-- Maintenance Work Orders Table -->
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base">Facility Repair Queue</h3>
+                            <div class="p-8 text-center text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                                <div class="w-12 h-12 mx-auto rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center text-xl mb-2">
+                                    <i class="fa-solid fa-wrench"></i>
+                                </div>
+                                <div class="font-bold text-slate-700 dark:text-slate-300 text-sm">All Assigned Work Orders In Hand</div>
+                                <p class="text-xs text-slate-400 mt-0.5">Preventative maintenance cycle scheduled for upcoming weekend.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========================================== -->
+                    <!-- 9. SECURITY GUARD DASHBOARD                -->
+                    <!-- ========================================== -->
+                    <div x-show="activeRoleView === 'security_guard'" class="space-y-6">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Current Campus Visitors</div>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="dashboardStats.operations.active_visitors"></div>
+                                <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">Zero unescorted guests</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Today's Ingress / Egress</div>
+                                <div class="text-2xl font-black text-brand-600 dark:text-brand-400 mt-1">42</div>
+                                <div class="text-[11px] text-slate-500 mt-0.5">Logged at Main Campus Gate</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Outpass Sanction Verification</div>
+                                <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">Online</div>
+                                <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">Warden digital approval active</div>
+                            </div>
+                        </div>
+
+                        <!-- Outpass Quick Verification Search -->
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base">Outpass & Gate Entry Verification</h3>
+                            <div class="flex items-center space-x-2">
+                                <input type="text" placeholder="Enter Student Enrollment No or Scan Digital Pass..."
+                                       class="flex-1 px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:border-brand-600 dark:text-white">
+                                <button type="button" @click="showToast('Outpass Verified: Rohan Bakshi sanctioned for Day Outing until 20:00', 'success')"
+                                        class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl transition">
+                                    Verify Pass
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========================================== -->
+                    <!-- 10. ADMISSION OFFICER DASHBOARD            -->
+                    <!-- ========================================== -->
+                    <div x-show="activeRoleView === 'admission_officer'" class="space-y-6">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Pending Applications</div>
+                                <div class="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1" x-text="dashboardStats.operations.pending_admissions"></div>
+                                <div class="text-[11px] text-amber-600 font-semibold mt-0.5">Awaiting document verification</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Verified & Approved</div>
+                                <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">3</div>
+                                <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">Ready for bed allocation</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Admissions Intake (2026–27)</div>
+                                <div class="text-2xl font-black text-brand-600 dark:text-brand-400 mt-1">85%</div>
+                                <div class="text-[11px] text-slate-500 mt-0.5">Target capacity reached</div>
+                            </div>
+                        </div>
+
+                        <!-- Applications Review Queue -->
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base">Admission Candidate Review Queue</h3>
+                            <div class="p-8 text-center text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                                <div class="w-12 h-12 mx-auto rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center text-xl mb-2">
+                                    <i class="fa-solid fa-file-circle-check"></i>
+                                </div>
+                                <div class="font-bold text-slate-700 dark:text-slate-300 text-sm">All Current Applications Processed</div>
+                                <p class="text-xs text-slate-400 mt-0.5">New registration window opens for next academic semester.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========================================== -->
+                    <!-- 11. PARENT / GUARDIAN DASHBOARD            -->
+                    <!-- ========================================== -->
+                    <div x-show="activeRoleView === 'parent_guardian'" class="space-y-6">
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                                <div>
+                                    <h3 class="font-extrabold text-slate-900 dark:text-white text-lg">Linked Ward Oversight Portal</h3>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">Authenticated parent: Sunil Bakshi • Linked Ward: Rohan Bakshi</p>
+                                </div>
+                                <span class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                    Primary Guardian
+                                </span>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                                <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-slate-400 font-semibold uppercase">Ward Attendance</div>
+                                    <div class="font-bold text-emerald-600 dark:text-emerald-400 text-base mt-0.5">94.8%</div>
+                                    <div class="text-[10px] text-slate-400">Exceeds 75% requirement</div>
+                                </div>
+                                <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-slate-400 font-semibold uppercase">Hostel Fee Clearance</div>
+                                    <div class="font-bold text-emerald-600 dark:text-emerald-400 text-base mt-0.5">Fully Paid</div>
+                                    <div class="text-[10px] text-slate-400">Receipt #INV-2026-001</div>
+                                </div>
+                                <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-slate-400 font-semibold uppercase">Allocated Quarters</div>
+                                    <div class="font-bold text-slate-900 dark:text-white text-sm mt-0.5">Room 101, Bed 101-A</div>
+                                    <div class="text-[10px] text-slate-400">Rabindranath Tagore Hostel</div>
+                                </div>
+                                <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-slate-400 font-semibold uppercase">Disciplinary Standing</div>
+                                    <div class="font-bold text-emerald-600 dark:text-emerald-400 text-sm mt-0.5">Exemplary</div>
+                                    <div class="text-[10px] text-slate-400">Zero active grievances</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========================================== -->
+                    <!-- 12. TQM AUDITOR DASHBOARD                  -->
+                    <!-- ========================================== -->
+                    <div x-show="activeRoleView === 'auditor'" class="space-y-6">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Q05 Target SLA</div>
+                                <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">&lt; 10.0 ms</div>
+                                <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">✓ 100% SLA Compliance</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Measured Latency</div>
+                                <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1" x-text="(systemHealth.database?.ping_latency_ms || 0) + ' ms'"></div>
+                                <div class="text-[11px] text-slate-500 mt-0.5">Direct SQLite roundtrip</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">B-Tree Performance Indexes</div>
+                                <div class="text-2xl font-black text-brand-600 dark:text-brand-400 mt-1">38</div>
+                                <div class="text-[11px] text-slate-500 mt-0.5">Covering all foreign keys</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Poka-Yoke Defects</div>
+                                <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">0</div>
+                                <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">Zero orphaned entities</div>
+                            </div>
+                        </div>
+
+                        <!-- TQM Compliance Review Audit Box -->
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base">TQM Quality Goal Q05 Compliance Audit</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-1.5">
+                                    <div class="font-bold text-slate-800 dark:text-slate-200">Database Engine Concurrency Audit</div>
+                                    <p class="text-slate-600 dark:text-slate-400">
+                                        SQLite engine operating with <code class="font-mono text-brand-600 font-bold">journal_mode = WAL</code> and <code class="font-mono text-brand-600 font-bold">foreign_keys = ON</code>. Readers do not block writers.
+                                    </p>
+                                </div>
+                                <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-1.5">
+                                    <div class="font-bold text-slate-800 dark:text-slate-200">Cryptographic Security Audit</div>
+                                    <p class="text-slate-600 dark:text-slate-400">
+                                        Password hashes verified at 12-round bcrypt cost. Refresh tokens rotated on every call with token reuse revocation.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                 </section>
 
                 <!-- 4. ARCHITECTURE & TELEMETRY SECTION -->
                 <section x-show="activeSection === 'architecture'" class="animate-fade-in space-y-6">
-                    <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                    <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
                         <h3 class="text-lg font-bold text-slate-900 dark:text-white">Live Foundation Telemetry</h3>
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             <div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">

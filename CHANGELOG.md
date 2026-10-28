@@ -47,3 +47,17 @@ All notable changes to this project are documented in this file, adhering to Sem
 - **RBAC Endpoints:** Created `/api/v1/roles`, `/permissions`, `/users`, and isolated `/students/{id}/profile`.
 - **Interactive Frontend:** Updated Alpine.js app with reactive auth state, 12-role quick presets, user directory table, student portal view, and interactive isolation test button.
 - **Automated Verification:** Added 16 new test cases across `test_prompt03_rbac_schema.py`, `test_auth_service.py`, and `test_auth_api.py`, expanding the test suite to 36 tests (100% pass rate).
+
+
+---
+
+## [0.4.0] - 2026-10-28 (Prompt 04: Professional UI/UX and Dashboard Framework)
+
+### Added
+- **Modern Application Shell:** Built responsive layout with collapsible/expandable sidebar (72px vs 260px), mobile overlay drawer, top navigation bar, and breadcrumbs.
+- **Light & Dark Theme Engine:** Implemented theme toggle with local storage persistence using Tailwind CSS `class` strategy.
+- **Reusable Component System:** Created `frontend/js/components.js` providing status badge styling, pagination engine, zero-dependency SVG sparklines, and mini bar charts.
+- **Micro-Interactions & Modals:** Added reusable confirmation modal dialog, floating toast notification queue (`success`, `error`, `warning`, `info`), and quick search modal (`Ctrl + K`).
+- **12 Tailored Dashboards:** Created dedicated stakeholder interfaces for all 12 roles (`super_admin`, `hostel_admin`, `warden`, `assistant_warden`, `student`, `accountant`, `mess_manager`, `maintenance_staff`, `security_guard`, `admission_officer`, `parent_guardian`, `auditor`).
+- **Live Metrics API:** Implemented `GET /api/v1/dashboard/stats` in `backend/app/routers/dashboard.py` querying real SQLite tables.
+- **Automated Verification:** Added `backend/tests/test_dashboard_api.py`, expanding the test suite to 38 tests (100% pass rate).

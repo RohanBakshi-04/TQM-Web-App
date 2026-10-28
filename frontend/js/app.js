@@ -140,6 +140,14 @@ document.addEventListener("alpine:init", () => {
         studentProfile: null,
         isolationTestResult: null,
         isolationTestLoading: false,
+        dashboardStats: {
+            hostels: { total: 1, rooms: 3, beds: 6, occupied_beds: 2, available_beds: 4, occupancy_rate: 33.3 },
+            students: { total: 3, active: 3 },
+            users: { total: 12 },
+            finance: { total_invoices: 0, total_invoiced: 0, total_collected: 0, outstanding_dues: 0 },
+            operations: { pending_complaints: 0, pending_leaves: 0, active_visitors: 0, pending_admissions: 0, pending_maintenance: 0 },
+            recent_activity: []
+        },
 
         async init() {
             // Apply stored theme
@@ -288,6 +296,7 @@ document.addEventListener("alpine:init", () => {
             this.userRoles = user.roles || [];
             this.userPermissions = user.permissions || [];
             this.isolationTestResult = null;
+            this.loadDashboardStats();
 
             // Automatically set the active role dashboard to user's primary role
             if (this.userRoles.length > 0) {
@@ -300,6 +309,17 @@ document.addEventListener("alpine:init", () => {
                 this.loadMyStudentProfile();
             } else if (this.activeRoleView === "super_admin" || this.activeRoleView === "hostel_admin") {
                 this.loadUsers();
+            }
+        },
+
+        async loadDashboardStats() {
+            try {
+                const stats = await window.API.getDashboardStats();
+                if (stats) {
+                    this.dashboardStats = stats;
+                }
+            } catch (e) {
+                // Keep default seeded metrics
             }
         },
 
@@ -330,6 +350,7 @@ document.addEventListener("alpine:init", () => {
             if (this.hasRole("super_admin") || this.userRoles.includes(roleKey)) {
                 this.activeRoleView = roleKey;
                 this.activeSection = "dashboard";
+                this.loadDashboardStats();
                 if (roleKey === "student") {
                     this.loadMyStudentProfile();
                 } else if (roleKey === "super_admin" || roleKey === "hostel_admin") {

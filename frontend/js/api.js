@@ -174,6 +174,17 @@ const API = {
     },
 
     /**
+     * Fetch live dashboard aggregation metrics.
+     */
+    async getDashboardStats() {
+        const response = await fetch(`${this.baseUrl}/api/v1/dashboard/stats`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) return null;
+        return await response.json();
+    },
+
+    /**
      * Fetch user list (Super Admin & Hostel Admin only).
      */
     async getUsers() {
