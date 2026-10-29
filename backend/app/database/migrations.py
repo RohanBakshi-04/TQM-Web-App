@@ -81,6 +81,65 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
             applied_now.append("002_auth_tables")
             logger.info("Migration 002_auth_tables applied successfully.")
 
+        # Migration 003: Poka-Yoke Room Allocations & Transfer Lifecycle Engine
+        if "003_poka_yoke_allocation_tables" not in applied:
+            logger.info("Applying Migration 003_poka_yoke_allocation_tables (Poka-Yoke constraints, transfers, lifecycle)...")
+            cursor = conn.cursor()
+
+            # Ensure additional lifecycle columns in room_allocations
+            col_info = [col[1] for col in cursor.execute("PRAGMA table_info(room_allocations);").fetchall()]
+            if "approval_status" not in col_info:
+                cursor.execute("ALTER TABLE room_allocations ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'Approved' CHECK(approval_status IN ('Pending', 'Approved', 'Rejected'));")
+            if "checkin_date" not in col_info:
+                cursor.execute("ALTER TABLE room_allocations ADD COLUMN checkin_date TEXT NULL;")
+            if "checkout_date" not in col_info:
+                cursor.execute("ALTER TABLE room_allocations ADD COLUMN checkout_date TEXT NULL;")
+            if "checkout_reason" not in col_info:
+                cursor.execute("ALTER TABLE room_allocations ADD COLUMN checkout_reason TEXT NULL;")
+
+            # Poka-Yoke Database-Enforced Partial Unique Indexes
+            cursor.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_active_bed_allocation 
+                ON room_allocations(bed_id) 
+                WHERE allocation_status = 'Active';
+            """)
+            cursor.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_active_student_allocation 
+                ON room_allocations(student_id) 
+                WHERE allocation_status = 'Active';
+            """)
+
+            # Room Transfers Table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS room_transfers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    allocation_id INTEGER NOT NULL REFERENCES room_allocations(id) ON DELETE RESTRICT,
+                    student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE RESTRICT,
+                    from_bed_id INTEGER NOT NULL REFERENCES beds(id) ON DELETE RESTRICT,
+                    to_bed_id INTEGER NOT NULL REFERENCES beds(id) ON DELETE RESTRICT,
+                    reason TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'Pending' CHECK(status IN ('Pending', 'Approved', 'Rejected')),
+                    requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    reviewed_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    reviewed_at TIMESTAMP NULL,
+                    remarks TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # Performance indexes
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_allocations_student ON room_allocations(student_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_allocations_room ON room_allocations(room_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_allocations_bed ON room_allocations(bed_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_allocations_status ON room_allocations(allocation_status);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_transfers_alloc ON room_transfers(allocation_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_transfers_status ON room_transfers(status);")
+
+            conn.commit()
+            record_migration(conn, "003_poka_yoke_allocation_tables", "Poka-Yoke Allocation Constraints & Transfer Lifecycle")
+            applied_now.append("003_poka_yoke_allocation_tables")
+            logger.info("Migration 003_poka_yoke_allocation_tables applied successfully.")
+
         return applied_now
     finally:
         if should_close:

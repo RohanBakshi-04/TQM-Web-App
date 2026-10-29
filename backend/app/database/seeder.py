@@ -113,7 +113,7 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
         cursor.execute("INSERT INTO floors (building_id, floor_number, floor_name) VALUES (?, 2, 'Second Floor');", (bldg_a,))
         flr_2 = cursor.lastrowid
 
-        # Rooms
+        # Rooms in Boys Hostel
         cursor.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status) VALUES (?, '101', 'Single', 1, 6000.0, 'Full');", (flr_1,))
         r101 = cursor.lastrowid
         cursor.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status) VALUES (?, '102', 'Double', 2, 4500.0, 'Partially_Occupied');", (flr_1,))
@@ -121,7 +121,7 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
         cursor.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status) VALUES (?, '201', 'Double', 2, 4500.0, 'Available');", (flr_2,))
         r201 = cursor.lastrowid
 
-        # Beds
+        # Beds in Boys Hostel
         cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, '101-A', 'Occupied');", (r101,))
         b101_a = cursor.lastrowid
         cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, '102-A', 'Occupied');", (r102,))
@@ -130,6 +130,25 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
         b102_b = cursor.lastrowid
         cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, '201-A', 'Available');", (r201,))
         cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, '201-B', 'Available');", (r201,))
+
+        # Seed Girls Hostel
+        cursor.execute(
+            """INSERT INTO hostels (name, code, hostel_type, address, warden_id, contact_phone, contact_email)
+               VALUES ('Sarojini Naidu Girls Hostel', 'SNH-01', 'Girls', 'South Campus, Green Way', ?, '011-2700102', 'sarojini.hostel@univ.edu');""",
+            (warden_user_id,)
+        )
+        hostel_g_id = cursor.lastrowid
+
+        cursor.execute("INSERT INTO buildings (hostel_id, name, code, total_floors) VALUES (?, 'Kalpana Chawla Block', 'BLK-G1', 2);", (hostel_g_id,))
+        bldg_g = cursor.lastrowid
+
+        cursor.execute("INSERT INTO floors (building_id, floor_number, floor_name) VALUES (?, 1, 'Ground Floor');", (bldg_g,))
+        flr_g1 = cursor.lastrowid
+
+        cursor.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status) VALUES (?, 'G01', 'Double', 2, 4800.0, 'Available');", (flr_g1,))
+        r_g01 = cursor.lastrowid
+        cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, 'G01-A', 'Available');", (r_g01,))
+        cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, 'G01-B', 'Available');", (r_g01,))
 
         # 5. Seed Students (Fictional Demo Records)
         rohan_user_id = user_id_map.get("rohan", 5)
