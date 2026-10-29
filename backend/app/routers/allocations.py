@@ -101,6 +101,28 @@ def list_available_beds(
         conn.close()
 
 
+@router.get("/suggestions", response_model=List[Dict[str, Any]])
+def get_allocation_suggestions(
+    student_id: int = Query(..., description="ID of student needing allocation"),
+    preferred_hostel_id: Optional[int] = Query(None),
+    preferred_room_type: Optional[str] = Query(None),
+    floor_preference: Optional[int] = Query(None),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+) -> List[Dict[str, Any]]:
+    """Intelligent automated room and bed suggestion engine with multi-criteria scoring."""
+    conn = get_db_connection()
+    try:
+        return AllocationService.get_allocation_suggestions(
+            conn=conn,
+            student_id=student_id,
+            preferred_hostel_id=preferred_hostel_id,
+            preferred_room_type=preferred_room_type,
+            floor_preference=floor_preference
+        )
+    finally:
+        conn.close()
+
+
 @router.get("/{allocation_id}")
 def get_allocation_details(
     allocation_id: int,

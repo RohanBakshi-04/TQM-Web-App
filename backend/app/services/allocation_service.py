@@ -330,6 +330,124 @@ class AllocationService:
         return [dict(r) for r in rows]
 
     @staticmethod
+    def get_allocation_suggestions(
+        conn: sqlite3.Connection,
+        student_id: int,
+        preferred_hostel_id: Optional[int] = None,
+        preferred_room_type: Optional[str] = None,
+        floor_preference: Optional[int] = None,
+        max_suggestions: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Intelligent Room Allocation Suggestion Engine.
+
+        Evaluates available inventory against student eligibility, gender constraints,
+        institutional policies, cohort clustering (branch/year), and personal preferences.
+        """
+        cursor = conn.cursor()
+
+        # 1. Verify student eligibility
+        student = cursor.execute("""
+            SELECT id, student_id, first_name, last_name, gender, branch, academic_year, email, status
+            FROM students
+            WHERE id = ?;
+        """, (student_id,)).fetchone()
+
+        if not student:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Student ID {student_id} not found.")
+
+        if student["status"] != "Active":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Student '{student['first_name']} {student['last_name']}' is not Active (Status: {student['status']}). Ineligible for allocation."
+            )
+
+        # Retrieve preference from admission application if not explicitly provided
+        target_room_type = preferred_room_type
+        if not target_room_type:
+            app_pref = cursor.execute("""
+                SELECT preferred_room_type 
+                FROM admission_applications 
+                WHERE email = ? OR applicant_name LIKE ?
+                ORDER BY id DESC LIMIT 1;
+            """, (student["email"], f"%{student['first_name']}%")).fetchone()
+            if app_pref and app_pref["preferred_room_type"]:
+                target_room_type = app_pref["preferred_room_type"]
+
+        # 2. Query available candidate beds matching gender policy
+        gender_compatible = student["gender"]
+        candidates = AllocationService.get_available_beds(
+            conn=conn,
+            hostel_id=preferred_hostel_id,
+            room_type=None,
+            gender_compatible=gender_compatible
+        )
+
+        scored_suggestions = []
+
+        for b in candidates:
+            score = 50 # Base score for eligible, clean, available bed
+            reasons = [f"Gender Policy Matched: '{b['hostel_type']}' facility compatible with {student['gender']} student"]
+
+            # Preferred Hostel Match
+            if preferred_hostel_id and b["hostel_id"] == preferred_hostel_id:
+                score += 25
+                reasons.append(f"Hostel Preference: Selected '{b['hostel_name']}'")
+
+            # Preferred Room Type Match
+            if target_room_type and b["room_type"].lower() == target_room_type.lower():
+                score += 25
+                reasons.append(f"Room Type Preference: Matched '{b['room_type']}' configuration")
+
+            # Floor Preference Match
+            if floor_preference is not None and b["floor_number"] == floor_preference:
+                score += 15
+                reasons.append(f"Floor Preference: Level {b['floor_number']} ({b['floor_name']})")
+
+            # Occupancy & Peer Roommate Analysis
+            occupants = AllocationService.get_room_occupants(conn, b["room_id"])
+            if occupants:
+                score += 10
+                reasons.append(f"Occupancy Consolidation: {len(occupants)} of {b['capacity']} beds currently occupied")
+
+                # Check branch clustering
+                same_branch = [o for o in occupants if o["branch"].lower() == student["branch"].lower()]
+                if same_branch:
+                    score += 20
+                    reasons.append(f"Academic Peer Match: Roommate ({same_branch[0]['student_name']}) is also in {student['branch']}")
+
+                # Check academic year cohort
+                same_year = [o for o in occupants if o["academic_year"].lower() == student["academic_year"].lower()]
+                if same_year:
+                    score += 15
+                    reasons.append(f"Cohort Alignment: Roommate is in the same class ({student['academic_year']})")
+            else:
+                reasons.append("Fresh Room: Fully available empty room")
+
+            suggestion_item = {
+                "bed_id": b["bed_id"],
+                "bed_number": b["bed_number"],
+                "room_id": b["room_id"],
+                "room_number": b["room_number"],
+                "room_type": b["room_type"],
+                "base_fee": b["base_fee"],
+                "floor_number": b["floor_number"],
+                "floor_name": b["floor_name"],
+                "building_id": b["building_id"],
+                "building_name": b["building_name"],
+                "hostel_id": b["hostel_id"],
+                "hostel_name": b["hostel_name"],
+                "hostel_type": b["hostel_type"],
+                "match_score": score,
+                "reasons": reasons,
+                "existing_occupants": occupants
+            }
+            scored_suggestions.append(suggestion_item)
+
+        # Sort highest match score first
+        scored_suggestions.sort(key=lambda x: x["match_score"], reverse=True)
+        return scored_suggestions[:max_suggestions]
+
+    @staticmethod
     def get_available_beds(
         conn: sqlite3.Connection,
         hostel_id: Optional[int] = None,
