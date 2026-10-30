@@ -58,6 +58,36 @@ All notable changes to this project are documented in this file, adhering to Sem
 - **Light & Dark Theme Engine:** Implemented theme toggle with local storage persistence using Tailwind CSS `class` strategy.
 - **Reusable Component System:** Created `frontend/js/components.js` providing status badge styling, pagination engine, zero-dependency SVG sparklines, and mini bar charts.
 - **Micro-Interactions & Modals:** Added reusable confirmation modal dialog, floating toast notification queue (`success`, `error`, `warning`, `info`), and quick search modal (`Ctrl + K`).
+- **All 12 Role-Specific Dashboards:** Delivered purpose-built interfaces tailored to each stakeholder role with custom telemetry cards and operation tables.
+- **Backend Telemetry Router:** Created `GET /api/v1/dashboard/stats` aggregating real-time counts and occupancy rates across operational domains.
+
+---
+
+## [0.5.0] - 2026-10-30 (Prompt 07: Room Allocation and Poka-Yoke System)
+
+### Added
+- **Database Schema Migration 003:** Added allocation lifecycle columns (`approval_status`, `checkin_date`, `checkout_date`, `checkout_reason`) and created `room_transfers` table.
+- **Poka-Yoke Partial Unique Indexes:** Enforced database-level mistake-proofing via `uq_active_bed_allocation` and `uq_active_student_allocation` on SQLite B-Tree engine.
+- **Complete Allocation REST API:**
+  - `POST /api/v1/allocations`: Defect-proof student room and bed allocation.
+  - `GET /api/v1/allocations`: High-performance allocation listing with filtering by facility, room type, status, and search query.
+  - `GET /api/v1/allocations/{id}`: Detailed allocation view with confirmation metadata.
+  - `GET /api/v1/allocations/available-beds`: Real-time assignable inventory explorer.
+  - `GET /api/v1/rooms/{id}/occupants`: Active residents lookup for a room.
+  - `GET /api/v1/students/{id}/allocation-history`: Complete chronological residency history.
+- **Intelligent Room Allocation Engine (`GET /api/v1/allocations/suggestions`):**
+  - Multi-criteria scoring algorithm assessing student eligibility, gender constraints, room preferences, and peer clustering.
+  - Cohort matching for branch/academic year and occupancy consolidation prioritization.
+- **Atomic Transfer & Lifecycle Operations:**
+  - `POST /api/v1/allocations/{id}/checkin`: Student check-in timestamping and verification.
+  - `POST /api/v1/allocations/{id}/checkout`: Bed release, room status recalculation, and historical preservation.
+  - `POST /api/v1/allocations/{id}/transfer`: Atomic room transfer releasing old bed and occupying new bed in a single transaction.
+  - `GET /api/v1/transfers` & `POST /api/v1/transfers/{id}/review`: Administration review queue for pending transfer requests.
+- **Cryptographic Allocation Confirmation Slip:** Generates printable certificates with SHA-256 verification hash and unique confirmation numbers (`TQM-ALC-XXXXXX`).
+- **Frontend Allocation Management Dashboard:** Interactive management UI featuring metrics cards, available beds grid, allocation table, AI suggestions modal, and transfer/checkout actions.
+- **Student Dashboard Integration:** Embedded assigned room, bed number, facility details, and interactive transfer request button in resident view.
+- **Comprehensive Test Suite (`test_room_allocations.py`):** 16 rigorous tests validating all 10 Poka-Yoke rules, multi-threaded concurrency safety, suggestion engine, check-in, check-out, and atomic transfers.
+- **Total Test Coverage:** 54 passing automated tests across the application.
 - **12 Tailored Dashboards:** Created dedicated stakeholder interfaces for all 12 roles (`super_admin`, `hostel_admin`, `warden`, `assistant_warden`, `student`, `accountant`, `mess_manager`, `maintenance_staff`, `security_guard`, `admission_officer`, `parent_guardian`, `auditor`).
 - **Live Metrics API:** Implemented `GET /api/v1/dashboard/stats` in `backend/app/routers/dashboard.py` querying real SQLite tables.
 - **Automated Verification:** Added `backend/tests/test_dashboard_api.py`, expanding the test suite to 38 tests (100% pass rate).
