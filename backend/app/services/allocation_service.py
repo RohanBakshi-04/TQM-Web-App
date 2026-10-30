@@ -546,3 +546,405 @@ class AllocationService:
             ORDER BY ra.id DESC;
         """, (student_id,)).fetchall()
         return [dict(r) for r in rows]
+
+    # ==================== CHECK-IN & CHECK-OUT LIFECYCLE ====================
+
+    @staticmethod
+    def checkin_allocation(
+        conn: sqlite3.Connection,
+        allocation_id: int,
+        checkin_date: Optional[str] = None,
+        user_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """Record verified student check-in and room occupation."""
+        cursor = conn.cursor()
+        alloc = cursor.execute("SELECT id, allocation_status, checkin_date, student_id, bed_id, room_id FROM room_allocations WHERE id = ?;", (allocation_id,)).fetchone()
+        if not alloc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Allocation not found.")
+
+        if alloc["allocation_status"] != "Active":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot check in. Allocation is '{alloc['allocation_status']}' (Only 'Active' allocations can be checked in)."
+            )
+
+        actual_date = checkin_date.strip() if checkin_date else date.today().isoformat()
+        cursor.execute("""
+            UPDATE room_allocations 
+            SET checkin_date = ?, updated_at = CURRENT_TIMESTAMP 
+            WHERE id = ?;
+        """, (actual_date, allocation_id))
+
+        cursor.execute("""
+            INSERT INTO audit_logs (user_id, username, action, entity_name, entity_id, details)
+            VALUES (?, 'staff', 'CHECK_IN_STUDENT', 'room_allocations', ?, ?);
+        """, (user_id or 1, str(allocation_id), f"Student checked in on {actual_date}"))
+
+        conn.commit()
+        return AllocationService.get_allocation_by_id(conn, allocation_id)
+
+    @staticmethod
+    def checkout_allocation(
+        conn: sqlite3.Connection,
+        allocation_id: int,
+        checkout_date: Optional[str] = None,
+        reason: str = "Academic Term Completion",
+        user_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """Release student bed and update room occupancy upon verified check-out."""
+        cursor = conn.cursor()
+        alloc = cursor.execute("""
+            SELECT ra.id, ra.allocation_status, ra.bed_id, ra.room_id, ra.student_id,
+                   r.capacity, s.student_id AS enrollment
+            FROM room_allocations ra
+            JOIN rooms r ON ra.room_id = r.id
+            JOIN students s ON ra.student_id = s.id
+            WHERE ra.id = ?;
+        """, (allocation_id,)).fetchone()
+
+        if not alloc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Allocation not found.")
+
+        # Poka-Yoke Check 9: Checking out students who have no active allocation & Duplicate checkouts
+        if alloc["allocation_status"] != "Active":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Poka-Yoke Violation: Cannot check out student who has no active allocation. Allocation #{allocation_id} is already '{alloc['allocation_status']}'."
+            )
+
+        actual_checkout = checkout_date.strip() if checkout_date else date.today().isoformat()
+
+        try:
+            cursor.execute("BEGIN IMMEDIATE;")
+
+            # 1. Update allocation status to Vacated
+            cursor.execute("""
+                UPDATE room_allocations
+                SET allocation_status = 'Vacated',
+                    checkout_date = ?,
+                    checkout_reason = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?;
+            """, (actual_checkout, reason.strip(), allocation_id))
+
+            # 2. Release Bed to Available
+            cursor.execute("UPDATE beds SET status = 'Available', updated_at = CURRENT_TIMESTAMP WHERE id = ?;", (alloc["bed_id"],))
+
+            # 3. Recalculate and update Room occupancy status
+            remaining_occ = cursor.execute("""
+                SELECT COUNT(*) FROM room_allocations WHERE room_id = ? AND allocation_status = 'Active';
+            """, (alloc["room_id"],)).fetchone()[0]
+
+            new_room_status = "Available" if remaining_occ == 0 else "Partially_Occupied"
+            cursor.execute("UPDATE rooms SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;", (new_room_status, alloc["room_id"]))
+
+            # 4. Audit Log
+            cursor.execute("""
+                INSERT INTO audit_logs (user_id, username, action, entity_name, entity_id, details)
+                VALUES (?, 'staff', 'CHECK_OUT_STUDENT', 'room_allocations', ?, ?);
+            """, (
+                user_id or 1,
+                str(allocation_id),
+                f"Student {alloc['enrollment']} checked out on {actual_checkout} (Reason: {reason})"
+            ))
+
+            conn.commit()
+            logger.info(f"Poka-Yoke Check-Out: Allocation #{allocation_id} Vacated. Bed #{alloc['bed_id']} Released to Available.")
+
+        except Exception as e:
+            conn.rollback()
+            raise e
+
+        return AllocationService.get_allocation_by_id(conn, allocation_id)
+
+    # ==================== ROOM TRANSFERS ====================
+
+    @staticmethod
+    def request_or_execute_transfer(
+        conn: sqlite3.Connection,
+        allocation_id: int,
+        to_bed_id: int,
+        reason: str,
+        user_id: int,
+        user_roles: List[str]
+    ) -> Dict[str, Any]:
+        """Submit a room/bed transfer request, auto-executing if performed by authorized staff."""
+        cursor = conn.cursor()
+
+        # Fetch current active allocation
+        alloc = cursor.execute("""
+            SELECT ra.id, ra.student_id, ra.bed_id, ra.room_id, ra.allocation_status,
+                   s.student_id AS enrollment, s.gender, s.first_name || ' ' || s.last_name AS student_name
+            FROM room_allocations ra
+            JOIN students s ON ra.student_id = s.id
+            WHERE ra.id = ?;
+        """, (allocation_id,)).fetchone()
+
+        if not alloc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Allocation not found.")
+
+        if alloc["allocation_status"] != "Active":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Poka-Yoke Violation: Cannot transfer inactive allocation (Current status: {alloc['allocation_status']})."
+            )
+
+        if alloc["bed_id"] == to_bed_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Target bed cannot be the same as current bed.")
+
+        # Poka-Yoke Check 8: Transferring students to unavailable beds
+        target_bed = cursor.execute("""
+            SELECT 
+                bd.id, bd.bed_number, bd.status AS bed_status,
+                r.id AS room_id, r.room_number, r.capacity, r.status AS room_status, r.is_active AS room_active,
+                h.id AS hostel_id, h.name AS hostel_name, h.hostel_type, h.is_active AS hostel_active
+            FROM beds bd
+            JOIN rooms r ON bd.room_id = r.id
+            JOIN floors f ON r.floor_id = f.id
+            JOIN buildings b ON f.building_id = b.id
+            JOIN hostels h ON b.hostel_id = h.id
+            WHERE bd.id = ?;
+        """, (to_bed_id,)).fetchone()
+
+        if not target_bed:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target bed not found.")
+
+        if not target_bed["hostel_active"] or not target_bed["room_active"]:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Poka-Yoke Violation: Target hostel or room is inactive.")
+
+        if target_bed["room_status"] == "Maintenance" or target_bed["bed_status"] == "Maintenance":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Poka-Yoke Violation: Target room or bed is under maintenance.")
+
+        if target_bed["bed_status"] != "Available":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Poka-Yoke Violation: Target bed is unavailable (Current status: '{target_bed['bed_status']}')."
+            )
+
+        # Check gender restriction of target hostel
+        if target_bed["hostel_type"] == "Boys" and alloc["gender"] != "Male":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Poka-Yoke Violation: Gender mismatch on target hostel.")
+        elif target_bed["hostel_type"] == "Girls" and alloc["gender"] != "Female":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Poka-Yoke Violation: Gender mismatch on target hostel.")
+
+        # Check if target room has capacity
+        target_occ = cursor.execute("SELECT COUNT(*) FROM room_allocations WHERE room_id = ? AND allocation_status = 'Active';", (target_bed["room_id"],)).fetchone()[0]
+        if target_occ >= target_bed["capacity"]:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Poka-Yoke Violation: Target room has reached maximum capacity.")
+
+        # Check if user is staff (auto-execute) or student (create pending request)
+        is_staff = bool(set(user_roles).intersection({"super_admin", "hostel_admin", "warden", "assistant_warden"}))
+
+        if is_staff:
+            return AllocationService._execute_atomic_transfer(
+                conn=conn,
+                old_allocation=alloc,
+                target_bed_info=target_bed,
+                reason=reason,
+                reviewed_by_user_id=user_id
+            )
+        else:
+            # Student submitted transfer request -> Pending
+            cursor.execute("""
+                INSERT INTO room_transfers (allocation_id, student_id, from_bed_id, to_bed_id, reason, status)
+                VALUES (?, ?, ?, ?, ?, 'Pending');
+            """, (allocation_id, alloc["student_id"], alloc["bed_id"], to_bed_id, reason.strip()))
+            conn.commit()
+            transfer_id = cursor.lastrowid
+            return {
+                "transfer_id": transfer_id,
+                "status": "Pending",
+                "message": "Transfer request submitted successfully. Awaiting administration/warden review."
+            }
+
+    @staticmethod
+    def _execute_atomic_transfer(
+        conn: sqlite3.Connection,
+        old_allocation: sqlite3.Row,
+        target_bed_info: sqlite3.Row,
+        reason: str,
+        reviewed_by_user_id: int,
+        transfer_record_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """Execute atomic database transaction for room transfer, releasing old bed and claiming new bed."""
+        cursor = conn.cursor()
+        today_str = date.today().isoformat()
+
+        try:
+            cursor.execute("BEGIN IMMEDIATE;")
+
+            # 1. Mark previous allocation as Transferred
+            cursor.execute("""
+                UPDATE room_allocations
+                SET allocation_status = 'Transferred',
+                    end_date = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?;
+            """, (today_str, old_allocation["id"]))
+
+            # 2. Release previous bed to Available
+            cursor.execute("UPDATE beds SET status = 'Available', updated_at = CURRENT_TIMESTAMP WHERE id = ?;", (old_allocation["bed_id"],))
+
+            # 3. Recompute previous room status
+            old_rem_occ = cursor.execute(
+                "SELECT COUNT(*) FROM room_allocations WHERE room_id = ? AND allocation_status = 'Active';", (old_allocation["room_id"],)
+            ).fetchone()[0]
+            old_room_status = "Available" if old_rem_occ == 0 else "Partially_Occupied"
+            cursor.execute("UPDATE rooms SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;", (old_room_status, old_allocation["room_id"]))
+
+            # 4. Create new Active allocation for the student in target bed
+            cursor.execute("""
+                INSERT INTO room_allocations (
+                    student_id, bed_id, room_id, start_date, fee_status,
+                    allocation_status, approval_status, remarks, allocated_by, checkin_date
+                )
+                VALUES (?, ?, ?, ?, 'Paid', 'Active', 'Approved', ?, ?, ?);
+            """, (
+                old_allocation["student_id"],
+                target_bed_info["id"],
+                target_bed_info["room_id"],
+                today_str,
+                f"Transferred from Allocation #{old_allocation['id']}: {reason}",
+                reviewed_by_user_id,
+                today_str
+            ))
+            new_allocation_id = cursor.lastrowid
+
+            # 5. Mark target bed as Occupied
+            cursor.execute("UPDATE beds SET status = 'Occupied', updated_at = CURRENT_TIMESTAMP WHERE id = ?;", (target_bed_info["id"],))
+
+            # 6. Recompute target room status
+            new_occ = cursor.execute(
+                "SELECT COUNT(*) FROM room_allocations WHERE room_id = ? AND allocation_status = 'Active';", (target_bed_info["room_id"],)
+            ).fetchone()[0]
+            new_room_status = "Full" if new_occ >= target_bed_info["capacity"] else "Partially_Occupied"
+            cursor.execute("UPDATE rooms SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;", (new_room_status, target_bed_info["room_id"]))
+
+            # 7. Update transfer request record if one exists
+            if transfer_record_id:
+                cursor.execute("""
+                    UPDATE room_transfers
+                    SET status = 'Approved', reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, remarks = ?
+                    WHERE id = ?;
+                """, (reviewed_by_user_id, reason, transfer_record_id))
+            else:
+                cursor.execute("""
+                    INSERT INTO room_transfers (allocation_id, student_id, from_bed_id, to_bed_id, reason, status, reviewed_by, reviewed_at)
+                    VALUES (?, ?, ?, ?, ?, 'Approved', ?, CURRENT_TIMESTAMP);
+                """, (old_allocation["id"], old_allocation["student_id"], old_allocation["bed_id"], target_bed_info["id"], reason, reviewed_by_user_id))
+
+            # 8. Audit Log
+            cursor.execute("""
+                INSERT INTO audit_logs (user_id, username, action, entity_name, entity_id, details)
+                VALUES (?, 'staff', 'TRANSFER_ROOM', 'room_allocations', ?, ?);
+            """, (
+                reviewed_by_user_id,
+                str(new_allocation_id),
+                f"Transferred student from Bed #{old_allocation['bed_id']} to Bed #{target_bed_info['id']} (Reason: {reason})"
+            ))
+
+            conn.commit()
+            logger.info(f"Poka-Yoke Atomic Transfer Completed: Allocation #{old_allocation['id']} -> Allocation #{new_allocation_id}")
+
+        except Exception as e:
+            conn.rollback()
+            raise e
+
+        return AllocationService.get_allocation_by_id(conn, new_allocation_id)
+
+    @staticmethod
+    def review_transfer_request(
+        conn: sqlite3.Connection,
+        transfer_id: int,
+        review: TransferReview,
+        reviewer_id: int
+    ) -> Dict[str, Any]:
+        """Approve or reject a pending student transfer request."""
+        cursor = conn.cursor()
+        t = cursor.execute("SELECT * FROM room_transfers WHERE id = ?;", (transfer_id,)).fetchone()
+        if not t:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transfer request not found.")
+
+        if t["status"] != "Pending":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Transfer request is already '{t['status']}'.")
+
+        if review.action == "Rejected":
+            cursor.execute("""
+                UPDATE room_transfers
+                SET status = 'Rejected', reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, remarks = ?
+                WHERE id = ?;
+            """, (reviewer_id, review.remarks or "Rejected by administration", transfer_id))
+            conn.commit()
+            return {"transfer_id": transfer_id, "status": "Rejected", "message": "Transfer request rejected."}
+
+        # Action is Approved
+        alloc = cursor.execute("""
+            SELECT ra.id, ra.student_id, ra.bed_id, ra.room_id, ra.allocation_status,
+                   s.student_id AS enrollment, s.gender, s.first_name || ' ' || s.last_name AS student_name
+            FROM room_allocations ra
+            JOIN students s ON ra.student_id = s.id
+            WHERE ra.id = ?;
+        """, (t["allocation_id"],)).fetchone()
+
+        target_bed = cursor.execute("""
+            SELECT 
+                bd.id, bd.bed_number, bd.status AS bed_status,
+                r.id AS room_id, r.room_number, r.capacity, r.status AS room_status, r.is_active AS room_active,
+                h.id AS hostel_id, h.name AS hostel_name, h.hostel_type, h.is_active AS hostel_active
+            FROM beds bd
+            JOIN rooms r ON bd.room_id = r.id
+            JOIN floors f ON r.floor_id = f.id
+            JOIN buildings b ON f.building_id = b.id
+            JOIN hostels h ON b.hostel_id = h.id
+            WHERE bd.id = ?;
+        """, (t["to_bed_id"],)).fetchone()
+
+        if target_bed["bed_status"] != "Available":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot approve transfer: Target bed #{target_bed['id']} is no longer available (Status: {target_bed['bed_status']})."
+            )
+
+        return AllocationService._execute_atomic_transfer(
+            conn=conn,
+            old_allocation=alloc,
+            target_bed_info=target_bed,
+            reason=t["reason"],
+            reviewed_by_user_id=reviewer_id,
+            transfer_record_id=transfer_id
+        )
+
+    @staticmethod
+    def get_transfers(
+        conn: sqlite3.Connection,
+        status_filter: Optional[str] = None,
+        student_id: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """List room transfer requests."""
+        query = """
+            SELECT 
+                rt.id, rt.allocation_id, rt.student_id, rt.from_bed_id, rt.to_bed_id,
+                rt.reason, rt.status, rt.requested_at, rt.reviewed_by, rt.reviewed_at, rt.remarks,
+                s.student_id AS student_enrollment, s.first_name || ' ' || s.last_name AS student_name,
+                b_from.bed_number AS from_bed_number, r_from.room_number AS from_room_number,
+                b_to.bed_number AS to_bed_number, r_to.room_number AS to_room_number
+            FROM room_transfers rt
+            JOIN students s ON rt.student_id = s.id
+            JOIN beds b_from ON rt.from_bed_id = b_from.id
+            JOIN rooms r_from ON b_from.room_id = r_from.id
+            JOIN beds b_to ON rt.to_bed_id = b_to.id
+            JOIN rooms r_to ON b_to.room_id = r_to.id
+            WHERE 1=1
+        """
+        params: List[Any] = []
+        if status_filter:
+            query += " AND rt.status = ?"
+            params.append(status_filter)
+        if student_id:
+            query += " AND rt.student_id = ?"
+            params.append(student_id)
+
+        query += " ORDER BY rt.id DESC;"
+        cursor = conn.cursor()
+        rows = cursor.execute(query, params).fetchall()
+        return [dict(r) for r in rows]

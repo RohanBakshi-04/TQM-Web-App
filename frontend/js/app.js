@@ -140,6 +140,43 @@ document.addEventListener("alpine:init", () => {
         studentProfile: null,
         isolationTestResult: null,
         isolationTestLoading: false,
+
+        // Allocation & Poka-Yoke Management State
+        allocationsList: [],
+        availableBedsList: [],
+        transferRequestsList: [],
+        allocationSuggestions: [],
+        suggestionsLoading: false,
+        selectedAllocationSlip: null,
+        studentAllocationHistory: [],
+
+        allocationModalOpen: false,
+        transferModalOpen: false,
+        suggestionsModalOpen: false,
+        slipModalOpen: false,
+
+        allocationForm: {
+            student_id: "",
+            bed_id: "",
+            start_date: new Date().toISOString().split("T")[0],
+            end_date: "",
+            remarks: "",
+            fee_status: "Pending"
+        },
+
+        transferForm: {
+            allocation_id: null,
+            to_bed_id: "",
+            reason: ""
+        },
+
+        checkoutForm: {
+            allocation_id: null,
+            checkout_date: new Date().toISOString().split("T")[0],
+            reason: "Academic Term Completed"
+        },
+        checkoutModalOpen: false,
+
         dashboardStats: {
             hostels: { total: 1, rooms: 3, beds: 6, occupied_beds: 2, available_beds: 4, occupancy_rate: 33.3 },
             students: { total: 3, active: 3 },
@@ -402,6 +439,172 @@ document.addEventListener("alpine:init", () => {
                 this.showToast(`HTTP 403: Student isolation barrier enforced`, "error");
             } finally {
                 this.isolationTestLoading = false;
+            }
+        },
+
+        // ==================== ALLOCATION CONTROLLER METHODS ====================
+
+        async loadAllocations(filterHostel = null) {
+            try {
+                const params = {};
+                if (filterHostel) params.hostel_id = filterHostel;
+                this.allocationsList = await window.API.getAllocations(params);
+            } catch (err) {
+                this.showToast(`Failed to load allocations: ${err.message}`, "error");
+            }
+        },
+
+        async loadAvailableBeds(gender = null) {
+            try {
+                const params = {};
+                if (gender) params.gender = gender;
+                this.availableBedsList = await window.API.getAvailableBeds(params);
+            } catch (err) {
+                this.showToast(`Failed to load available beds: ${err.message}`, "error");
+            }
+        },
+
+        async loadTransfers() {
+            try {
+                this.transferRequestsList = await window.API.getTransfers();
+            } catch (err) {
+                this.showToast(`Failed to load transfer requests: ${err.message}`, "error");
+            }
+        },
+
+        async submitAllocation() {
+            if (!this.allocationForm.student_id || !this.allocationForm.bed_id || !this.allocationForm.start_date) {
+                this.showToast("Please provide Student ID, Bed ID, and Start Date.", "warning");
+                return;
+            }
+            try {
+                const payload = {
+                    student_id: parseInt(this.allocationForm.student_id),
+                    bed_id: parseInt(this.allocationForm.bed_id),
+                    start_date: this.allocationForm.start_date,
+                    end_date: this.allocationForm.end_date ? this.allocationForm.end_date : null,
+                    remarks: this.allocationForm.remarks,
+                    fee_status: this.allocationForm.fee_status
+                };
+                const res = await window.API.createAllocation(payload);
+                this.showToast(`Bed successfully allocated (Allocation #${res.id})`, "success");
+                this.allocationModalOpen = false;
+                this.loadAllocations();
+                this.loadAvailableBeds();
+                this.loadDashboardStats();
+                this.viewSlip(res.id);
+            } catch (err) {
+                this.showToast(`Poka-Yoke Error: ${err.message}`, "error");
+            }
+        },
+
+        async getSuggestionsForStudent(studentId) {
+            if (!studentId) {
+                this.showToast("Please enter a valid student ID first", "warning");
+                return;
+            }
+            this.suggestionsLoading = true;
+            try {
+                this.allocationSuggestions = await window.API.getAllocationSuggestions(studentId);
+                this.suggestionsModalOpen = true;
+                if (this.allocationSuggestions.length === 0) {
+                    this.showToast("No compatible rooms found for this student.", "info");
+                }
+            } catch (err) {
+                this.showToast(`Suggestion Error: ${err.message}`, "error");
+            } finally {
+                this.suggestionsLoading = false;
+            }
+        },
+
+        selectSuggestedBed(bedId) {
+            this.allocationForm.bed_id = bedId;
+            this.suggestionsModalOpen = false;
+            this.showToast(`Selected Bed #${bedId} from intelligent suggestion engine.`, "success");
+        },
+
+        openTransferModal(allocation) {
+            this.transferForm = {
+                allocation_id: allocation.id,
+                to_bed_id: "",
+                reason: ""
+            };
+            this.loadAvailableBeds(allocation.student_gender);
+            this.transferModalOpen = true;
+        },
+
+        async submitTransfer() {
+            if (!this.transferForm.to_bed_id || !this.transferForm.reason) {
+                this.showToast("Please select a target bed and state a reason.", "warning");
+                return;
+            }
+            try {
+                const res = await window.API.requestTransfer(
+                    this.transferForm.allocation_id,
+                    parseInt(this.transferForm.to_bed_id),
+                    this.transferForm.reason
+                );
+                this.showToast(res.message || "Room transfer processed successfully.", "success");
+                this.transferModalOpen = false;
+                this.loadAllocations();
+                this.loadAvailableBeds();
+                this.loadTransfers();
+            } catch (err) {
+                this.showToast(`Transfer Failed: ${err.message}`, "error");
+            }
+        },
+
+        openCheckoutModal(allocation) {
+            this.checkoutForm = {
+                allocation_id: allocation.id,
+                checkout_date: new Date().toISOString().split("T")[0],
+                reason: "Academic Term Completed"
+            };
+            this.checkoutModalOpen = true;
+        },
+
+        async submitCheckout() {
+            try {
+                const res = await window.API.checkoutAllocation(
+                    this.checkoutForm.allocation_id,
+                    this.checkoutForm.checkout_date,
+                    this.checkoutForm.reason
+                );
+                this.showToast(`Check-out completed. Bed released to available.`, "success");
+                this.checkoutModalOpen = false;
+                this.loadAllocations();
+                this.loadAvailableBeds();
+                this.loadDashboardStats();
+            } catch (err) {
+                this.showToast(`Check-out Failed: ${err.message}`, "error");
+            }
+        },
+
+        async performCheckin(allocationId) {
+            try {
+                await window.API.checkinAllocation(allocationId);
+                this.showToast("Student check-in recorded successfully.", "success");
+                this.loadAllocations();
+            } catch (err) {
+                this.showToast(`Check-in Error: ${err.message}`, "error");
+            }
+        },
+
+        async viewSlip(allocationId) {
+            try {
+                this.selectedAllocationSlip = await window.API.getAllocation(allocationId);
+                this.slipModalOpen = true;
+            } catch (err) {
+                this.showToast(`Failed to load allocation slip: ${err.message}`, "error");
+            }
+        },
+
+        async loadMyAllocationHistory() {
+            const sid = (this.currentUser && this.currentUser.linked_student_id) ? this.currentUser.linked_student_id : 1;
+            try {
+                this.studentAllocationHistory = await window.API.getStudentAllocationHistory(sid);
+            } catch (err) {
+                this.studentAllocationHistory = [];
             }
         }
     }));

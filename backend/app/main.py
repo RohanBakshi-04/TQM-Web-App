@@ -17,6 +17,7 @@ from backend.app.routers.allocations import (
     router as allocations_router,
     room_occupants_router,
     student_history_router,
+    transfers_router,
 )
 from backend.app.routers.auth import router as auth_router
 from backend.app.routers.dashboard import router as dashboard_router
@@ -60,6 +61,7 @@ app.include_router(dashboard_router)
 app.include_router(hostels_router)
 app.include_router(building_router)
 app.include_router(allocations_router)
+app.include_router(transfers_router)
 app.include_router(room_occupants_router)
 app.include_router(student_history_router)
 

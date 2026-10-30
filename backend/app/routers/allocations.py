@@ -138,7 +138,118 @@ def get_allocation_details(
         conn.close()
 
 
+@router.post("/{allocation_id}/checkin")
+def checkin_student(
+    allocation_id: int,
+    checkin_data: Optional[Dict[str, Any]] = None,
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden", "assistant_warden"))
+) -> Dict[str, Any]:
+    """Verify and record student arrival and room check-in."""
+    conn = get_db_connection()
+    try:
+        c_date = checkin_data.get("checkin_date") if checkin_data else None
+        return AllocationService.checkin_allocation(conn, allocation_id, c_date, user_id=current_user["id"])
+    finally:
+        conn.close()
+
+
+@router.post("/{allocation_id}/checkout")
+def checkout_student(
+    allocation_id: int,
+    data: CheckoutRequest,
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden", "assistant_warden"))
+) -> Dict[str, Any]:
+    """Release assigned bed and update occupancy upon student check-out (Poka-Yoke protected)."""
+    conn = get_db_connection()
+    try:
+        return AllocationService.checkout_allocation(
+            conn=conn,
+            allocation_id=allocation_id,
+            checkout_date=data.checkout_date,
+            reason=data.reason,
+            user_id=current_user["id"]
+        )
+    finally:
+        conn.close()
+
+
+@router.post("/{allocation_id}/transfer")
+def request_or_perform_transfer(
+    allocation_id: int,
+    data: TransferRequestCreate,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """Initiate a student room transfer with atomic bed reallocation or staff approval workflow."""
+    conn = get_db_connection()
+    try:
+        alloc = AllocationService.get_allocation_by_id(conn, allocation_id)
+        verify_student_isolation(alloc["student_id"], current_user)
+        return AllocationService.request_or_execute_transfer(
+            conn=conn,
+            allocation_id=allocation_id,
+            to_bed_id=data.to_bed_id,
+            reason=data.reason,
+            user_id=current_user["id"],
+            user_roles=current_user.get("roles", [])
+        )
+    finally:
+        conn.close()
+
+
+@router.post("/{allocation_id}/approve")
+def approve_allocation(
+    allocation_id: int,
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden"))
+) -> Dict[str, Any]:
+    """Administrative approval of an allocation record."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        alloc = cursor.execute("SELECT id, approval_status FROM room_allocations WHERE id = ?;", (allocation_id,)).fetchone()
+        if not alloc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Allocation not found.")
+        cursor.execute("UPDATE room_allocations SET approval_status = 'Approved', updated_at = CURRENT_TIMESTAMP WHERE id = ?;", (allocation_id,))
+        conn.commit()
+        return AllocationService.get_allocation_by_id(conn, allocation_id)
+    finally:
+        conn.close()
+
+
 # Associated sub-routers
+transfers_router = APIRouter(prefix="/api/v1/transfers", tags=["Room Transfer Operations"])
+
+
+@transfers_router.get("", response_model=List[Dict[str, Any]])
+def list_transfer_requests(
+    status_filter: Optional[str] = Query(None, description="Pending, Approved, Rejected"),
+    student_id: Optional[int] = Query(None),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+) -> List[Dict[str, Any]]:
+    """List pending and historical room transfer requests."""
+    conn = get_db_connection()
+    try:
+        user_roles = set(current_user.get("roles", []))
+        if "student" in user_roles and not user_roles.intersection({"super_admin", "hostel_admin", "warden", "assistant_warden", "auditor"}):
+            student_id = current_user.get("linked_student_id")
+        return AllocationService.get_transfers(conn, status_filter=status_filter, student_id=student_id)
+    finally:
+        conn.close()
+
+
+@transfers_router.post("/{transfer_id}/review")
+def review_transfer(
+    transfer_id: int,
+    data: TransferReview,
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden"))
+) -> Dict[str, Any]:
+    """Approve or reject a student room transfer request."""
+    conn = get_db_connection()
+    try:
+        return AllocationService.review_transfer_request(conn, transfer_id, data, reviewer_id=current_user["id"])
+    finally:
+        conn.close()
+
+
 room_occupants_router = APIRouter(prefix="/api/v1/rooms", tags=["Room Operations"])
 
 

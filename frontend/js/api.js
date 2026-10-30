@@ -229,6 +229,140 @@ const API = {
             throw new Error(data.detail || "Failed to change password.");
         }
         return data;
+    },
+
+    // ==================== HOSTEL & ALLOCATION APIS ====================
+
+    async getHostels(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/hostels${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load hostels.");
+        return await response.json();
+    },
+
+    async getAllocations(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/allocations${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load allocations.");
+        return await response.json();
+    },
+
+    async getAllocation(id) {
+        const response = await fetch(`${this.baseUrl}/api/v1/allocations/${id}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to fetch allocation.");
+        return await response.json();
+    },
+
+    async createAllocation(data) {
+        const response = await fetch(`${this.baseUrl}/api/v1/allocations`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Allocation failed.");
+        return res;
+    },
+
+    async getAvailableBeds(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/allocations/available-beds${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to fetch available beds.");
+        return await response.json();
+    },
+
+    async getAllocationSuggestions(studentId, preferredHostelId = null, preferredRoomType = null, floorPreference = null) {
+        const params = new URLSearchParams({ student_id: studentId });
+        if (preferredHostelId) params.append("preferred_hostel_id", preferredHostelId);
+        if (preferredRoomType) params.append("preferred_room_type", preferredRoomType);
+        if (floorPreference !== null && floorPreference !== undefined) params.append("floor_preference", floorPreference);
+
+        const response = await fetch(`${this.baseUrl}/api/v1/allocations/suggestions?${params.toString()}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to fetch allocation suggestions.");
+        return await response.json();
+    },
+
+    async checkinAllocation(allocationId, checkinDate = null) {
+        const response = await fetch(`${this.baseUrl}/api/v1/allocations/${allocationId}/checkin`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ checkin_date: checkinDate })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Check-in failed.");
+        return res;
+    },
+
+    async checkoutAllocation(allocationId, checkoutDate = null, reason = "Academic Term Completion") {
+        const response = await fetch(`${this.baseUrl}/api/v1/allocations/${allocationId}/checkout`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ checkout_date: checkoutDate, reason })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Check-out failed.");
+        return res;
+    },
+
+    async requestTransfer(allocationId, toBedId, reason) {
+        const response = await fetch(`${this.baseUrl}/api/v1/allocations/${allocationId}/transfer`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ to_bed_id: toBedId, reason })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Transfer request failed.");
+        return res;
+    },
+
+    async getTransfers(statusFilter = null, studentId = null) {
+        const params = new URLSearchParams();
+        if (statusFilter) params.append("status_filter", statusFilter);
+        if (studentId) params.append("student_id", studentId);
+        const qs = params.toString();
+
+        const response = await fetch(`${this.baseUrl}/api/v1/transfers${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load transfer requests.");
+        return await response.json();
+    },
+
+    async reviewTransfer(transferId, action, remarks = "") {
+        const response = await fetch(`${this.baseUrl}/api/v1/transfers/${transferId}/review`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ action, remarks })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Review action failed.");
+        return res;
+    },
+
+    async getStudentAllocationHistory(studentId) {
+        const response = await fetch(`${this.baseUrl}/api/v1/students/${studentId}/allocation-history`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load student history.");
+        return await response.json();
+    },
+
+    async getRoomOccupants(roomId) {
+        const response = await fetch(`${this.baseUrl}/api/v1/rooms/${roomId}/occupants`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load room occupants.");
+        return await response.json();
     }
 };
 
