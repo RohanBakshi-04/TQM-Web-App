@@ -363,6 +363,38 @@ const API = {
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load room occupants.");
         return await response.json();
+    },
+
+    /**
+     * Q05 Fast Search across students, hostels, rooms, allocations, complaints, maintenance, payments.
+     */
+    async search(query, category = "all", limit = 20, offset = 0) {
+        const params = new URLSearchParams({
+            q: query,
+            category: category,
+            limit: limit.toString(),
+            offset: offset.toString()
+        });
+        const response = await fetch(`${this.baseUrl}/api/v1/search?${params.toString()}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || "Search request failed.");
+        }
+        return await response.json();
+    },
+
+    async rebuildSearchIndex() {
+        const response = await fetch(`${this.baseUrl}/api/v1/search/rebuild-index`, {
+            method: "POST",
+            headers: this.getHeaders()
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || "Index rebuild failed.");
+        }
+        return await response.json();
     }
 };
 

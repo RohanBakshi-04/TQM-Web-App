@@ -46,6 +46,13 @@ def initialize_database(conn: Optional[sqlite3.Connection] = None, seed: bool = 
         if seed:
             seed_database(conn)
 
+        # Synchronize Fast Search FTS5 Virtual Index
+        try:
+            from backend.app.services.search_service import SearchService
+            SearchService.rebuild_fts5_index(conn)
+        except Exception as e:
+            logger.warning(f"Could not initialize FTS5 search index: {e}")
+
         logger.info("Database schema and data initialized successfully.")
         return True
     finally:

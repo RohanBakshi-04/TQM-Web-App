@@ -18,6 +18,10 @@ document.addEventListener("alpine:init", () => {
         userMenuOpen: false,
         searchQuery: "",
         searchModalOpen: false,
+        searchCategory: "all",
+        searchResults: [],
+        searchLoading: false,
+        searchResultsLatency: null,
 
         // Reusable Modal & Confirmation Dialog State
         modal: {
@@ -605,6 +609,56 @@ document.addEventListener("alpine:init", () => {
                 this.studentAllocationHistory = await window.API.getStudentAllocationHistory(sid);
             } catch (err) {
                 this.studentAllocationHistory = [];
+            }
+        },
+
+        async performFastSearch() {
+            if (!this.searchQuery || !this.searchQuery.trim()) {
+                this.searchResults = [];
+                this.searchResultsLatency = null;
+                return;
+            }
+            this.searchLoading = true;
+            try {
+                const res = await window.API.search(this.searchQuery.trim(), this.searchCategory);
+                this.searchResults = res.results || [];
+                this.searchResultsLatency = res.execution_time_ms;
+            } catch (err) {
+                console.error("Fast search error:", err);
+                this.searchResults = [];
+                this.searchResultsLatency = null;
+            } finally {
+                this.searchLoading = false;
+            }
+        },
+
+        setSearchCategory(cat) {
+            this.searchCategory = cat;
+            if (this.searchQuery && this.searchQuery.trim()) {
+                this.performFastSearch();
+            }
+        },
+
+        highlightMatch(text, query) {
+            if (!text) return "";
+            if (!query || !query.trim()) return text;
+            const terms = query.trim().split(/\s+/).filter(Boolean);
+            if (!terms.length) return text;
+            const pattern = new RegExp(`(${terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
+            return text.replace(pattern, '<mark class="bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 font-bold px-0.5 rounded">$1</mark>');
+        },
+
+        selectSearchResult(item) {
+            this.searchModalOpen = false;
+            if (item.category === 'allocations') {
+                this.currentModule = 'allocations';
+                this.loadAllocations();
+            } else if (item.category === 'hostels' || item.category === 'rooms') {
+                this.currentModule = 'hostels';
+            } else if (item.category === 'students') {
+                this.currentModule = 'students';
+            } else {
+                this.showToast(`Selected ${item.category}: ${item.title}`, "info");
             }
         }
     }));

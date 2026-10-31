@@ -23,6 +23,7 @@ from backend.app.routers.auth import router as auth_router
 from backend.app.routers.dashboard import router as dashboard_router
 from backend.app.routers.health import router as health_router
 from backend.app.routers.hostels import building_router, router as hostels_router
+from backend.app.routers.search import router as search_router
 from backend.app.utils.logger import logger
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -64,6 +65,7 @@ app.include_router(allocations_router)
 app.include_router(transfers_router)
 app.include_router(room_occupants_router)
 app.include_router(student_history_router)
+app.include_router(search_router)
 
 
 # Mount static assets if directory exists

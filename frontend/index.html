@@ -71,26 +71,132 @@
         </template>
     </div>
 
-    <!-- QUICK SEARCH MODAL (CTRL + K) -->
+    <!-- QUICK SEARCH MODAL (CTRL + K) - Q05 FAST SEARCH SYSTEM -->
     <div x-show="searchModalOpen" x-cloak
-         class="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in"
+         class="fixed inset-0 z-50 flex items-start justify-center pt-16 px-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in"
          @click.self="searchModalOpen = false">
-        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-xl w-full p-5 space-y-4">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-2xl w-full p-5 space-y-4 max-h-[85vh] flex flex-col">
+            <!-- Search Header -->
+            <div class="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+                <div class="flex items-center space-x-2">
+                    <span class="w-6 h-6 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center text-xs font-bold">
+                        <i class="fa-solid fa-bolt"></i>
+                    </span>
+                    <span class="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Q05 Fast Search</span>
+                    <span class="text-[10px] bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 font-mono px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800 font-bold">
+                        &lt;10ms SLA
+                    </span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <template x-if="searchResultsLatency !== null">
+                        <span class="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold" x-text="'⚡ ' + searchResultsLatency + ' ms'"></span>
+                    </template>
+                    <span class="text-[10px] text-slate-400 font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">ESC to close</span>
+                </div>
+            </div>
+
+            <!-- Input Bar -->
             <div class="relative flex items-center">
                 <i class="fa-solid fa-magnifying-glass absolute left-3.5 text-slate-400"></i>
-                <input type="text" x-model="searchQuery" placeholder="Search stakeholders, modules, rooms, students... (ESC to close)"
-                       class="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:border-brand-600 focus:ring-1 focus:ring-brand-600 dark:text-white">
+                <input type="text" x-model="searchQuery"
+                       @input.debounce.250ms="performFastSearch()"
+                       placeholder="Search students, roll numbers, hostels, rooms, allocations, complaints... (e.g. Priya, CSE, H1, 201)"
+                       class="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:border-brand-600 focus:ring-1 focus:ring-brand-600 dark:text-white placeholder:text-slate-400">
+                <button x-show="searchQuery" @click="searchQuery = ''; searchResults = []; searchResultsLatency = null;" class="absolute right-3 text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-xs"></i>
+                </button>
             </div>
-            <div class="text-xs text-slate-400 space-y-2">
-                <div class="font-bold uppercase tracking-wider text-[10px] text-slate-500">Quick Switch to Role Dashboard</div>
-                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    <template x-for="preset in rolePresets" :key="preset.role">
-                        <button type="button" @click="switchRoleDashboard(preset.role); searchModalOpen = false;"
-                                class="p-2 text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center space-x-2 text-slate-700 dark:text-slate-200 transition border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
-                            <i :class="'fa-solid ' + preset.icon + ' text-brand-600 text-xs'"></i>
-                            <span class="truncate" x-text="preset.label"></span>
-                        </button>
+
+            <!-- Category Filter Pills -->
+            <div class="flex items-center space-x-1.5 overflow-x-auto pb-1 text-xs">
+                <template x-for="cat in [
+                    { id: 'all', label: 'All Entities' },
+                    { id: 'students', label: 'Students' },
+                    { id: 'hostels', label: 'Hostels' },
+                    { id: 'rooms', label: 'Rooms' },
+                    { id: 'allocations', label: 'Allocations' },
+                    { id: 'complaints', label: 'Complaints' },
+                    { id: 'payments', label: 'Payments' }
+                ]" :key="cat.id">
+                    <button type="button" @click="setSearchCategory(cat.id)"
+                            :class="searchCategory === cat.id ? 'bg-brand-600 text-white font-bold shadow-xs' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'"
+                            class="px-2.5 py-1 rounded-lg transition whitespace-nowrap text-[11px]"
+                            x-text="cat.label"></button>
+                </template>
+            </div>
+
+            <!-- Dynamic Search Content Area -->
+            <div class="flex-1 overflow-y-auto min-h-[160px] space-y-2 pr-1">
+                <!-- Loading State -->
+                <div x-show="searchLoading" class="py-10 text-center space-y-2">
+                    <i class="fa-solid fa-circle-notch fa-spin text-brand-600 text-xl"></i>
+                    <p class="text-xs text-slate-500">Querying indexed database records...</p>
+                </div>
+
+                <!-- Live Results List -->
+                <div x-show="!searchLoading && searchQuery && searchResults.length > 0" class="space-y-1.5">
+                    <div class="flex items-center justify-between text-[11px] text-slate-400 px-1">
+                        <span x-text="'Found ' + searchResults.length + ' matching record(s)'"></span>
+                        <span class="text-[10px] text-slate-400">Click to navigate</span>
+                    </div>
+                    <template x-for="item in searchResults" :key="item.category + '-' + item.entity_id">
+                        <div @click="selectSearchResult(item)"
+                             class="p-3 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 hover:bg-brand-50/50 dark:hover:bg-slate-800 hover:border-brand-300 dark:hover:border-brand-700 transition cursor-pointer flex items-start space-x-3">
+                            <div class="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-xs font-bold"
+                                 :class="{
+                                     'bg-indigo-50 dark:bg-indigo-950 text-indigo-600': item.category === 'students',
+                                     'bg-amber-50 dark:bg-amber-950 text-amber-600': item.category === 'hostels',
+                                     'bg-emerald-50 dark:bg-emerald-950 text-emerald-600': item.category === 'rooms',
+                                     'bg-blue-50 dark:bg-blue-950 text-blue-600': item.category === 'allocations',
+                                     'bg-rose-50 dark:bg-rose-950 text-rose-600': item.category === 'complaints',
+                                     'bg-purple-50 dark:bg-purple-950 text-purple-600': item.category === 'payments'
+                                 }">
+                                <i :class="{
+                                    'fa-solid fa-graduation-cap': item.category === 'students',
+                                    'fa-solid fa-hotel': item.category === 'hostels',
+                                    'fa-solid fa-door-open': item.category === 'rooms',
+                                    'fa-solid fa-bed': item.category === 'allocations',
+                                    'fa-solid fa-triangle-exclamation': item.category === 'complaints',
+                                    'fa-solid fa-receipt': item.category === 'payments'
+                                }"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="text-xs font-bold text-slate-900 dark:text-white truncate" x-html="highlightMatch(item.title, searchQuery)"></h4>
+                                    <span class="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-700 text-slate-600 dark:text-slate-300" x-text="item.category"></span>
+                                </div>
+                                <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5" x-html="highlightMatch(item.subtitle, searchQuery)"></p>
+                                <template x-if="item.tags && item.tags.length">
+                                    <div class="flex flex-wrap gap-1 mt-1.5">
+                                        <template x-for="t in item.tags.slice(0, 4)" :key="t">
+                                            <span class="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400 font-mono" x-text="t"></span>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
                     </template>
+                </div>
+
+                <!-- No Results State -->
+                <div x-show="!searchLoading && searchQuery && searchResults.length === 0" class="py-10 text-center space-y-2">
+                    <i class="fa-solid fa-magnifying-glass text-slate-300 dark:text-slate-600 text-2xl"></i>
+                    <p class="text-xs font-semibold text-slate-700 dark:text-slate-300">No matching records found</p>
+                    <p class="text-[11px] text-slate-400">Try searching by partial name, enrollment ID, room number, or hostel code</p>
+                </div>
+
+                <!-- Empty Query Default: Role Presets -->
+                <div x-show="!searchQuery" class="text-xs text-slate-400 space-y-3 pt-1">
+                    <div class="font-bold uppercase tracking-wider text-[10px] text-slate-500">Quick Switch to Role Dashboard</div>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        <template x-for="preset in rolePresets" :key="preset.role">
+                            <button type="button" @click="switchRoleDashboard(preset.role); searchModalOpen = false;"
+                                    class="p-2.5 text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center space-x-2 text-slate-700 dark:text-slate-200 transition border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
+                                <i :class="'fa-solid ' + preset.icon + ' text-brand-600 text-xs'"></i>
+                                <span class="truncate text-xs font-semibold" x-text="preset.label"></span>
+                            </button>
+                        </template>
+                    </div>
                 </div>
             </div>
         </div>
