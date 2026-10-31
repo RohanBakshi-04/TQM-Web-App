@@ -280,6 +280,141 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
             applied_now.append("005_complaints_and_maintenance_workflow")
             logger.info("Migration 005_complaints_and_maintenance_workflow applied successfully.")
 
+        # Migration 006: Attendance, Leave & Outpass, and Visitor Management
+        if "006_attendance_leave_visitor_enhancements" not in applied:
+            logger.info("Applying Migration 006_attendance_leave_visitor_enhancements...")
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA foreign_keys = OFF;")
+
+            # 1. Attendance Corrections Table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS attendance_corrections (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    attendance_id INTEGER NOT NULL REFERENCES attendance(id) ON DELETE CASCADE,
+                    student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+                    previous_status TEXT NOT NULL,
+                    new_status TEXT NOT NULL,
+                    reason TEXT NOT NULL,
+                    corrected_by INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                    corrected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # Ensure columns in attendance
+            att_cols = [c[1] for c in cursor.execute("PRAGMA table_info(attendance);").fetchall()]
+            if "marked_at" not in att_cols:
+                cursor.execute("ALTER TABLE attendance ADD COLUMN marked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;")
+
+            # 2. Rebuild leave_requests for robust workflow & types
+            cursor.execute("""
+                CREATE TABLE leave_requests_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+                    leave_type TEXT NOT NULL DEFAULT 'Personal Leave' CHECK(leave_type IN ('Home Leave', 'Personal Leave', 'Medical Leave', 'Emergency Leave', 'Other')),
+                    start_date TEXT NOT NULL,
+                    end_date TEXT NOT NULL,
+                    departure_time TEXT NULL,
+                    expected_return_time TEXT NULL,
+                    reason TEXT NOT NULL,
+                    destination TEXT NOT NULL,
+                    emergency_contact TEXT NOT NULL,
+                    guardian_contact TEXT NULL,
+                    document_url TEXT NULL,
+                    status TEXT NOT NULL DEFAULT 'Submitted' CHECK(status IN ('Draft', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Cancelled')),
+                    approved_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    rejection_reason TEXT NULL,
+                    reviewed_at TIMESTAMP NULL,
+                    remarks TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    CHECK(end_date >= start_date)
+                );
+            """)
+            old_leave_cols = [c[1] for c in cursor.execute("PRAGMA table_info(leave_requests);").fetchall()]
+            common_l_cols = [c for c in ['id', 'student_id', 'start_date', 'end_date', 'reason', 'destination', 'emergency_contact', 'status', 'approved_by', 'reviewed_at', 'remarks', 'created_at'] if c in old_leave_cols]
+            if common_l_cols:
+                l_str = ", ".join(common_l_cols)
+                cursor.execute(f"INSERT INTO leave_requests_new ({l_str}) SELECT {l_str} FROM leave_requests;")
+            cursor.execute("DROP TABLE IF EXISTS leave_requests;")
+            cursor.execute("ALTER TABLE leave_requests_new RENAME TO leave_requests;")
+
+            # 3. Outpasses Table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS outpasses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    outpass_number TEXT NOT NULL UNIQUE,
+                    leave_request_id INTEGER NOT NULL UNIQUE REFERENCES leave_requests(id) ON DELETE CASCADE,
+                    student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+                    status TEXT NOT NULL DEFAULT 'Issued' CHECK(status IN ('Issued', 'Departed', 'Returned', 'Overdue', 'Cancelled')),
+                    expected_exit_time TEXT NOT NULL,
+                    expected_return_time TEXT NOT NULL,
+                    actual_exit_time TIMESTAMP NULL,
+                    actual_return_time TIMESTAMP NULL,
+                    exit_verified_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    return_verified_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    exit_remarks TEXT DEFAULT '',
+                    return_remarks TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # 4. Enhance visitor_logs table
+            cursor.execute("""
+                CREATE TABLE visitor_logs_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    pass_number TEXT NOT NULL UNIQUE,
+                    visitor_id INTEGER NOT NULL REFERENCES visitors(id) ON DELETE CASCADE,
+                    student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+                    hostel_id INTEGER NULL REFERENCES hostels(id) ON DELETE SET NULL,
+                    room_id INTEGER NULL REFERENCES rooms(id) ON DELETE SET NULL,
+                    check_in_time TIMESTAMP NULL,
+                    check_out_time TIMESTAMP NULL,
+                    expected_exit_time TIMESTAMP NULL,
+                    purpose TEXT NOT NULL,
+                    approval_status TEXT NOT NULL DEFAULT 'Approved' CHECK(approval_status IN ('Pending', 'Approved', 'Rejected')),
+                    status TEXT NOT NULL DEFAULT 'Approved' CHECK(status IN ('Pending', 'Approved', 'Rejected', 'Checked_In', 'Checked_Out', 'Overdue', 'Cancelled')),
+                    approved_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    rejection_reason TEXT NULL,
+                    remarks TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            old_vl_cols = [c[1] for c in cursor.execute("PRAGMA table_info(visitor_logs);").fetchall()]
+            if 'visitor_id' in old_vl_cols:
+                # Copy existing records with generated pass numbers
+                existing = cursor.execute("SELECT id, visitor_id, student_id, check_in_time, check_out_time, purpose, approved_by, remarks FROM visitor_logs;").fetchall()
+                for row in existing:
+                    pass_no = f"VP-LEGACY-{row[0]:04d}"
+                    status = 'Checked_Out' if row[4] else ('Checked_In' if row[3] else 'Approved')
+                    cursor.execute("""
+                        INSERT INTO visitor_logs_new (id, pass_number, visitor_id, student_id, check_in_time, check_out_time, purpose, approved_by, remarks, status, approval_status)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Approved')
+                    """, (row[0], pass_no, row[1], row[2], row[3], row[4], row[5], row[6], row[7], status))
+            cursor.execute("DROP TABLE IF EXISTS visitor_logs;")
+            cursor.execute("ALTER TABLE visitor_logs_new RENAME TO visitor_logs;")
+
+            # 5. High performance indexes
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_attendance_student_date ON attendance(student_id, date);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_attendance_status ON attendance(status);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_attendance_corrections_att ON attendance_corrections(attendance_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_leave_student ON leave_requests(student_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_leave_status ON leave_requests(status);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_leave_dates ON leave_requests(start_date, end_date);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_outpasses_number ON outpasses(outpass_number);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_outpasses_student ON outpasses(student_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_outpasses_status ON outpasses(status);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_outpasses_leave ON outpasses(leave_request_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_visitor_logs_pass ON visitor_logs(pass_number);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_visitor_logs_student ON visitor_logs(student_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_visitor_logs_visitor ON visitor_logs(visitor_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_visitor_logs_status ON visitor_logs(status);")
+
+            cursor.execute("PRAGMA foreign_keys = ON;")
+            conn.commit()
+            record_migration(conn, "006_attendance_leave_visitor_enhancements", "Attendance Corrections, Outpass Workflow & Visitor Passes")
+            applied_now.append("006_attendance_leave_visitor_enhancements")
+            logger.info("Migration 006_attendance_leave_visitor_enhancements applied successfully.")
+
         return applied_now
     finally:
         if should_close:

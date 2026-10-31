@@ -1115,6 +1115,15 @@
                         </button>
                     </template>
 
+                    <template x-if="isAuthenticated">
+                        <button @click="navigateTo('attendance')"
+                                :class="activeSection === 'attendance' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
+                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
+                            <i class="fa-solid fa-clipboard-user w-5 text-center text-sm"></i>
+                            <span x-show="!sidebarCollapsed" class="truncate">Attendance</span>
+                        </button>
+                    </template>
+
                     <button @click="navigateTo('architecture')"
                             :class="activeSection === 'architecture' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
                             class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
@@ -2564,6 +2573,387 @@
                         </div>
                     </div>
                 </section>
+
+                <!-- ATTENDANCE MANAGEMENT SECTION -->
+                <section x-show="activeSection === 'attendance'" class="animate-fade-in space-y-6">
+                    <!-- Header & Sub-navigation -->
+                    <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div>
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg font-bold">
+                                    <i class="fa-solid fa-clipboard-user"></i>
+                                </div>
+                                <div>
+                                    <h2 class="text-xl font-bold text-slate-900 dark:text-white">Resident Student Attendance</h2>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">Daily verification, curfew compliance, and repeat absence telemetry</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sub-tab switcher -->
+                        <div class="flex items-center bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl text-xs font-semibold">
+                            <button @click="attendanceSubTab = 'dashboard'; loadAttendanceSummary()"
+                                    :class="attendanceSubTab === 'dashboard' ? 'bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-300 shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl transition">
+                                <i class="fa-solid fa-chart-pie mr-1.5"></i>Dashboard
+                            </button>
+                            <button @click="attendanceSubTab = 'mark'; loadStudentsForMarking()"
+                                    :class="attendanceSubTab === 'mark' ? 'bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-300 shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl transition">
+                                <i class="fa-solid fa-pen-to-square mr-1.5"></i>Mark Attendance
+                            </button>
+                            <button @click="attendanceSubTab = 'history'; loadAttendanceRecords()"
+                                    :class="attendanceSubTab === 'history' ? 'bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-300 shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl transition">
+                                <i class="fa-solid fa-clock-rotate-left mr-1.5"></i>Logs & Audit
+                            </button>
+                            <button @click="attendanceSubTab = 'reports'; loadAttendanceReports()"
+                                    :class="attendanceSubTab === 'reports' ? 'bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-300 shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl transition">
+                                <i class="fa-solid fa-file-invoice mr-1.5"></i>Reports
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 1. ATTENDANCE DASHBOARD VIEW -->
+                    <div x-show="attendanceSubTab === 'dashboard'" class="space-y-6">
+                        <!-- Date Filter Toolbar -->
+                        <div class="flex items-center space-x-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                            <span class="text-xs font-semibold text-slate-500">Date:</span>
+                            <input type="date" x-model="attendanceDate" @change="loadAttendanceSummary()"
+                                   class="text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                            <button @click="loadAttendanceSummary()" class="px-3 py-1.5 rounded-xl bg-brand-50 dark:bg-brand-950/60 text-brand-600 dark:text-brand-300 text-xs font-semibold hover:bg-brand-100">
+                                <i class="fa-solid fa-arrows-rotate mr-1"></i>Refresh
+                            </button>
+                        </div>
+
+                        <!-- Metric Cards -->
+                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                            <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                                <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Residents</div>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="attendanceSummary ? attendanceSummary.total_students : 0"></div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                                <div class="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Present</div>
+                                <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1" x-text="attendanceSummary ? attendanceSummary.present_students : 0"></div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                                <div class="text-[11px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">Absent</div>
+                                <div class="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1" x-text="attendanceSummary ? attendanceSummary.absent_students : 0"></div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                                <div class="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">On Leave</div>
+                                <div class="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1" x-text="attendanceSummary ? attendanceSummary.students_on_leave : 0"></div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                                <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Unmarked</div>
+                                <div class="text-2xl font-black text-slate-500 mt-1" x-text="attendanceSummary ? attendanceSummary.not_marked_students : 0"></div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                                <div class="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Present Rate</div>
+                                <div class="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1" x-text="(attendanceSummary ? attendanceSummary.attendance_percentage : 0) + '%'"></div>
+                            </div>
+                        </div>
+
+                        <!-- Repeated Absentees Alert Table -->
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-600 flex items-center justify-center">
+                                        <i class="fa-solid fa-triangle-exclamation"></i>
+                                    </div>
+                                    <h3 class="text-base font-bold text-slate-900 dark:text-white">Repeated Absences Telemetry (Past 30 Days)</h3>
+                                </div>
+                                <span class="text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 font-bold"
+                                      x-text="attendanceSummary && attendanceSummary.repeated_absentees ? attendanceSummary.repeated_absentees.length + ' Flagged Students' : '0 Flagged'"></span>
+                            </div>
+
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-slate-50 dark:bg-slate-800/50 text-slate-400 font-semibold uppercase text-[10px]">
+                                        <tr>
+                                            <th class="py-2.5 px-3">Student Name</th>
+                                            <th class="py-2.5 px-3">Roll No</th>
+                                            <th class="py-2.5 px-3">Hostel</th>
+                                            <th class="py-2.5 px-3">Room</th>
+                                            <th class="py-2.5 px-3">Absences (30D)</th>
+                                            <th class="py-2.5 px-3">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                        <template x-if="!attendanceSummary || !attendanceSummary.repeated_absentees || attendanceSummary.repeated_absentees.length === 0">
+                                            <tr>
+                                                <td colspan="6" class="py-6 text-center text-slate-400">No repeated absentees identified. Perfect compliance record!</td>
+                                            </tr>
+                                        </template>
+                                        <template x-for="item in (attendanceSummary ? attendanceSummary.repeated_absentees : [])" :key="item.student_id">
+                                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                                <td class="py-2.5 px-3 font-bold text-slate-900 dark:text-white" x-text="item.student_name"></td>
+                                                <td class="py-2.5 px-3 font-mono text-slate-500" x-text="item.roll_no"></td>
+                                                <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300" x-text="item.hostel_name || '-'"></td>
+                                                <td class="py-2.5 px-3 font-semibold text-slate-700 dark:text-slate-300" x-text="item.room_number || '-'"></td>
+                                                <td class="py-2.5 px-3">
+                                                    <span class="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-black" x-text="item.absent_days + ' days'"></span>
+                                                </td>
+                                                <td class="py-2.5 px-3">
+                                                    <button @click="attendanceSubTab = 'history'; attendanceFilterStatus = 'Absent'; loadAttendanceRecords()"
+                                                            class="text-indigo-600 dark:text-indigo-400 font-bold hover:underline">
+                                                        Inspect Logs
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. MARK ATTENDANCE VIEW -->
+                    <div x-show="attendanceSubTab === 'mark'" class="space-y-6">
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
+                            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div class="flex items-center space-x-3">
+                                    <input type="date" x-model="attendanceDate" @change="loadStudentsForMarking()"
+                                           class="text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                                    <button @click="loadStudentsForMarking()" class="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-200">
+                                        <i class="fa-solid fa-filter mr-1"></i>Load Resident Roster
+                                    </button>
+                                </div>
+
+                                <div class="flex items-center space-x-2">
+                                    <button @click="attendanceMarkingStudents.forEach(s => s.status = 'Present')"
+                                            class="px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold hover:bg-emerald-100">
+                                        <i class="fa-solid fa-check-double mr-1"></i>All Present
+                                    </button>
+                                    <button @click="submitAttendanceSheet()"
+                                            class="px-4 py-2 rounded-xl bg-brand-600 text-white text-xs font-bold hover:bg-brand-700 shadow-xs">
+                                        <i class="fa-solid fa-floppy-disk mr-1"></i>Save Attendance Sheet
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Student Roster Table -->
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-slate-50 dark:bg-slate-800/50 text-slate-400 font-semibold uppercase text-[10px]">
+                                        <tr>
+                                            <th class="py-2.5 px-3">Student</th>
+                                            <th class="py-2.5 px-3">Roll No</th>
+                                            <th class="py-2.5 px-3">Room / Bed</th>
+                                            <th class="py-2.5 px-3">Status</th>
+                                            <th class="py-2.5 px-3">Remarks</th>
+                                            <th class="py-2.5 px-3">Recorded State</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                        <template x-if="attendanceMarkingStudents.length === 0">
+                                            <tr>
+                                                <td colspan="6" class="py-6 text-center text-slate-400">No active resident students loaded. Click "Load Resident Roster".</td>
+                                            </tr>
+                                        </template>
+                                        <template x-for="st in attendanceMarkingStudents" :key="st.student_id">
+                                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                                <td class="py-2.5 px-3 font-bold text-slate-900 dark:text-white" x-text="st.student_name"></td>
+                                                <td class="py-2.5 px-3 font-mono text-slate-500" x-text="st.roll_no"></td>
+                                                <td class="py-2.5 px-3">
+                                                    <span class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold"
+                                                          x-text="'Room ' + (st.room_number || '-') + ' (' + (st.bed_code || '-') + ')'"></span>
+                                                </td>
+                                                <td class="py-2.5 px-3">
+                                                    <select x-model="st.status" class="text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-1 px-2 font-bold focus:outline-none"
+                                                            :class="st.status === 'Present' ? 'text-emerald-600' : (st.status === 'Absent' ? 'text-rose-600' : 'text-amber-600')">
+                                                        <option value="Present">Present</option>
+                                                        <option value="Absent">Absent</option>
+                                                        <option value="On Leave">On Leave</option>
+                                                        <option value="Late">Late</option>
+                                                        <option value="Not Marked">Not Marked</option>
+                                                    </select>
+                                                </td>
+                                                <td class="py-2.5 px-3">
+                                                    <input type="text" x-model="st.remarks" placeholder="Optional notes"
+                                                           class="text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2 py-1 w-full max-w-xs focus:outline-none" />
+                                                </td>
+                                                <td class="py-2.5 px-3">
+                                                    <span x-show="st.is_already_marked" class="text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">Marked</span>
+                                                    <span x-show="!st.is_already_marked && st.is_on_leave" class="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">Approved Leave</span>
+                                                    <span x-show="!st.is_already_marked && !st.is_on_leave" class="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-500 font-semibold">Pending</span>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. LOGS & CORRECTION AUDIT VIEW -->
+                    <div x-show="attendanceSubTab === 'history'" class="space-y-6">
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
+                            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div class="flex items-center space-x-3">
+                                    <input type="date" x-model="attendanceDate" @change="loadAttendanceRecords()"
+                                           class="text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none" />
+                                    <select x-model="attendanceFilterStatus" @change="loadAttendanceRecords()"
+                                            class="text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none">
+                                        <option value="all">All Statuses</option>
+                                        <option value="Present">Present</option>
+                                        <option value="Absent">Absent</option>
+                                        <option value="On Leave">On Leave</option>
+                                        <option value="Late">Late</option>
+                                    </select>
+                                    <button @click="loadAttendanceRecords()" class="px-3.5 py-2 rounded-xl bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-300 text-xs font-bold hover:bg-brand-100">
+                                        <i class="fa-solid fa-arrows-rotate mr-1"></i>Fetch Logs
+                                    </button>
+                                </div>
+                                <span class="text-xs text-slate-400 font-semibold" x-text="'Showing ' + attendanceRecords.length + ' of ' + attendanceRecordsTotal + ' records'"></span>
+                            </div>
+
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-slate-50 dark:bg-slate-800/50 text-slate-400 font-semibold uppercase text-[10px]">
+                                        <tr>
+                                            <th class="py-2.5 px-3">Date</th>
+                                            <th class="py-2.5 px-3">Student Name</th>
+                                            <th class="py-2.5 px-3">Roll No</th>
+                                            <th class="py-2.5 px-3">Hostel & Room</th>
+                                            <th class="py-2.5 px-3">Status</th>
+                                            <th class="py-2.5 px-3">Marked By</th>
+                                            <th class="py-2.5 px-3">Remarks</th>
+                                            <th class="py-2.5 px-3">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                        <template x-if="attendanceRecords.length === 0">
+                                            <tr>
+                                                <td colspan="8" class="py-6 text-center text-slate-400">No attendance records found for this filter.</td>
+                                            </tr>
+                                        </template>
+                                        <template x-for="rec in attendanceRecords" :key="rec.id">
+                                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                                <td class="py-2.5 px-3 font-mono text-slate-500" x-text="rec.date"></td>
+                                                <td class="py-2.5 px-3 font-bold text-slate-900 dark:text-white" x-text="rec.student_name"></td>
+                                                <td class="py-2.5 px-3 font-mono text-slate-500" x-text="rec.roll_no"></td>
+                                                <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300" x-text="(rec.hostel_name || '-') + ' / Room ' + (rec.room_number || '-')"></td>
+                                                <td class="py-2.5 px-3">
+                                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
+                                                          :class="rec.status === 'Present' ? 'bg-emerald-100 text-emerald-800' : (rec.status === 'Absent' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800')"
+                                                          x-text="rec.status"></span>
+                                                </td>
+                                                <td class="py-2.5 px-3 text-slate-500" x-text="rec.marked_by_name || 'System'"></td>
+                                                <td class="py-2.5 px-3 text-slate-400 truncate max-w-xs" x-text="rec.remarks || '-'"></td>
+                                                <td class="py-2.5 px-3">
+                                                    <button @click="openAttendanceCorrectionModal(rec)"
+                                                            class="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 text-xs font-semibold">
+                                                        <i class="fa-solid fa-pen-nib mr-1"></i>Correct
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4. REPORTS & ANALYTICS VIEW -->
+                    <div x-show="attendanceSubTab === 'reports'" class="space-y-6">
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
+                            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div class="flex items-center space-x-3">
+                                    <span class="text-xs font-semibold text-slate-500">From:</span>
+                                    <input type="date" x-model="attendanceReportStartDate" class="text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 focus:outline-none" />
+                                    <span class="text-xs font-semibold text-slate-500">To:</span>
+                                    <input type="date" x-model="attendanceReportEndDate" class="text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 focus:outline-none" />
+                                    <button @click="loadAttendanceReports()" class="px-4 py-2 rounded-xl bg-brand-600 text-white text-xs font-bold hover:bg-brand-700">
+                                        <i class="fa-solid fa-chart-line mr-1"></i>Generate Analytics
+                                    </button>
+                                </div>
+                                <div class="text-xs font-bold text-slate-700 dark:text-slate-300" x-show="attendanceReportData">
+                                    Overall Attendance: <span class="text-indigo-600 dark:text-indigo-400 font-black text-sm" x-text="attendanceReportData.overall_attendance_percentage + '%'"></span>
+                                </div>
+                            </div>
+
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-slate-50 dark:bg-slate-800/50 text-slate-400 font-semibold uppercase text-[10px]">
+                                        <tr>
+                                            <th class="py-2.5 px-3">Student</th>
+                                            <th class="py-2.5 px-3">Roll No</th>
+                                            <th class="py-2.5 px-3">Hostel</th>
+                                            <th class="py-2.5 px-3">Room</th>
+                                            <th class="py-2.5 px-3">Total Days</th>
+                                            <th class="py-2.5 px-3">Present</th>
+                                            <th class="py-2.5 px-3">Absent</th>
+                                            <th class="py-2.5 px-3">On Leave</th>
+                                            <th class="py-2.5 px-3">Percentage</th>
+                                            <th class="py-2.5 px-3">Compliance</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                        <template x-if="!attendanceReportData || !attendanceReportData.student_reports || attendanceReportData.student_reports.length === 0">
+                                            <tr>
+                                                <td colspan="10" class="py-6 text-center text-slate-400">Click "Generate Analytics" to view date range reports.</td>
+                                            </tr>
+                                        </template>
+                                        <template x-for="item in (attendanceReportData ? attendanceReportData.student_reports : [])" :key="item.student_id">
+                                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                                <td class="py-2.5 px-3 font-bold text-slate-900 dark:text-white" x-text="item.student_name"></td>
+                                                <td class="py-2.5 px-3 font-mono text-slate-500" x-text="item.student_roll_no"></td>
+                                                <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300" x-text="item.hostel_name || '-'"></td>
+                                                <td class="py-2.5 px-3 font-semibold text-slate-700 dark:text-slate-300" x-text="item.room_number || '-'"></td>
+                                                <td class="py-2.5 px-3 font-semibold" x-text="item.total_days"></td>
+                                                <td class="py-2.5 px-3 text-emerald-600 font-bold" x-text="item.present_days"></td>
+                                                <td class="py-2.5 px-3 text-rose-600 font-bold" x-text="item.absent_days"></td>
+                                                <td class="py-2.5 px-3 text-amber-600 font-semibold" x-text="item.on_leave_days"></td>
+                                                <td class="py-2.5 px-3 font-black" :class="item.attendance_percentage >= 75 ? 'text-emerald-600' : 'text-rose-600'" x-text="item.attendance_percentage + '%'"></td>
+                                                <td class="py-2.5 px-3">
+                                                    <span x-show="item.is_repeated_absentee" class="px-2 py-0.5 rounded bg-rose-100 text-rose-800 text-[10px] font-bold">Flagged</span>
+                                                    <span x-show="!item.is_repeated_absentee" class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">Good</span>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ATTENDANCE CORRECTION MODAL -->
+                <div x-show="attendanceCorrectionModal.open" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in" style="display: none;">
+                    <div @click.away="attendanceCorrectionModal.open = false" class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 shadow-2xl space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white">Audit Attendance Correction</h3>
+                            <button @click="attendanceCorrectionModal.open = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="space-y-3 text-xs">
+                            <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 space-y-1">
+                                <div class="text-slate-500 font-medium">Student: <span class="font-bold text-slate-800 dark:text-white" x-text="attendanceCorrectionModal.studentName"></span></div>
+                                <div class="text-slate-500 font-medium">Date: <span class="font-bold text-slate-800 dark:text-white" x-text="attendanceCorrectionModal.date"></span></div>
+                                <div class="text-slate-500 font-medium">Current Status: <span class="font-bold text-amber-600" x-text="attendanceCorrectionModal.previousStatus"></span></div>
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">New Target Status</label>
+                                <select x-model="attendanceCorrectionModal.newStatus" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                                    <option value="Present">Present</option>
+                                    <option value="Absent">Absent</option>
+                                    <option value="On Leave">On Leave</option>
+                                    <option value="Late">Late</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Mandatory Audit Justification (Min 5 chars)</label>
+                                <textarea x-model="attendanceCorrectionModal.reason" rows="3" placeholder="Provide operational reason (e.g., Medical certificate submitted, biometric misread, etc.)"
+                                          class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500"></textarea>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-end space-x-2 pt-2">
+                            <button @click="attendanceCorrectionModal.open = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200">Cancel</button>
+                            <button @click="submitAttendanceCorrection()" class="px-4 py-2 rounded-xl bg-brand-600 text-white text-xs font-bold hover:bg-brand-700 shadow-xs">Apply Correction</button>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- 4. ARCHITECTURE & TELEMETRY SECTION -->
                 <section x-show="activeSection === 'architecture'" class="animate-fade-in space-y-6">

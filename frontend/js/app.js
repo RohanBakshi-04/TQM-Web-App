@@ -250,6 +250,31 @@ document.addEventListener("alpine:init", () => {
             reason: ""
         },
 
+        // Attendance State
+        attendanceSubTab: "dashboard", // "dashboard" | "mark" | "history" | "reports"
+        attendanceDate: new Date().toISOString().split("T")[0],
+        attendanceHostelId: "",
+        attendanceBuildingId: "",
+        attendanceFloorId: "",
+        attendanceRoomId: "",
+        attendanceSummary: null,
+        attendanceMarkingStudents: [],
+        attendanceRecords: [],
+        attendanceRecordsTotal: 0,
+        attendanceFilterStatus: "all",
+        attendanceReportStartDate: new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0],
+        attendanceReportEndDate: new Date().toISOString().split("T")[0],
+        attendanceReportData: null,
+        attendanceCorrectionModal: {
+            open: false,
+            attendanceId: null,
+            studentName: "",
+            date: "",
+            previousStatus: "",
+            newStatus: "Present",
+            reason: ""
+        },
+
         dashboardStats: {
             hostels: { total: 1, rooms: 3, beds: 6, occupied_beds: 2, available_beds: 4, occupancy_rate: 33.3 },
             students: { total: 3, active: 3 },
@@ -743,6 +768,9 @@ document.addEventListener("alpine:init", () => {
                 this.loadAllocations();
                 this.loadAvailableBeds();
                 this.loadTransfers();
+            } else if (section === 'attendance') {
+                this.loadAttendanceSummary();
+                this.loadStudentsForMarking();
             }
             this.navigationLatencyMs = parseFloat((performance.now() - t0).toFixed(2));
         },
@@ -1142,6 +1170,129 @@ document.addEventListener("alpine:init", () => {
                 "Approve Closure",
                 "primary"
             );
+        },
+
+        // ==================== ATTENDANCE MODULE ====================
+        async loadAttendanceSummary() {
+            try {
+                this.attendanceSummary = await window.API.getDailyAttendanceSummary(
+                    this.attendanceDate,
+                    this.attendanceHostelId || null
+                );
+            } catch (err) {
+                console.error("Attendance summary error:", err);
+            }
+        },
+
+        async loadStudentsForMarking() {
+            try {
+                const students = await window.API.getStudentsForMarking(
+                    this.attendanceDate,
+                    this.attendanceHostelId || null,
+                    this.attendanceBuildingId || null,
+                    this.attendanceFloorId || null,
+                    this.attendanceRoomId || null
+                );
+                this.attendanceMarkingStudents = students.map(s => ({
+                    student_id: s.student_id,
+                    student_name: s.student_name,
+                    roll_no: s.roll_no,
+                    room_number: s.room_number,
+                    bed_code: s.bed_code,
+                    hostel_name: s.hostel_name,
+                    status: s.marked_status || s.suggested_status || "Present",
+                    remarks: s.marked_remarks || "",
+                    is_already_marked: !!s.marked_status,
+                    is_on_leave: !!s.is_on_leave
+                }));
+            } catch (err) {
+                this.showToast(`Failed to load students for roll call: ${err.message}`, "error");
+            }
+        },
+
+        async submitAttendanceSheet() {
+            if (!this.attendanceMarkingStudents.length) {
+                this.showToast("No resident students loaded for attendance marking.", "warning");
+                return;
+            }
+            try {
+                const records = this.attendanceMarkingStudents.map(s => ({
+                    student_id: s.student_id,
+                    status: s.status,
+                    remarks: s.remarks || ""
+                }));
+                const res = await window.API.bulkMarkAttendance({
+                    date: this.attendanceDate,
+                    records,
+                    hostel_id: this.attendanceHostelId ? parseInt(this.attendanceHostelId) : null
+                });
+                this.showToast(`Attendance saved: ${res.marked_count} marked, ${res.skipped_count} skipped.`, "success");
+                await this.loadAttendanceSummary();
+                await this.loadStudentsForMarking();
+            } catch (err) {
+                this.showToast(`Failed to submit attendance: ${err.message}`, "error");
+            }
+        },
+
+        async loadAttendanceRecords() {
+            try {
+                const filters = {
+                    date: this.attendanceDate,
+                    hostel_id: this.attendanceHostelId || null,
+                    status: this.attendanceFilterStatus !== "all" ? this.attendanceFilterStatus : null,
+                    limit: 50,
+                    offset: 0
+                };
+                const res = await window.API.getAttendanceRecords(filters);
+                this.attendanceRecords = res.records || [];
+                this.attendanceRecordsTotal = res.total || 0;
+            } catch (err) {
+                this.showToast(`Failed to load attendance records: ${err.message}`, "error");
+            }
+        },
+
+        openAttendanceCorrectionModal(rec) {
+            this.attendanceCorrectionModal = {
+                open: true,
+                attendanceId: rec.id,
+                studentName: rec.student_name,
+                date: rec.date,
+                previousStatus: rec.status,
+                newStatus: rec.status === "Present" ? "Absent" : "Present",
+                reason: ""
+            };
+        },
+
+        async submitAttendanceCorrection() {
+            const m = this.attendanceCorrectionModal;
+            if (!m.reason || m.reason.trim().length < 5) {
+                this.showToast("Mandatory audit reason required (minimum 5 characters).", "error");
+                return;
+            }
+            try {
+                await window.API.correctAttendance(m.attendanceId, {
+                    new_status: m.newStatus,
+                    reason: m.reason.trim()
+                });
+                this.showToast(`Attendance status corrected to ${m.newStatus}`, "success");
+                this.attendanceCorrectionModal.open = false;
+                await this.loadAttendanceRecords();
+                await this.loadAttendanceSummary();
+            } catch (err) {
+                this.showToast(`Correction failed: ${err.message}`, "error");
+            }
+        },
+
+        async loadAttendanceReports() {
+            try {
+                this.attendanceReportData = await window.API.getAttendanceReports(
+                    this.attendanceReportStartDate,
+                    this.attendanceReportEndDate,
+                    this.attendanceHostelId || null
+                );
+            } catch (err) {
+                this.showToast(`Failed to generate attendance report: ${err.message}`, "error");
+            }
         }
     }));
 });

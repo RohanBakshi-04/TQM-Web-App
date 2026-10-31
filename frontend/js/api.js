@@ -710,6 +710,107 @@ const API = {
         });
         if (!response.ok) throw new Error("Failed to load staff availability.");
         return await response.json();
+    },
+
+    // ==================== ATTENDANCE MANAGEMENT ====================
+    async getAttendanceRecords(filters = {}) {
+        const params = new URLSearchParams();
+        if (filters.date) params.append('date', filters.date);
+        if (filters.start_date) params.append('start_date', filters.start_date);
+        if (filters.end_date) params.append('end_date', filters.end_date);
+        if (filters.student_id) params.append('student_id', filters.student_id);
+        if (filters.hostel_id) params.append('hostel_id', filters.hostel_id);
+        if (filters.building_id) params.append('building_id', filters.building_id);
+        if (filters.room_id) params.append('room_id', filters.room_id);
+        if (filters.status) params.append('status', filters.status);
+        if (filters.limit) params.append('limit', filters.limit);
+        if (filters.offset) params.append('offset', filters.offset);
+
+        const qs = params.toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/attendance${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to load attendance records.");
+        return await response.json();
+    },
+
+    async markAttendance(data) {
+        const response = await fetch(`${this.baseUrl}/api/v1/attendance`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to mark attendance.");
+        return res;
+    },
+
+    async bulkMarkAttendance(data) {
+        const response = await fetch(`${this.baseUrl}/api/v1/attendance/bulk`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to submit batch attendance.");
+        return res;
+    },
+
+    async correctAttendance(attendanceId, data) {
+        const response = await fetch(`${this.baseUrl}/api/v1/attendance/${attendanceId}`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to correct attendance.");
+        return res;
+    },
+
+    async getDailyAttendanceSummary(date = null, hostelId = null) {
+        const params = new URLSearchParams();
+        if (date) params.append('date', date);
+        if (hostelId) params.append('hostel_id', hostelId);
+        const qs = params.toString();
+
+        const response = await fetch(`${this.baseUrl}/api/v1/attendance/summary${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to load attendance daily summary.");
+        return await response.json();
+    },
+
+    async getAttendanceReports(startDate, endDate, hostelId = null) {
+        const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+        if (hostelId) params.append('hostel_id', hostelId);
+
+        const response = await fetch(`${this.baseUrl}/api/v1/attendance/reports?${params.toString()}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to generate attendance report.");
+        return await response.json();
+    },
+
+    async getStudentAttendanceHistory(studentId) {
+        const response = await fetch(`${this.baseUrl}/api/v1/attendance/student/${studentId}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to load student attendance history.");
+        return await response.json();
+    },
+
+    async getStudentsForMarking(date, hostelId = null, buildingId = null, floorId = null, roomId = null) {
+        const params = new URLSearchParams({ date });
+        if (hostelId) params.append('hostel_id', hostelId);
+        if (buildingId) params.append('building_id', buildingId);
+        if (floorId) params.append('floor_id', floorId);
+        if (roomId) params.append('room_id', roomId);
+
+        const response = await fetch(`${this.baseUrl}/api/v1/attendance/students-for-marking?${params.toString()}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to load resident students for marking.");
+        return await response.json();
     }
 };
 
