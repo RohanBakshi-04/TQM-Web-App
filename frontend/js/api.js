@@ -519,6 +519,120 @@ const API = {
         const res = await response.json();
         if (!response.ok) throw new Error(res.detail || "Failed to submit feedback.");
         return res;
+    },
+
+    // ==================== MAINTENANCE WORK-ORDERS ====================
+    async getMaintenanceTasks(statusFilter = null, priorityFilter = null, assignedTo = null, hostelId = null) {
+        const params = new URLSearchParams();
+        if (statusFilter && statusFilter !== 'all') params.append('status_filter', statusFilter);
+        if (priorityFilter && priorityFilter !== 'all') params.append('priority_filter', priorityFilter);
+        if (assignedTo) params.append('assigned_to', assignedTo);
+        if (hostelId) params.append('hostel_id', hostelId);
+
+        const qs = params.toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/maintenance/tasks${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to load maintenance tasks.");
+        return await response.json();
+    },
+
+    async getMaintenanceTask(taskId) {
+        const response = await fetch(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to load maintenance task details.");
+        return await response.json();
+    },
+
+    async createMaintenanceTask(data) {
+        const response = await fetch(`${this.baseUrl}/api/v1/maintenance/tasks`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to create maintenance task.");
+        return res;
+    },
+
+    async acceptMaintenanceTask(taskId) {
+        const response = await fetch(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}/accept`, {
+            method: "POST",
+            headers: this.getHeaders()
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to accept task.");
+        return res;
+    },
+
+    async startMaintenanceTask(taskId) {
+        const response = await fetch(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}/start`, {
+            method: "POST",
+            headers: this.getHeaders()
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to start task.");
+        return res;
+    },
+
+    async updateMaintenanceTaskProgress(taskId, notes) {
+        const response = await fetch(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}/progress`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ notes })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to update progress.");
+        return res;
+    },
+
+    async holdMaintenanceTask(taskId, holdReason, notes = "") {
+        const response = await fetch(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}/hold`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ hold_reason: holdReason, notes })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to place task on hold.");
+        return res;
+    },
+
+    async completeMaintenanceTask(taskId, resolutionNotes, actualCost = 0.0, completionPhotoUrl = null) {
+        const response = await fetch(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}/complete`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({
+                resolution_notes: resolutionNotes,
+                actual_cost: parseFloat(actualCost) || 0.0,
+                completion_photo_url: completionPhotoUrl
+            })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to complete task.");
+        return res;
+    },
+
+    async verifyMaintenanceTask(taskId, approved = true, verificationNotes = "") {
+        const response = await fetch(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}/verify`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({
+                approved,
+                verification_notes: verificationNotes
+            })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to verify task.");
+        return res;
+    },
+
+    async getStaffAvailability() {
+        const response = await fetch(`${this.baseUrl}/api/v1/maintenance/staff-availability`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to load staff availability.");
+        return await response.json();
     }
 };
 

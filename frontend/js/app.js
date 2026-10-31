@@ -203,6 +203,27 @@ document.addEventListener("alpine:init", () => {
         complaintRating: 5,
         complaintFeedbackComment: "",
 
+        // Maintenance Work-Orders State
+        maintenanceTasks: [],
+        maintenanceLoading: false,
+        selectedMaintenanceTask: null,
+        maintenanceTaskDetailModalOpen: false,
+        maintenanceCompleteModalOpen: false,
+        maintenanceHoldModalOpen: false,
+        maintenanceFilterStatus: "all",
+        maintenanceFilterPriority: "all",
+        staffAvailabilityList: [],
+        taskCompleteForm: {
+            resolution_notes: "",
+            actual_cost: 0,
+            completion_photo_url: ""
+        },
+        taskHoldForm: {
+            hold_reason: "",
+            notes: ""
+        },
+        taskProgressNote: "",
+
         dashboardStats: {
             hostels: { total: 1, rooms: 3, beds: 6, occupied_beds: 2, available_beds: 4, occupancy_rate: 33.3 },
             students: { total: 3, active: 3 },
@@ -418,8 +439,15 @@ document.addEventListener("alpine:init", () => {
                 if (roleKey === "student") {
                     this.loadMyStudentProfile();
                     this.loadMyComplaints();
+                } else if (roleKey === "maintenance_staff") {
+                    this.loadMaintenanceTasks();
+                } else if (roleKey === "warden" || roleKey === "assistant_warden") {
+                    this.loadStaffAvailability();
+                    this.loadMaintenanceTasks();
                 } else if (roleKey === "super_admin" || roleKey === "hostel_admin") {
                     this.loadUsers();
+                    this.loadStaffAvailability();
+                    this.loadMaintenanceTasks();
                 }
                 const preset = this.rolePresets.find(p => p.role === roleKey);
                 this.showToast(`Switched view to ${preset?.label || roleKey}`, "info");
@@ -816,6 +844,139 @@ document.addEventListener("alpine:init", () => {
                 await this.loadMyComplaints();
             } catch (err) {
                 this.showToast(`Feedback failed: ${err.message}`, "error");
+            }
+        },
+
+        // ==================== MAINTENANCE WORK-ORDER METHODS ====================
+        async loadMaintenanceTasks() {
+            this.maintenanceLoading = true;
+            try {
+                const status = this.maintenanceFilterStatus !== "all" ? this.maintenanceFilterStatus : null;
+                const prio = this.maintenanceFilterPriority !== "all" ? this.maintenanceFilterPriority : null;
+                this.maintenanceTasks = await window.API.getMaintenanceTasks(status, prio);
+            } catch (err) {
+                console.error("Failed to load maintenance tasks:", err);
+                this.maintenanceTasks = [];
+            } finally {
+                this.maintenanceLoading = false;
+            }
+        },
+
+        async loadStaffAvailability() {
+            try {
+                this.staffAvailabilityList = await window.API.getStaffAvailability();
+            } catch (err) {
+                this.staffAvailabilityList = [];
+            }
+        },
+
+        async openMaintenanceTaskDetails(taskId) {
+            try {
+                this.selectedMaintenanceTask = await window.API.getMaintenanceTask(taskId);
+                this.taskProgressNote = "";
+                this.maintenanceTaskDetailModalOpen = true;
+            } catch (err) {
+                this.showToast(`Failed to load task details: ${err.message}`, "error");
+            }
+        },
+
+        async handleAcceptTask(taskId) {
+            try {
+                const res = await window.API.acceptMaintenanceTask(taskId);
+                this.showToast(`Task ${res.task_code} accepted`, "success");
+                await this.loadMaintenanceTasks();
+                if (this.selectedMaintenanceTask && this.selectedMaintenanceTask.id === taskId) {
+                    this.selectedMaintenanceTask = res;
+                }
+            } catch (err) {
+                this.showToast(`Failed to accept: ${err.message}`, "error");
+            }
+        },
+
+        async handleStartTask(taskId) {
+            try {
+                const res = await window.API.startMaintenanceTask(taskId);
+                this.showToast(`Task ${res.task_code} started`, "info");
+                await this.loadMaintenanceTasks();
+                if (this.selectedMaintenanceTask && this.selectedMaintenanceTask.id === taskId) {
+                    this.selectedMaintenanceTask = res;
+                }
+            } catch (err) {
+                this.showToast(`Failed to start: ${err.message}`, "error");
+            }
+        },
+
+        openHoldTaskModal(task) {
+            this.selectedMaintenanceTask = task;
+            this.taskHoldForm = { hold_reason: "", notes: "" };
+            this.maintenanceHoldModalOpen = true;
+        },
+
+        async submitHoldTask() {
+            if (!this.taskHoldForm.hold_reason || !this.taskHoldForm.hold_reason.trim()) {
+                this.showToast("Please provide reason for holding work", "error");
+                return;
+            }
+            try {
+                const res = await window.API.holdMaintenanceTask(
+                    this.selectedMaintenanceTask.id,
+                    this.taskHoldForm.hold_reason.trim(),
+                    this.taskHoldForm.notes.trim()
+                );
+                this.showToast(`Task ${res.task_code} set to On Hold`, "warning");
+                this.maintenanceHoldModalOpen = false;
+                await this.loadMaintenanceTasks();
+                if (this.selectedMaintenanceTask && this.selectedMaintenanceTask.id === res.id) {
+                    this.selectedMaintenanceTask = res;
+                }
+            } catch (err) {
+                this.showToast(`Failed to hold: ${err.message}`, "error");
+            }
+        },
+
+        openCompleteTaskModal(task) {
+            this.selectedMaintenanceTask = task;
+            this.taskCompleteForm = {
+                resolution_notes: "",
+                actual_cost: task.estimated_cost || 0,
+                completion_photo_url: ""
+            };
+            this.maintenanceCompleteModalOpen = true;
+        },
+
+        async submitCompleteTask() {
+            if (!this.taskCompleteForm.resolution_notes || !this.taskCompleteForm.resolution_notes.trim()) {
+                this.showToast("Please enter repair resolution notes", "error");
+                return;
+            }
+            try {
+                const res = await window.API.completeMaintenanceTask(
+                    this.selectedMaintenanceTask.id,
+                    this.taskCompleteForm.resolution_notes.trim(),
+                    this.taskCompleteForm.actual_cost,
+                    this.taskCompleteForm.completion_photo_url ? this.taskCompleteForm.completion_photo_url.trim() : null
+                );
+                this.showToast(`Task ${res.task_code} marked Completed`, "success");
+                this.maintenanceCompleteModalOpen = false;
+                await this.loadMaintenanceTasks();
+                if (this.selectedMaintenanceTask && this.selectedMaintenanceTask.id === res.id) {
+                    this.selectedMaintenanceTask = res;
+                }
+            } catch (err) {
+                this.showToast(`Failed to complete: ${err.message}`, "error");
+            }
+        },
+
+        async submitTaskProgress() {
+            if (!this.taskProgressNote || !this.taskProgressNote.trim()) return;
+            try {
+                const res = await window.API.updateMaintenanceTaskProgress(this.selectedMaintenanceTask.id, this.taskProgressNote.trim());
+                this.showToast("Progress log added", "success");
+                this.selectedMaintenanceTask = res;
+                this.taskProgressNote = "";
+                await this.loadMaintenanceTasks();
+            } catch (err) {
+                this.showToast(`Failed to add note: ${err.message}`, "error");
             }
         }
     }));

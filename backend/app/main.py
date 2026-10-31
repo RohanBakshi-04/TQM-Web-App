@@ -24,6 +24,7 @@ from backend.app.routers.complaints import router as complaints_router
 from backend.app.routers.dashboard import metrics_router, router as dashboard_router
 from backend.app.routers.health import router as health_router
 from backend.app.routers.hostels import building_router, router as hostels_router
+from backend.app.routers.maintenance import router as maintenance_router
 from backend.app.routers.search import router as search_router
 from backend.app.utils.logger import logger
 
@@ -69,6 +70,7 @@ app.include_router(room_occupants_router)
 app.include_router(student_history_router)
 app.include_router(search_router)
 app.include_router(complaints_router)
+app.include_router(maintenance_router)
 
 
 # Mount static assets if directory exists

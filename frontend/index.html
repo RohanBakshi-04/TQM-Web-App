@@ -726,6 +726,180 @@
         </div>
     </div>
 
+    <!-- 8. MAINTENANCE HOLD MODAL -->
+    <div x-show="maintenanceHoldModalOpen" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+         @click.self="maintenanceHoldModalOpen = false">
+        <div class="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center space-x-2 text-amber-600">
+                    <i class="fa-solid fa-circle-pause text-base"></i>
+                    <h3 class="font-extrabold text-slate-900 dark:text-white text-base">Place Work-Order On Hold</h3>
+                </div>
+                <button @click="maintenanceHoldModalOpen = false" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+            <form @submit.prevent="submitHoldTask()" class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Reason for Hold <span class="text-rose-500">*</span></label>
+                    <input type="text" x-model="taskHoldForm.hold_reason" required
+                           placeholder="e.g. Awaiting spare capacitor, Resident not available"
+                           class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-brand-600 dark:text-white text-xs">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Additional Notes</label>
+                    <textarea x-model="taskHoldForm.notes" rows="2"
+                              placeholder="Estimated procurement timeline or access instructions..."
+                              class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-brand-600 dark:text-white text-xs"></textarea>
+                </div>
+                <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <button type="button" @click="maintenanceHoldModalOpen = false" class="px-4 py-2 text-slate-400 font-semibold">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl transition">
+                        Confirm Hold
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 9. MAINTENANCE COMPLETION MODAL -->
+    <div x-show="maintenanceCompleteModalOpen" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+         @click.self="maintenanceCompleteModalOpen = false">
+        <div class="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center space-x-2 text-emerald-600">
+                    <i class="fa-solid fa-circle-check text-base"></i>
+                    <h3 class="font-extrabold text-slate-900 dark:text-white text-base">Complete Work Order & Log Resolution</h3>
+                </div>
+                <button @click="maintenanceCompleteModalOpen = false" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+            <form @submit.prevent="submitCompleteTask()" class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Resolution Summary <span class="text-rose-500">*</span></label>
+                    <textarea x-model="taskCompleteForm.resolution_notes" rows="3" required
+                              placeholder="Describe work completed, parts replaced, and verification test..."
+                              class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-brand-600 dark:text-white text-xs"></textarea>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Actual Materials & Labor Cost (₹)</label>
+                        <input type="number" step="0.01" min="0" x-model="taskCompleteForm.actual_cost"
+                               class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-brand-600 dark:text-white text-xs">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Completion Photo URL (Optional)</label>
+                        <input type="text" x-model="taskCompleteForm.completion_photo_url"
+                               placeholder="https://... evidence link"
+                               class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-brand-600 dark:text-white text-xs">
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <button type="button" @click="maintenanceCompleteModalOpen = false" class="px-4 py-2 text-slate-400 font-semibold">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-xs transition">
+                        <i class="fa-solid fa-check mr-1.5"></i> Mark Completed
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 10. MAINTENANCE TASK DETAILS MODAL -->
+    <div x-show="maintenanceTaskDetailModalOpen" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+         @click.self="maintenanceTaskDetailModalOpen = false">
+        <div class="bg-white dark:bg-slate-900 w-full max-w-2xl max-h-[90vh] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-y-auto p-6 space-y-4">
+            <template x-if="selectedMaintenanceTask">
+                <div class="space-y-4 text-xs">
+                    <div class="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                        <div>
+                            <div class="flex items-center space-x-2">
+                                <span class="font-mono font-black text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200" x-text="selectedMaintenanceTask.task_code"></span>
+                                <span class="font-bold px-2.5 py-0.5 rounded-full text-[11px]"
+                                      :class="{
+                                          'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300': selectedMaintenanceTask.status === 'Assigned' || selectedMaintenanceTask.status === 'Open',
+                                          'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300': selectedMaintenanceTask.status === 'Accepted',
+                                          'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300': selectedMaintenanceTask.status === 'In Progress',
+                                          'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300': selectedMaintenanceTask.status === 'On Hold',
+                                          'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300': selectedMaintenanceTask.status === 'Completed' || selectedMaintenanceTask.status === 'Verified'
+                                      }"
+                                      x-text="selectedMaintenanceTask.status"></span>
+                                <span class="font-bold uppercase text-[10px] px-2 py-0.5 rounded"
+                                      :class="{
+                                          'bg-slate-200 text-slate-700': selectedMaintenanceTask.priority === 'Low',
+                                          'bg-blue-100 text-blue-700': selectedMaintenanceTask.priority === 'Medium',
+                                          'bg-amber-100 text-amber-800': selectedMaintenanceTask.priority === 'High',
+                                          'bg-rose-100 text-rose-800 font-bold': selectedMaintenanceTask.priority === 'Critical'
+                                      }"
+                                      x-text="selectedMaintenanceTask.priority"></span>
+                            </div>
+                            <h3 class="font-extrabold text-slate-900 dark:text-white text-base mt-1" x-text="selectedMaintenanceTask.title"></h3>
+                        </div>
+                        <button @click="maintenanceTaskDetailModalOpen = false" class="text-slate-400 hover:text-slate-600">
+                            <i class="fa-solid fa-xmark text-sm"></i>
+                        </button>
+                    </div>
+
+                    <!-- Details Grid -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                            <span class="text-slate-400 text-[10px] uppercase font-bold">Room & Hostel</span>
+                            <div class="font-bold text-slate-800 dark:text-slate-200 truncate mt-0.5" x-text="'Room ' + (selectedMaintenanceTask.room_number || 'General')"></div>
+                        </div>
+                        <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                            <span class="text-slate-400 text-[10px] uppercase font-bold">Technician</span>
+                            <div class="font-bold text-slate-800 dark:text-slate-200 truncate mt-0.5" x-text="selectedMaintenanceTask.technician_name || 'Unassigned'"></div>
+                        </div>
+                        <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                            <span class="text-slate-400 text-[10px] uppercase font-bold">Cost (Est / Act)</span>
+                            <div class="font-bold text-slate-800 dark:text-slate-200 truncate mt-0.5" x-text="'₹' + selectedMaintenanceTask.estimated_cost + ' / ₹' + selectedMaintenanceTask.actual_cost"></div>
+                        </div>
+                        <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                            <span class="text-slate-400 text-[10px] uppercase font-bold">Scheduled / Target</span>
+                            <div class="font-bold text-slate-800 dark:text-slate-200 truncate mt-0.5" x-text="selectedMaintenanceTask.scheduled_date || selectedMaintenanceTask.deadline || 'Asap'"></div>
+                        </div>
+                    </div>
+
+                    <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                        <span class="font-bold text-slate-700 dark:text-slate-300 block mb-1">Work Order Scope</span>
+                        <p class="text-slate-600 dark:text-slate-400 whitespace-pre-wrap" x-text="selectedMaintenanceTask.description"></p>
+                    </div>
+
+                    <!-- Progress Note Input -->
+                    <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex items-center space-x-2">
+                        <input type="text" x-model="taskProgressNote" @keydown.enter.prevent="submitTaskProgress()"
+                               placeholder="Add progress note (e.g., spare parts inspected, work 50% done)..."
+                               class="flex-1 px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:border-brand-600 dark:text-white">
+                        <button type="button" @click="submitTaskProgress()"
+                                class="px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs rounded-xl transition">
+                            Log Note
+                        </button>
+                    </div>
+
+                    <!-- History Timeline -->
+                    <div class="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Work-Order Event History</h4>
+                        <div class="space-y-2 border-l-2 border-slate-200 dark:border-slate-700 ml-3 pl-3">
+                            <template x-for="h in selectedMaintenanceTask.history" :key="h.id">
+                                <div class="text-xs relative">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="font-bold text-slate-800 dark:text-slate-200" x-text="h.updater_name || 'System'"></span>
+                                        <span class="text-[10px] text-slate-400" x-text="new Date(h.logged_at).toLocaleString()"></span>
+                                        <span class="text-[10px] px-1.5 py-0.2 rounded font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300" x-text="h.status"></span>
+                                    </div>
+                                    <p class="text-slate-600 dark:text-slate-400 mt-0.5" x-text="h.notes"></p>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
     <!-- MAIN APP SHELL -->
     <div class="flex-1 flex overflow-hidden">
 
@@ -1695,14 +1869,132 @@
                         </div>
 
                         <!-- Maintenance Work Orders Table -->
-                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-                            <h3 class="font-bold text-slate-900 dark:text-white text-base">Facility Repair Queue</h3>
-                            <div class="p-8 text-center text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-                                <div class="w-12 h-12 mx-auto rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center text-xl mb-2">
-                                    <i class="fa-solid fa-wrench"></i>
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+                                <div>
+                                    <h3 class="font-extrabold text-slate-900 dark:text-white text-lg flex items-center space-x-2">
+                                        <i class="fa-solid fa-wrench text-amber-500"></i>
+                                        <span>Assigned Maintenance Work-Orders</span>
+                                    </h3>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">Manage repair assignments, record materials & labor costs, log progress, and submit completions</p>
                                 </div>
-                                <div class="font-bold text-slate-700 dark:text-slate-300 text-sm">All Assigned Work Orders In Hand</div>
-                                <p class="text-xs text-slate-400 mt-0.5">Preventative maintenance cycle scheduled for upcoming weekend.</p>
+                                <div class="flex items-center space-x-2">
+                                    <button type="button" @click="loadMaintenanceTasks()" class="px-3 py-1.5 text-slate-500 hover:text-slate-700 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold">
+                                        <i class="fa-solid fa-rotate mr-1"></i> Refresh Tasks
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Filter Controls -->
+                            <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+                                <div class="flex items-center space-x-1 overflow-x-auto pb-1">
+                                    <template x-for="st in ['all', 'Assigned', 'Accepted', 'In Progress', 'On Hold', 'Completed', 'Verified']" :key="st">
+                                        <button type="button" @click="maintenanceFilterStatus = st; loadMaintenanceTasks();"
+                                                :class="maintenanceFilterStatus === st ? 'bg-amber-600 text-white font-bold' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'"
+                                                class="px-3 py-1 rounded-lg text-[11px] transition"
+                                                x-text="st === 'all' ? 'All Tasks' : st"></button>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <!-- Tasks List -->
+                            <div class="space-y-3">
+                                <!-- Loading State -->
+                                <div x-show="maintenanceLoading" class="py-10 text-center space-y-2">
+                                    <i class="fa-solid fa-circle-notch fa-spin text-amber-600 text-lg"></i>
+                                    <p class="text-xs text-slate-400">Loading work orders...</p>
+                                </div>
+
+                                <!-- Empty State -->
+                                <div x-show="!maintenanceLoading && maintenanceTasks.length === 0" class="py-10 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl space-y-2">
+                                    <i class="fa-solid fa-clipboard-check text-emerald-500 text-2xl"></i>
+                                    <p class="text-xs font-bold text-slate-700 dark:text-slate-300">No active work orders</p>
+                                    <p class="text-[11px] text-slate-400 max-w-sm mx-auto">No maintenance tasks in this category. All systems are operational.</p>
+                                </div>
+
+                                <!-- Live Tasks Grid -->
+                                <div x-show="!maintenanceLoading && maintenanceTasks.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <template x-for="task in maintenanceTasks" :key="task.id">
+                                        <div class="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:border-amber-400 dark:hover:border-amber-600 transition space-y-3">
+                                            <div class="flex items-start justify-between">
+                                                <div>
+                                                    <div class="flex items-center space-x-1.5">
+                                                        <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-200/80 dark:bg-slate-700 text-slate-700 dark:text-slate-200" x-text="task.task_code"></span>
+                                                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                                                              :class="{
+                                                                  'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300': task.status === 'Assigned' || task.status === 'Open',
+                                                                  'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300': task.status === 'Accepted',
+                                                                  'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300': task.status === 'In Progress',
+                                                                  'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300': task.status === 'On Hold',
+                                                                  'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300': task.status === 'Completed' || task.status === 'Verified'
+                                                              }"
+                                                              x-text="task.status"></span>
+                                                    </div>
+                                                    <h4 class="font-bold text-slate-900 dark:text-white text-xs mt-1.5 line-clamp-1" x-text="task.title"></h4>
+                                                </div>
+                                                <span class="text-[10px] font-bold px-2 py-0.5 rounded uppercase"
+                                                      :class="{
+                                                          'bg-slate-200 text-slate-700': task.priority === 'Low',
+                                                          'bg-blue-100 text-blue-700': task.priority === 'Medium',
+                                                          'bg-amber-100 text-amber-800': task.priority === 'High',
+                                                          'bg-rose-100 text-rose-800 font-bold': task.priority === 'Critical'
+                                                      }"
+                                                      x-text="task.priority"></span>
+                                            </div>
+
+                                            <p class="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2" x-text="task.description"></p>
+
+                                            <div class="text-[11px] text-slate-400 flex items-center justify-between">
+                                                <span>Room: <strong class="text-slate-700 dark:text-slate-300" x-text="task.room_number || 'General'"></strong></span>
+                                                <span x-show="task.estimated_cost">Est: <strong class="text-slate-700 dark:text-slate-300" x-text="'₹' + task.estimated_cost"></strong></span>
+                                            </div>
+
+                                            <!-- Technician Action Buttons -->
+                                            <div class="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px]">
+                                                <button type="button" @click="openMaintenanceTaskDetails(task.id)"
+                                                        class="text-brand-600 dark:text-brand-400 font-bold hover:underline flex items-center space-x-1">
+                                                    <span>Details & History</span>
+                                                </button>
+
+                                                <div class="flex items-center space-x-1.5">
+                                                    <template x-if="task.status === 'Assigned' || task.status === 'Open'">
+                                                        <button type="button" @click="handleAcceptTask(task.id)"
+                                                                class="px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition text-[10px]">
+                                                            Accept Work Order
+                                                        </button>
+                                                    </template>
+
+                                                    <template x-if="task.status === 'Accepted'">
+                                                        <button type="button" @click="handleStartTask(task.id)"
+                                                                class="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition text-[10px]">
+                                                            Start Repairs
+                                                        </button>
+                                                    </template>
+
+                                                    <template x-if="task.status === 'In Progress'">
+                                                        <div class="flex space-x-1">
+                                                            <button type="button" @click="openHoldTaskModal(task)"
+                                                                    class="px-2 py-1 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-700 dark:text-slate-200 font-semibold rounded-lg text-[10px]">
+                                                                Hold
+                                                            </button>
+                                                            <button type="button" @click="openCompleteTaskModal(task)"
+                                                                    class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition text-[10px]">
+                                                                Complete
+                                                            </button>
+                                                        </div>
+                                                    </template>
+
+                                                    <template x-if="task.status === 'On Hold'">
+                                                        <button type="button" @click="handleStartTask(task.id)"
+                                                                class="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg transition text-[10px]">
+                                                            Resume Work
+                                                        </button>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
                             </div>
                         </div>
                     </div>
