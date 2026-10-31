@@ -521,6 +521,83 @@ const API = {
         return res;
     },
 
+    async getComplaints(hostelId = null, statusFilter = null, category = null, severity = null, search = null, page = 1, pageSize = 20) {
+        const params = new URLSearchParams();
+        if (hostelId) params.append("hostel_id", hostelId);
+        if (statusFilter && statusFilter !== 'all') params.append("status_filter", statusFilter);
+        if (category && category !== 'all') params.append("category", category);
+        if (severity && severity !== 'all') params.append("severity", severity);
+        if (search) params.append("search", search);
+        params.append("page", page);
+        params.append("page_size", pageSize);
+
+        const qs = params.toString();
+        const response = await this.deduplicatedFetch(`${this.baseUrl}/api/v1/complaints${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to load complaints list.");
+        return await response.json();
+    },
+
+    async getComplaintAnalytics(hostelId = null) {
+        const qs = hostelId ? `?hostel_id=${hostelId}` : "";
+        const response = await fetch(`${this.baseUrl}/api/v1/complaints/analytics${qs}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to load complaint analytics.");
+        return await response.json();
+    },
+
+    async assignComplaint(complaintId, assignedTo, priority = null, deadline = null, internalRemarks = "", affectsOccupancy = false) {
+        const response = await fetch(`${this.baseUrl}/api/v1/complaints/${complaintId}/assign`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({
+                assigned_to: assignedTo,
+                priority,
+                deadline,
+                internal_remarks: internalRemarks,
+                affects_occupancy: affectsOccupancy
+            })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to assign complaint.");
+        return res;
+    },
+
+    async escalateComplaint(complaintId, reason) {
+        const response = await fetch(`${this.baseUrl}/api/v1/complaints/${complaintId}/escalate`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ reason })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to escalate complaint.");
+        return res;
+    },
+
+    async rejectComplaint(complaintId, reason) {
+        const response = await fetch(`${this.baseUrl}/api/v1/complaints/${complaintId}/reject`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ reason })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to reject complaint.");
+        return res;
+    },
+
+    async closeComplaint(complaintId, notes = "") {
+        const response = await fetch(`${this.baseUrl}/api/v1/complaints/${complaintId}/close`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ notes })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to close complaint.");
+        return res;
+    },
+
     // ==================== MAINTENANCE WORK-ORDERS ====================
     async getMaintenanceTasks(statusFilter = null, priorityFilter = null, assignedTo = null, hostelId = null) {
         const params = new URLSearchParams();

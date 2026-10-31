@@ -224,6 +224,32 @@ document.addEventListener("alpine:init", () => {
         },
         taskProgressNote: "",
 
+        // Warden Grievance Oversight & Workflow State
+        wardenComplaints: [],
+        wardenComplaintsLoading: false,
+        wardenComplaintsTotal: 0,
+        wardenComplaintsPage: 1,
+        wardenComplaintFilterStatus: "all",
+        wardenComplaintFilterCategory: "all",
+        wardenComplaintSearch: "",
+        complaintAnalytics: null,
+        complaintAssignModalOpen: false,
+        complaintRejectModalOpen: false,
+        complaintEscalateModalOpen: false,
+        complaintAssignForm: {
+            assigned_to: "",
+            priority: "Medium",
+            deadline: "",
+            internal_remarks: "",
+            affects_occupancy: false
+        },
+        complaintRejectForm: {
+            reason: ""
+        },
+        complaintEscalateForm: {
+            reason: ""
+        },
+
         dashboardStats: {
             hostels: { total: 1, rooms: 3, beds: 6, occupied_beds: 2, available_beds: 4, occupancy_rate: 33.3 },
             students: { total: 3, active: 3 },
@@ -444,10 +470,14 @@ document.addEventListener("alpine:init", () => {
                 } else if (roleKey === "warden" || roleKey === "assistant_warden") {
                     this.loadStaffAvailability();
                     this.loadMaintenanceTasks();
+                    this.loadWardenComplaints();
+                    this.loadComplaintAnalytics();
                 } else if (roleKey === "super_admin" || roleKey === "hostel_admin") {
                     this.loadUsers();
                     this.loadStaffAvailability();
                     this.loadMaintenanceTasks();
+                    this.loadWardenComplaints();
+                    this.loadComplaintAnalytics();
                 }
                 const preset = this.rolePresets.find(p => p.role === roleKey);
                 this.showToast(`Switched view to ${preset?.label || roleKey}`, "info");
@@ -978,6 +1008,140 @@ document.addEventListener("alpine:init", () => {
             } catch (err) {
                 this.showToast(`Failed to add note: ${err.message}`, "error");
             }
+        },
+
+        // ==================== WARDEN WORKFLOW METHODS ====================
+        async loadWardenComplaints() {
+            this.wardenComplaintsLoading = true;
+            try {
+                const res = await window.API.getComplaints(
+                    null,
+                    this.wardenComplaintFilterStatus,
+                    this.wardenComplaintFilterCategory,
+                    null,
+                    this.wardenComplaintSearch ? this.wardenComplaintSearch.trim() : null,
+                    this.wardenComplaintsPage,
+                    15
+                );
+                this.wardenComplaints = res.items || [];
+                this.wardenComplaintsTotal = res.total || 0;
+            } catch (err) {
+                console.error("Failed to load warden complaints:", err);
+                this.wardenComplaints = [];
+            } finally {
+                this.wardenComplaintsLoading = false;
+            }
+        },
+
+        async loadComplaintAnalytics() {
+            try {
+                this.complaintAnalytics = await window.API.getComplaintAnalytics();
+            } catch (err) {
+                console.error("Failed to load complaint analytics:", err);
+            }
+        },
+
+        openAssignModal(complaint) {
+            this.selectedComplaint = complaint;
+            this.complaintAssignForm = {
+                assigned_to: (this.staffAvailabilityList && this.staffAvailabilityList.length > 0) ? this.staffAvailabilityList[0].user_id : "",
+                priority: complaint.severity || "Medium",
+                deadline: "",
+                internal_remarks: "",
+                affects_occupancy: complaint.severity === "Critical"
+            };
+            this.complaintAssignModalOpen = true;
+        },
+
+        async submitAssignComplaint() {
+            if (!this.complaintAssignForm.assigned_to) {
+                this.showToast("Please select a maintenance technician", "error");
+                return;
+            }
+            try {
+                const res = await window.API.assignComplaint(
+                    this.selectedComplaint.id,
+                    parseInt(this.complaintAssignForm.assigned_to),
+                    this.complaintAssignForm.priority,
+                    this.complaintAssignForm.deadline || null,
+                    this.complaintAssignForm.internal_remarks.trim(),
+                    this.complaintAssignForm.affects_occupancy
+                );
+                this.showToast(`Complaint ${res.complaint_id} assigned to technician`, "success");
+                this.complaintAssignModalOpen = false;
+                await this.loadWardenComplaints();
+                await this.loadComplaintAnalytics();
+                this.loadMaintenanceTasks();
+                this.loadDashboardStats();
+            } catch (err) {
+                this.showToast(`Assignment failed: ${err.message}`, "error");
+            }
+        },
+
+        openRejectModal(complaint) {
+            this.selectedComplaint = complaint;
+            this.complaintRejectForm = { reason: "" };
+            this.complaintRejectModalOpen = true;
+        },
+
+        async submitRejectComplaint() {
+            if (!this.complaintRejectForm.reason || !this.complaintRejectForm.reason.trim()) {
+                this.showToast("Please provide justification for rejection", "error");
+                return;
+            }
+            try {
+                const res = await window.API.rejectComplaint(this.selectedComplaint.id, this.complaintRejectForm.reason.trim());
+                this.showToast(`Complaint ${res.complaint_id} rejected`, "info");
+                this.complaintRejectModalOpen = false;
+                await this.loadWardenComplaints();
+                await this.loadComplaintAnalytics();
+                this.loadDashboardStats();
+            } catch (err) {
+                this.showToast(`Rejection failed: ${err.message}`, "error");
+            }
+        },
+
+        openEscalateModal(complaint) {
+            this.selectedComplaint = complaint;
+            this.complaintEscalateForm = { reason: "" };
+            this.complaintEscalateModalOpen = true;
+        },
+
+        async submitEscalateComplaint() {
+            if (!this.complaintEscalateForm.reason || !this.complaintEscalateForm.reason.trim()) {
+                this.showToast("Please explain reasons for escalation", "error");
+                return;
+            }
+            try {
+                const res = await window.API.escalateComplaint(this.selectedComplaint.id, this.complaintEscalateForm.reason.trim());
+                this.showToast(`Complaint ${res.complaint_id} escalated to Senior Administration`, "warning");
+                this.complaintEscalateModalOpen = false;
+                await this.loadWardenComplaints();
+                await this.loadComplaintAnalytics();
+            } catch (err) {
+                this.showToast(`Escalation failed: ${err.message}`, "error");
+            }
+        },
+
+        async handleWardenCloseComplaint(complaintId) {
+            this.openConfirmModal(
+                "Approve Grievance Closure",
+                "Have you inspected and verified that the repair meets institutional standards and that the room/bed is restored?",
+                async () => {
+                    try {
+                        const res = await window.API.closeComplaint(complaintId, "Resolution inspected and verified by Warden.");
+                        this.showToast(`Grievance ${res.complaint_id} verified and closed`, "success");
+                        await this.loadWardenComplaints();
+                        await this.loadComplaintAnalytics();
+                        this.loadMaintenanceTasks();
+                        this.loadDashboardStats();
+                    } catch (err) {
+                        this.showToast(`Closure failed: ${err.message}`, "error");
+                    }
+                },
+                "Approve Closure",
+                "primary"
+            );
         }
     }));
 });

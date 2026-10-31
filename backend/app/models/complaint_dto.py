@@ -72,3 +72,7 @@ class ComplaintReject(BaseModel):
 
 class ComplaintEscalate(BaseModel):
     reason: str = Field(..., min_length=3, max_length=1000, description="Reason for urgent escalation to administration")
+
+
+class ComplaintClose(BaseModel):
+    notes: Optional[str] = Field("", max_length=1000, description="Closure and inspection notes")

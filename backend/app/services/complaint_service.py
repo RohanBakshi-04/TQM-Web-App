@@ -320,3 +320,374 @@ class ComplaintService:
         conn.commit()
         logger.info(f"Feedback recorded for Complaint #{c['complaint_id']}: Rating {data.rating}/5")
         return {"status": "success", "message": "Thank you for your feedback!", "rating": data.rating}
+
+    @staticmethod
+    def get_complaints_list(
+        conn: sqlite3.Connection,
+        hostel_id: Optional[int] = None,
+        status_filter: Optional[str] = None,
+        category: Optional[str] = None,
+        severity: Optional[str] = None,
+        search: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 20
+    ) -> Dict[str, Any]:
+        """Fetch paginated, filtered complaints for Warden and Admin dashboards."""
+        cursor = conn.cursor()
+        query = """
+            SELECT 
+                c.id, c.complaint_id, c.student_id, c.room_id, c.bed_id, c.category, c.title, c.description,
+                c.severity, c.status, c.assigned_to, c.attachment_url, c.internal_remarks, c.rejection_reason,
+                c.escalated, c.escalated_at, c.escalation_reason, c.feedback_rating, c.feedback_comment,
+                c.reopened_count, c.affects_occupancy, c.created_at, c.resolved_at, c.closed_at,
+                s.student_id AS enrollment_number, s.first_name || ' ' || s.last_name AS student_name,
+                r.room_number,
+                b.name AS building_name, b.hostel_id,
+                h.name AS hostel_name, h.code AS hostel_code,
+                u.first_name || ' ' || u.last_name AS technician_name
+            FROM complaints c
+            JOIN students s ON c.student_id = s.id
+            LEFT JOIN rooms r ON c.room_id = r.id
+            LEFT JOIN floors f ON r.floor_id = f.id
+            LEFT JOIN buildings b ON f.building_id = b.id
+            LEFT JOIN hostels h ON b.hostel_id = h.id
+            LEFT JOIN users u ON c.assigned_to = u.id
+            WHERE 1=1
+        """
+        params: List[Any] = []
+
+        if hostel_id:
+            query += " AND b.hostel_id = ?"
+            params.append(hostel_id)
+
+        if status_filter and status_filter.lower() != "all":
+            query += " AND c.status = ?"
+            params.append(status_filter)
+
+        if category and category.lower() != "all":
+            query += " AND c.category = ?"
+            params.append(category)
+
+        if severity and severity.lower() != "all":
+            query += " AND c.severity = ?"
+            params.append(severity)
+
+        if search and search.strip():
+            term = f"%{search.strip()}%"
+            query += " AND (c.complaint_id LIKE ? OR c.title LIKE ? OR s.first_name LIKE ? OR s.last_name LIKE ? OR s.student_id LIKE ? OR r.room_number LIKE ?)"
+            params.extend([term, term, term, term, term, term])
+
+        # Get total count
+        count_sql = f"SELECT COUNT(*) FROM ({query})"
+        total_items = cursor.execute(count_sql, params).fetchone()[0]
+
+        # Pagination
+        query += " ORDER BY c.id DESC LIMIT ? OFFSET ?;"
+        offset = (max(1, page) - 1) * page_size
+        params.extend([page_size, offset])
+
+        rows = cursor.execute(query, params).fetchall()
+        return {
+            "items": [dict(r) for r in rows],
+            "total": total_items,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total_items + page_size - 1) // page_size if total_items > 0 else 1
+        }
+
+    @staticmethod
+    def get_complaint_analytics(conn: sqlite3.Connection, hostel_id: Optional[int] = None) -> Dict[str, Any]:
+        """Aggregate statistical metrics for complaint dashboards."""
+        cursor = conn.cursor()
+        base_where = "WHERE 1=1"
+        params: List[Any] = []
+        if hostel_id:
+            base_where += " AND b.hostel_id = ?"
+            params.append(hostel_id)
+
+        sql = f"""
+            SELECT 
+                COUNT(*) AS total_complaints,
+                COUNT(CASE WHEN c.status = 'Submitted' THEN 1 END) AS submitted_count,
+                COUNT(CASE WHEN c.status = 'Pending' THEN 1 END) AS pending_count,
+                COUNT(CASE WHEN c.status = 'Assigned' THEN 1 END) AS assigned_count,
+                COUNT(CASE WHEN c.status = 'In Progress' THEN 1 END) AS in_progress_count,
+                COUNT(CASE WHEN c.status = 'On Hold' THEN 1 END) AS on_hold_count,
+                COUNT(CASE WHEN c.status = 'Resolved' THEN 1 END) AS resolved_count,
+                COUNT(CASE WHEN c.status = 'Closed' THEN 1 END) AS closed_count,
+                COUNT(CASE WHEN c.status = 'Rejected' THEN 1 END) AS rejected_count,
+                COUNT(CASE WHEN c.status = 'Reopened' THEN 1 END) AS reopened_count,
+                COUNT(CASE WHEN c.severity = 'Critical' AND c.status NOT IN ('Resolved', 'Closed', 'Rejected') THEN 1 END) AS critical_active_count,
+                COUNT(CASE WHEN c.escalated = 1 AND c.status NOT IN ('Resolved', 'Closed', 'Rejected') THEN 1 END) AS escalated_active_count,
+                AVG(c.feedback_rating) AS avg_satisfaction_rating
+            FROM complaints c
+            LEFT JOIN rooms r ON c.room_id = r.id
+            LEFT JOIN floors f ON r.floor_id = f.id
+            LEFT JOIN buildings b ON f.building_id = b.id
+            {base_where};
+        """
+        row = cursor.execute(sql, params).fetchone()
+        stats = dict(row) if row else {}
+        stats["avg_satisfaction_rating"] = round(stats.get("avg_satisfaction_rating") or 0.0, 2)
+        return stats
+
+    @staticmethod
+    def assign_complaint(
+        conn: sqlite3.Connection,
+        complaint_id: int,
+        user_id: int,
+        data: Any
+    ) -> Dict[str, Any]:
+        """Warden assigns a complaint to a technician and creates/updates linked maintenance task."""
+        cursor = conn.cursor()
+        c = cursor.execute("SELECT id, complaint_id, student_id, room_id, bed_id, title, description, category, severity, status FROM complaints WHERE id = ?;", (complaint_id,)).fetchone()
+        if not c:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Complaint not found.")
+
+        if c["status"] in ("Resolved", "Closed", "Rejected"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot assign complaint in '{c['status']}' state. Reopen grievance first."
+            )
+
+        # Verify technician
+        tech = cursor.execute("SELECT id, first_name, last_name FROM users WHERE id = ?;", (data.assigned_to,)).fetchone()
+        if not tech:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Technician User ID {data.assigned_to} not found.")
+
+        tech_name = f"{tech['first_name']} {tech['last_name']}".strip()
+        new_priority = data.priority or c["severity"]
+
+        # Update complaints table
+        cursor.execute("""
+            UPDATE complaints
+            SET status = 'Assigned',
+                assigned_to = ?,
+                severity = ?,
+                internal_remarks = ?,
+                affects_occupancy = CASE WHEN ? THEN 1 ELSE affects_occupancy END,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?;
+        """, (data.assigned_to, new_priority, data.internal_remarks or "", 1 if data.affects_occupancy else 0, complaint_id))
+
+        cursor.execute("""
+            INSERT INTO complaint_updates (complaint_id, updated_by, previous_status, new_status, comment)
+            VALUES (?, ?, ?, 'Assigned', ?);
+        """, (complaint_id, user_id, c["status"], f"Assigned to {tech_name}. {data.internal_remarks or ''}".strip()))
+
+        # Enforce Poka-Yoke room status lock
+        if data.affects_occupancy or new_priority == "Critical":
+            if c["room_id"]:
+                cursor.execute("UPDATE rooms SET status = 'Maintenance', updated_at = CURRENT_TIMESTAMP WHERE id = ?;", (c["room_id"],))
+            if c["bed_id"]:
+                cursor.execute("UPDATE beds SET status = 'Maintenance' WHERE id = ?;", (c["bed_id"],))
+
+        # Check or create linked maintenance work-order
+        existing_task = cursor.execute("SELECT id, task_code FROM maintenance_tasks WHERE complaint_id = ?;", (complaint_id,)).fetchone()
+        if existing_task:
+            cursor.execute("""
+                UPDATE maintenance_tasks
+                SET assigned_to = ?, assigned_worker = ?, priority = ?, deadline = ?, status = 'Assigned'
+                WHERE id = ?;
+            """, (data.assigned_to, tech_name, new_priority, data.deadline, existing_task["id"]))
+            cursor.execute("""
+                INSERT INTO maintenance_history (task_id, updated_by, status, notes)
+                VALUES (?, ?, 'Assigned', ?);
+            """, (existing_task["id"], user_id, f"Work order reassigned to {tech_name}."))
+        else:
+            task_count = cursor.execute("SELECT COUNT(*) + 1 FROM maintenance_tasks;").fetchone()[0]
+            task_code = f"MT-{time.strftime('%Y')}-{task_count:04d}"
+            cursor.execute("""
+                INSERT INTO maintenance_tasks (
+                    complaint_id, task_code, room_id, title, description,
+                    priority, status, assigned_to, assigned_worker, deadline
+                ) VALUES (?, ?, ?, ?, ?, ?, 'Assigned', ?, ?, ?);
+            """, (
+                complaint_id, task_code, c["room_id"], c["title"], c["description"],
+                new_priority, data.assigned_to, tech_name, data.deadline
+            ))
+            new_task_id = cursor.lastrowid
+            cursor.execute("""
+                INSERT INTO maintenance_history (task_id, updated_by, status, notes)
+                VALUES (?, ?, 'Assigned', 'Task created via Warden assignment.');
+            """, (new_task_id, user_id))
+
+        # Notify technician
+        cursor.execute("""
+            INSERT INTO notifications (user_id, title, message, notification_type)
+            VALUES (?, 'Work Order Assigned', ?, 'maintenance');
+        """, (
+            data.assigned_to,
+            f"Grievance Ticket #{c['complaint_id']} ('{c['title']}') has been assigned to you."
+        ))
+
+        # Notify student
+        s_user = cursor.execute("SELECT id FROM users WHERE linked_student_id = ?;", (c["student_id"],)).fetchone()
+        if s_user:
+            cursor.execute("""
+                INSERT INTO notifications (user_id, title, message, notification_type)
+                VALUES (?, 'Grievance Assigned to Technician', ?, 'complaint');
+            """, (
+                s_user["id"],
+                f"Your grievance '{c['title']}' has been assigned to technician {tech_name}."
+            ))
+
+        conn.commit()
+        CacheInvalidator.on_complaint_mutation()
+        logger.info(f"Complaint #{complaint_id} assigned to technician {tech_name} by user #{user_id}")
+        return ComplaintService.get_complaint_by_id(conn, complaint_id)
+
+    @staticmethod
+    def escalate_complaint(
+        conn: sqlite3.Connection,
+        complaint_id: int,
+        user_id: int,
+        reason: str
+    ) -> Dict[str, Any]:
+        """Escalate complaint to senior management."""
+        cursor = conn.cursor()
+        c = cursor.execute("SELECT id, complaint_id, title, status FROM complaints WHERE id = ?;", (complaint_id,)).fetchone()
+        if not c:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Complaint not found.")
+
+        cursor.execute("""
+            UPDATE complaints
+            SET escalated = 1, escalated_at = CURRENT_TIMESTAMP, escalation_reason = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?;
+        """, (reason.strip(), complaint_id))
+
+        cursor.execute("""
+            INSERT INTO complaint_updates (complaint_id, updated_by, previous_status, new_status, comment)
+            VALUES (?, ?, ?, ?, ?);
+        """, (complaint_id, user_id, c["status"], c["status"], f"Grievance escalated to Senior Administration: {reason.strip()}"))
+
+        # Notify super admins
+        admin_users = cursor.execute("""
+            SELECT u.id FROM users u
+            JOIN user_roles ur ON u.id = ur.user_id
+            JOIN roles r ON ur.role_id = r.id
+            WHERE r.name IN ('super_admin', 'warden') AND u.is_active = 1;
+        """).fetchall()
+
+        for adm in admin_users:
+            cursor.execute("""
+                INSERT INTO notifications (user_id, title, message, notification_type)
+                VALUES (?, 'Urgent Grievance Escalation', ?, 'alert');
+            """, (
+                adm["id"],
+                f"URGENT: Complaint #{c['complaint_id']} ('{c['title']}') was escalated: {reason.strip()}"
+            ))
+
+        conn.commit()
+        CacheInvalidator.on_complaint_mutation()
+        logger.warning(f"Complaint #{complaint_id} Escalated: {reason.strip()}")
+        return ComplaintService.get_complaint_by_id(conn, complaint_id)
+
+    @staticmethod
+    def reject_complaint(
+        conn: sqlite3.Connection,
+        complaint_id: int,
+        user_id: int,
+        reason: str
+    ) -> Dict[str, Any]:
+        """Warden rejects complaint with mandatory justification."""
+        cursor = conn.cursor()
+        c = cursor.execute("SELECT id, complaint_id, student_id, title, status, room_id, bed_id FROM complaints WHERE id = ?;", (complaint_id,)).fetchone()
+        if not c:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Complaint not found.")
+
+        if c["status"] in ("Resolved", "Closed"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot reject a '{c['status']}' complaint."
+            )
+
+        cursor.execute("""
+            UPDATE complaints
+            SET status = 'Rejected', rejection_reason = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?;
+        """, (reason.strip(), complaint_id))
+
+        cursor.execute("""
+            INSERT INTO complaint_updates (complaint_id, updated_by, previous_status, new_status, comment)
+            VALUES (?, ?, ?, 'Rejected', ?);
+        """, (complaint_id, user_id, c["status"], f"Rejected by Warden: {reason.strip()}"))
+
+        # Cancel linked task if open
+        cursor.execute("""
+            UPDATE maintenance_tasks
+            SET status = 'Cancelled'
+            WHERE complaint_id = ? AND status IN ('Open', 'Assigned', 'Accepted');
+        """, (complaint_id,))
+
+        # Notify student
+        s_user = cursor.execute("SELECT id FROM users WHERE linked_student_id = ?;", (c["student_id"],)).fetchone()
+        if s_user:
+            cursor.execute("""
+                INSERT INTO notifications (user_id, title, message, notification_type)
+                VALUES (?, 'Grievance Rejected', ?, 'complaint');
+            """, (
+                s_user["id"],
+                f"Your grievance '{c['title']}' has been reviewed and rejected. Reason: {reason.strip()}"
+            ))
+
+        conn.commit()
+        CacheInvalidator.on_complaint_mutation()
+        logger.info(f"Complaint #{complaint_id} Rejected: {reason.strip()}")
+        return ComplaintService.get_complaint_by_id(conn, complaint_id)
+
+    @staticmethod
+    def close_complaint(
+        conn: sqlite3.Connection,
+        complaint_id: int,
+        user_id: int,
+        notes: str = ""
+    ) -> Dict[str, Any]:
+        """Warden verifies resolution and approves closure of grievance."""
+        cursor = conn.cursor()
+        c = cursor.execute("SELECT id, complaint_id, student_id, title, status, room_id, bed_id FROM complaints WHERE id = ?;", (complaint_id,)).fetchone()
+        if not c:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Complaint not found.")
+
+        if c["status"] != "Resolved":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Poka-Yoke Workflow Violation: Cannot close complaint in '{c['status']}' status. Complaint must be marked 'Resolved' before closure can be approved."
+            )
+
+        cursor.execute("""
+            UPDATE complaints
+            SET status = 'Closed', closed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?;
+        """, (complaint_id,))
+
+        cursor.execute("""
+            INSERT INTO complaint_updates (complaint_id, updated_by, previous_status, new_status, comment)
+            VALUES (?, ?, 'Resolved', 'Closed', ?);
+        """, (complaint_id, user_id, f"Closure approved by Warden: {notes.strip() or 'Resolution verified.'}"))
+
+        # Restore room/bed from Maintenance if affected
+        if c["room_id"]:
+            active_tasks = cursor.execute("""
+                SELECT COUNT(*) FROM maintenance_tasks
+                WHERE room_id = ? AND status IN ('Assigned', 'Accepted', 'In Progress', 'On Hold');
+            """, (c["room_id"],)).fetchone()[0]
+            if active_tasks == 0:
+                cursor.execute("UPDATE rooms SET status = 'Available', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'Maintenance';", (c["room_id"],))
+                cursor.execute("UPDATE beds SET status = 'Available' WHERE room_id = ? AND status = 'Maintenance';", (c["room_id"],))
+
+        # Notify student
+        s_user = cursor.execute("SELECT id FROM users WHERE linked_student_id = ?;", (c["student_id"],)).fetchone()
+        if s_user:
+            cursor.execute("""
+                INSERT INTO notifications (user_id, title, message, notification_type)
+                VALUES (?, 'Grievance Closed by Warden', ?, 'complaint');
+            """, (
+                s_user["id"],
+                f"Your grievance '{c['title']}' has been officially verified and closed. Please take a moment to rate the service resolution."
+            ))
+
+        conn.commit()
+        CacheInvalidator.on_complaint_mutation()
+        logger.info(f"Complaint #{complaint_id} Closed by user #{user_id}")
+        return ComplaintService.get_complaint_by_id(conn, complaint_id)

@@ -900,6 +900,138 @@
         </div>
     </div>
 
+    <!-- 11. WARDEN ASSIGN COMPLAINT MODAL -->
+    <div x-show="complaintAssignModalOpen" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+         @click.self="complaintAssignModalOpen = false">
+        <div class="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center space-x-2 text-brand-600">
+                    <i class="fa-solid fa-user-gear text-base"></i>
+                    <h3 class="font-extrabold text-slate-900 dark:text-white text-base">Assign Grievance to Technician</h3>
+                </div>
+                <button @click="complaintAssignModalOpen = false" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+            <form @submit.prevent="submitAssignComplaint()" class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Select Maintenance Technician <span class="text-rose-500">*</span></label>
+                    <select x-model="complaintAssignForm.assigned_to" required
+                            class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-brand-600 dark:text-white text-xs">
+                        <option value="">-- Choose technician from available staff --</option>
+                        <template x-for="tech in staffAvailabilityList" :key="tech.user_id">
+                            <option :value="tech.user_id" x-text="tech.first_name + ' ' + tech.last_name + ' (' + tech.active_task_count + ' active tasks • ' + (tech.is_available ? 'Available' : 'High Load') + ')'"></option>
+                        </template>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Priority Override</label>
+                        <select x-model="complaintAssignForm.priority" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-brand-600 dark:text-white text-xs">
+                            <option value="Low">Low</option>
+                            <option value="Medium">Medium</option>
+                            <option value="High">High</option>
+                            <option value="Critical">Critical</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Target Completion Deadline</label>
+                        <input type="date" x-model="complaintAssignForm.deadline"
+                               class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-brand-600 dark:text-white text-xs">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Internal Remarks / Technician Instructions</label>
+                    <textarea x-model="complaintAssignForm.internal_remarks" rows="2"
+                              placeholder="Special precautions, access codes, spare part locations..."
+                              class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-brand-600 dark:text-white text-xs"></textarea>
+                </div>
+
+                <div class="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 flex items-start space-x-2">
+                    <input type="checkbox" id="affectsOcc" x-model="complaintAssignForm.affects_occupancy" class="mt-0.5 rounded text-brand-600 focus:ring-brand-500">
+                    <label for="affectsOcc" class="text-[11px] text-amber-900 dark:text-amber-200">
+                        <strong>Affects Room Occupancy (Poka-Yoke Lock):</strong> Lock room and bed under <em>Maintenance</em> status so room allocation engine mathematically prevents student placement.
+                    </label>
+                </div>
+
+                <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <button type="button" @click="complaintAssignModalOpen = false" class="px-4 py-2 text-slate-400 font-semibold">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-xl shadow-xs transition">
+                        Dispatch Work Order
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 12. WARDEN REJECT COMPLAINT MODAL -->
+    <div x-show="complaintRejectModalOpen" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+         @click.self="complaintRejectModalOpen = false">
+        <div class="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center space-x-2 text-rose-600">
+                    <i class="fa-solid fa-ban text-base"></i>
+                    <h3 class="font-extrabold text-slate-900 dark:text-white text-base">Reject Grievance Ticket</h3>
+                </div>
+                <button @click="complaintRejectModalOpen = false" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+            <form @submit.prevent="submitRejectComplaint()" class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Rejection Rationale <span class="text-rose-500">*</span></label>
+                    <textarea x-model="complaintRejectForm.reason" rows="3" required
+                              placeholder="Provide clear institutional policy justification or explain why this is not actionable..."
+                              class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-brand-600 dark:text-white text-xs"></textarea>
+                </div>
+                <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <button type="button" @click="complaintRejectModalOpen = false" class="px-4 py-2 text-slate-400 font-semibold">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl transition">
+                        Confirm Rejection
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 13. WARDEN ESCALATE COMPLAINT MODAL -->
+    <div x-show="complaintEscalateModalOpen" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+         @click.self="complaintEscalateModalOpen = false">
+        <div class="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center space-x-2 text-amber-500">
+                    <i class="fa-solid fa-tower-broadcast text-base"></i>
+                    <h3 class="font-extrabold text-slate-900 dark:text-white text-base">Urgent Grievance Escalation</h3>
+                </div>
+                <button @click="complaintEscalateModalOpen = false" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+            <form @submit.prevent="submitEscalateComplaint()" class="space-y-3 text-xs">
+                <div class="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 text-[11px]">
+                    Escalation broadcasts a high-priority alert across campus leadership and logs audit trace.
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Escalation Justification <span class="text-rose-500">*</span></label>
+                    <textarea x-model="complaintEscalateForm.reason" rows="3" required
+                              placeholder="Detail safety emergency, contractor delay, or administration intervention needed..."
+                              class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-brand-600 dark:text-white text-xs"></textarea>
+                </div>
+                <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <button type="button" @click="complaintEscalateModalOpen = false" class="px-4 py-2 text-slate-400 font-semibold">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl transition">
+                        Dispatch Escalation
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- MAIN APP SHELL -->
     <div class="flex-1 flex overflow-hidden">
 
@@ -1487,15 +1619,131 @@
                             </div>
                         </div>
 
-                        <!-- Pending Approvals & Action Queue -->
-                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-                            <h3 class="font-bold text-slate-900 dark:text-white text-base">Warden Approvals & Sanctions Queue</h3>
-                            <div class="p-8 text-center text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-                                <div class="w-12 h-12 mx-auto rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-600 flex items-center justify-center text-xl mb-2">
-                                    <i class="fa-solid fa-clipboard-check"></i>
+                        <!-- Student Grievance Oversight & Maintenance Dispatch -->
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+                                <div>
+                                    <h3 class="font-extrabold text-slate-900 dark:text-white text-lg flex items-center space-x-2">
+                                        <i class="fa-solid fa-list-check text-brand-600"></i>
+                                        <span>Student Grievance Oversight & Maintenance Dispatch</span>
+                                    </h3>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">Review resident defect reports, assign technicians, inspect repairs, enforce room maintenance locks, and approve closures</p>
                                 </div>
-                                <div class="font-bold text-slate-700 dark:text-slate-300 text-sm">All Pending Requests Sanctioned</div>
-                                <p class="text-xs text-slate-400 mt-0.5">No student leave applications or disciplinary notices are currently awaiting review.</p>
+                                <div class="flex items-center space-x-2">
+                                    <button type="button" @click="loadWardenComplaints(); loadComplaintAnalytics(); loadStaffAvailability();" class="px-3 py-1.5 text-slate-500 hover:text-slate-700 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold">
+                                        <i class="fa-solid fa-rotate mr-1"></i> Refresh Queue
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Filter & Search Controls -->
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                                <div class="flex items-center space-x-1 overflow-x-auto pb-1">
+                                    <template x-for="st in ['all', 'Submitted', 'Assigned', 'In Progress', 'Resolved', 'Closed', 'Rejected']" :key="st">
+                                        <button type="button" @click="wardenComplaintFilterStatus = st; loadWardenComplaints();"
+                                                :class="wardenComplaintFilterStatus === st ? 'bg-brand-600 text-white font-bold' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'"
+                                                class="px-3 py-1 rounded-lg text-[11px] transition"
+                                                x-text="st === 'all' ? 'All Grievances' : st"></button>
+                                    </template>
+                                </div>
+
+                                <div class="w-full sm:w-64">
+                                    <input type="text" x-model="wardenComplaintSearch" @input.debounce.300ms="loadWardenComplaints()"
+                                           placeholder="Filter by ticket, student, room..."
+                                           class="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:border-brand-600 dark:text-white">
+                                </div>
+                            </div>
+
+                            <!-- Grievance Table -->
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs text-slate-600 dark:text-slate-300">
+                                    <thead class="text-[11px] uppercase bg-slate-50 dark:bg-slate-800/60 text-slate-400 font-bold border-y border-slate-100 dark:border-slate-800">
+                                        <tr>
+                                            <th class="py-2.5 px-3">Ticket</th>
+                                            <th class="py-2.5 px-3">Resident / Room</th>
+                                            <th class="py-2.5 px-3">Issue Summary</th>
+                                            <th class="py-2.5 px-3">Severity</th>
+                                            <th class="py-2.5 px-3">Status</th>
+                                            <th class="py-2.5 px-3">Assigned Staff</th>
+                                            <th class="py-2.5 px-3 text-right">Workflow Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                        <template x-for="c in wardenComplaints" :key="c.id">
+                                            <tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
+                                                <td class="py-3 px-3 font-mono font-bold text-slate-900 dark:text-white" x-text="c.complaint_id"></td>
+                                                <td class="py-3 px-3">
+                                                    <div class="font-bold text-slate-800 dark:text-slate-200 truncate" x-text="c.student_name"></div>
+                                                    <div class="text-[10px] text-slate-400" x-text="'Room ' + (c.room_number || 'General')"></div>
+                                                </td>
+                                                <td class="py-3 px-3 max-w-xs">
+                                                    <div class="font-semibold text-slate-900 dark:text-white truncate" x-text="c.title"></div>
+                                                    <div class="text-[10px] text-slate-400 flex items-center space-x-1">
+                                                        <span x-text="c.category"></span>
+                                                        <template x-if="c.escalated">
+                                                            <span class="px-1 py-0.2 rounded bg-rose-100 text-rose-700 font-bold uppercase text-[9px]">Escalated</span>
+                                                        </template>
+                                                    </div>
+                                                </td>
+                                                <td class="py-3 px-3">
+                                                    <span class="text-[10px] font-bold px-2 py-0.5 rounded uppercase"
+                                                          :class="{
+                                                              'bg-slate-100 text-slate-600': c.severity === 'Low',
+                                                              'bg-blue-100 text-blue-700': c.severity === 'Medium',
+                                                              'bg-amber-100 text-amber-800': c.severity === 'High',
+                                                              'bg-rose-100 text-rose-800 font-bold': c.severity === 'Critical'
+                                                          }"
+                                                          x-text="c.severity"></span>
+                                                </td>
+                                                <td class="py-3 px-3">
+                                                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                                                          :class="{
+                                                              'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300': c.status === 'Submitted' || c.status === 'Pending',
+                                                              'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300': c.status === 'Assigned',
+                                                              'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300': c.status === 'In Progress' || c.status === 'On Hold',
+                                                              'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300': c.status === 'Resolved' || c.status === 'Closed',
+                                                              'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300': c.status === 'Rejected' || c.status === 'Reopened'
+                                                          }"
+                                                          x-text="c.status"></span>
+                                                </td>
+                                                <td class="py-3 px-3 font-semibold text-slate-700 dark:text-slate-300 truncate" x-text="c.technician_name || 'Unassigned'"></td>
+                                                <td class="py-3 px-3 text-right">
+                                                    <div class="flex items-center justify-end space-x-1 text-[11px]">
+                                                        <template x-if="c.status === 'Submitted' || c.status === 'Pending' || c.status === 'Assigned' || c.status === 'Reopened'">
+                                                            <button type="button" @click="openAssignModal(c)"
+                                                                    class="px-2 py-1 bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-lg transition text-[10px]">
+                                                                Assign
+                                                            </button>
+                                                        </template>
+
+                                                        <template x-if="c.status === 'Resolved'">
+                                                            <button type="button" @click="handleWardenCloseComplaint(c.id)"
+                                                                    class="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition text-[10px]">
+                                                                Approve Closure
+                                                            </button>
+                                                        </template>
+
+                                                        <template x-if="c.status !== 'Resolved' && c.status !== 'Closed' && c.status !== 'Rejected'">
+                                                            <button type="button" @click="openRejectModal(c)"
+                                                                    class="px-1.5 py-1 text-slate-400 hover:text-rose-600 text-[10px]">
+                                                                Reject
+                                                            </button>
+                                                        </template>
+
+                                                        <button type="button" @click="openComplaintDetails(c.id)"
+                                                                class="px-2 py-1 text-slate-500 hover:text-slate-700 dark:text-slate-400 text-[10px]">
+                                                            Details
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+
+                                <div x-show="!wardenComplaintsLoading && wardenComplaints.length === 0" class="py-8 text-center text-slate-400 text-xs">
+                                    No grievances match current filters.
+                                </div>
                             </div>
                         </div>
                     </div>
