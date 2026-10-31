@@ -1029,6 +1029,224 @@ const API = {
         });
         if (!response.ok) throw new Error("Failed to load visitor reports.");
         return await response.json();
+    },
+
+    // ==================== FINANCIAL & FEE MANAGEMENT APIS ====================
+
+    async getFeeStructures(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/structures${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load fee structures.");
+        return await response.json();
+    },
+
+    async createFeeStructure(payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/structures`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to create fee structure.");
+        return res;
+    },
+
+    async getFeeStructure(id) {
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/structures/${id}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load fee structure.");
+        return await response.json();
+    },
+
+    async updateFeeStructure(id, payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/structures/${id}`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to update fee structure.");
+        return res;
+    },
+
+    async deleteFeeStructure(id) {
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/structures/${id}`, {
+            method: "DELETE",
+            headers: this.getHeaders()
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to delete fee structure.");
+        return res;
+    },
+
+    async getInvoices(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/invoices${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load invoices.");
+        return await response.json();
+    },
+
+    async createInvoice(payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/invoices`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to create invoice.");
+        return res;
+    },
+
+    async createBulkInvoices(payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/invoices/bulk`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to generate bulk invoices.");
+        return res;
+    },
+
+    async getInvoice(id) {
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/invoices/${id}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load invoice details.");
+        return await response.json();
+    },
+
+    async applyInvoiceDiscount(id, discountAmount, discountReason) {
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/invoices/${id}/discount`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ discount_amount: discountAmount, discount_reason: discountReason })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to apply discount.");
+        return res;
+    },
+
+    async cancelInvoice(id, cancellationReason) {
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/invoices/${id}/cancel`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ cancellation_reason: cancellationReason })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to cancel invoice.");
+        return res;
+    },
+
+    async getStudentInvoices(studentId, params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/invoices/student/${studentId}${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load student invoices.");
+        return await response.json();
+    },
+
+    async getInvoiceReceipt(id) {
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/invoices/${id}/receipt`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load invoice receipt.");
+        return await response.json();
+    },
+
+    async getPayments(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/payments${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load payments.");
+        return await response.json();
+    },
+
+    async recordPayment(payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/payments`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to record payment.");
+        return res;
+    },
+
+    async getPayment(id) {
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/payments/${id}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load payment details.");
+        return await response.json();
+    },
+
+    async reversePayment(id, reason) {
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/payments/${id}/reverse`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ reversal_reason: reason })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to reverse payment.");
+        return res;
+    },
+
+    async getRefunds(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/refunds${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load refunds.");
+        return await response.json();
+    },
+
+    async requestRefund(payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/refunds`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to create refund request.");
+        return res;
+    },
+
+    async reviewRefund(id, action, reason = "", transactionRef = "") {
+        const endpoint = action.toLowerCase();
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/refunds/${id}/${endpoint}`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ action, reason, transaction_reference: transactionRef })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || `Failed to ${action} refund.`);
+        return res;
+    },
+
+    async getFinancialDashboard(hostelId = null) {
+        const qs = hostelId ? `?hostel_id=${hostelId}` : "";
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/dashboard${qs}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load financial dashboard.");
+        return await response.json();
+    },
+
+    async getFinancialReports(reportType, params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/reports/${reportType}${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to generate financial report.");
+        return await response.json();
     }
 };
 

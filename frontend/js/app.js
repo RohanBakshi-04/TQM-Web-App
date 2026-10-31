@@ -327,6 +327,57 @@ document.addEventListener("alpine:init", () => {
         visitorRejectModalOpen: false,
         visitorRejectReason: "",
 
+        // Fee & Financial Management State
+        feeSubTab: "invoices", // "structures" | "invoices" | "payments" | "refunds" | "reports"
+        feeStructures: [],
+        invoicesList: [],
+        invoicesTotal: 0,
+        invoiceSearch: "",
+        invoiceFilterStatus: "all",
+        selectedInvoice: null,
+        invoiceDetailModalOpen: false,
+        feeStructureModalOpen: false,
+        newInvoiceModalOpen: false,
+        bulkInvoiceModalOpen: false,
+        discountModalOpen: false,
+        cancelInvoiceModalOpen: false,
+        receiptModalOpen: false,
+        activeReceipt: null,
+        discountForm: { invoice_id: null, amount: "", reason: "" },
+        cancelForm: { invoice_id: null, reason: "" },
+        newFeeStructure: {
+            name: "",
+            fee_category: "Hostel Accommodation Fee",
+            hostel_id: null,
+            room_type: "All",
+            academic_year: "2026-27",
+            semester: "All",
+            amount: 25000,
+            payment_frequency: "Semester",
+            is_mandatory: true,
+            late_fine_amount: 500,
+            description: ""
+        },
+        newInvoice: {
+            student_id: 1,
+            fee_structure_id: null,
+            issue_date: new Date().toISOString().split('T')[0],
+            due_date: new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0],
+            total_amount: 25000,
+            discount_amount: 0,
+            discount_reason: "",
+            remarks: "Standard semester invoice"
+        },
+        bulkInvoiceForm: {
+            hostel_id: 1,
+            academic_year: "2026-27",
+            room_type: "All",
+            fee_structure_id: null,
+            issue_date: new Date().toISOString().split('T')[0],
+            due_date: new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0],
+            remarks: "Semester bulk billing"
+        },
+
         dashboardStats: {
             hostels: { total: 1, rooms: 3, beds: 6, occupied_beds: 2, available_beds: 4, occupancy_rate: 33.3 },
             students: { total: 3, active: 3 },
@@ -830,6 +881,9 @@ document.addEventListener("alpine:init", () => {
             } else if (section === 'visitors') {
                 this.loadActiveVisitors();
                 this.loadVisitorLogs();
+            } else if (section === 'finance') {
+                this.loadFeeStructures();
+                this.loadInvoicesList();
             }
             this.navigationLatencyMs = parseFloat((performance.now() - t0).toFixed(2));
         },
@@ -1648,6 +1702,162 @@ document.addEventListener("alpine:init", () => {
                 if (this.selectedVisitor) this.selectedVisitor = res;
             } catch (err) {
                 this.showToast(`Check-out failed: ${err.message}`, "error");
+            }
+        },
+
+        // ==================== FEE & FINANCIAL MANAGEMENT METHODS ====================
+        async loadFeeStructures() {
+            try {
+                this.feeStructures = await window.API.getFeeStructures();
+            } catch (err) {
+                console.error("Failed to load fee structures:", err);
+            }
+        },
+
+        async loadInvoicesList() {
+            try {
+                const params = {};
+                if (this.invoiceFilterStatus && this.invoiceFilterStatus !== 'all') {
+                    params.status = this.invoiceFilterStatus;
+                }
+                if (this.invoiceSearch && this.invoiceSearch.trim()) {
+                    params.invoice_number = this.invoiceSearch.trim();
+                }
+                const res = await window.API.getInvoices(params);
+                this.invoicesList = res.records || [];
+                this.invoicesTotal = res.total || 0;
+            } catch (err) {
+                console.error("Failed to load invoices:", err);
+            }
+        },
+
+        async handleCreateFeeStructure() {
+            try {
+                const payload = {
+                    ...this.newFeeStructure,
+                    amount: parseFloat(this.newFeeStructure.amount),
+                    late_fine_amount: parseFloat(this.newFeeStructure.late_fine_amount || 0),
+                    hostel_id: this.newFeeStructure.hostel_id ? parseInt(this.newFeeStructure.hostel_id) : null
+                };
+                const res = await window.API.createFeeStructure(payload);
+                this.showToast(`Fee structure '${res.name}' created successfully!`, "success");
+                this.feeStructureModalOpen = false;
+                await this.loadFeeStructures();
+            } catch (err) {
+                this.showToast(`Error: ${err.message}`, "error");
+            }
+        },
+
+        async handleDeleteFeeStructure(id) {
+            if (!confirm("Are you sure you want to deactivate this fee structure?")) return;
+            try {
+                const res = await window.API.deleteFeeStructure(id);
+                this.showToast(res.message, "success");
+                await this.loadFeeStructures();
+            } catch (err) {
+                this.showToast(`Error: ${err.message}`, "error");
+            }
+        },
+
+        async handleCreateInvoice() {
+            try {
+                const payload = {
+                    ...this.newInvoice,
+                    student_id: parseInt(this.newInvoice.student_id),
+                    fee_structure_id: this.newInvoice.fee_structure_id ? parseInt(this.newInvoice.fee_structure_id) : null,
+                    total_amount: parseFloat(this.newInvoice.total_amount),
+                    discount_amount: parseFloat(this.newInvoice.discount_amount || 0)
+                };
+                const res = await window.API.createInvoice(payload);
+                this.showToast(`Invoice ${res.invoice_number} generated for student #${res.student_id}!`, "success");
+                this.newInvoiceModalOpen = false;
+                await this.loadInvoicesList();
+            } catch (err) {
+                this.showToast(`Error: ${err.message}`, "error");
+            }
+        },
+
+        async handleCreateBulkInvoices() {
+            try {
+                if (!this.bulkInvoiceForm.fee_structure_id) {
+                    this.showToast("Please select a fee structure.", "warning");
+                    return;
+                }
+                const payload = {
+                    ...this.bulkInvoiceForm,
+                    fee_structure_id: parseInt(this.bulkInvoiceForm.fee_structure_id),
+                    hostel_id: this.bulkInvoiceForm.hostel_id ? parseInt(this.bulkInvoiceForm.hostel_id) : null
+                };
+                const res = await window.API.createBulkInvoices(payload);
+                this.showToast(`Bulk invoicing complete: ${res.invoices_created} invoices generated (${res.skipped_duplicates} skipped).`, "success");
+                this.bulkInvoiceModalOpen = false;
+                await this.loadInvoicesList();
+            } catch (err) {
+                this.showToast(`Error: ${err.message}`, "error");
+            }
+        },
+
+        openDiscountModal(inv) {
+            this.discountForm = {
+                invoice_id: inv.id,
+                amount: "",
+                reason: ""
+            };
+            this.discountModalOpen = true;
+        },
+
+        async handleApplyDiscount() {
+            try {
+                const res = await window.API.applyInvoiceDiscount(
+                    this.discountForm.invoice_id,
+                    parseFloat(this.discountForm.amount),
+                    this.discountForm.reason
+                );
+                this.showToast(`Discount of ₹${this.discountForm.amount} applied to ${res.invoice_number}`, "success");
+                this.discountModalOpen = false;
+                await this.loadInvoicesList();
+                if (this.selectedInvoice && this.selectedInvoice.id === res.id) {
+                    this.selectedInvoice = res;
+                }
+            } catch (err) {
+                this.showToast(`Discount error: ${err.message}`, "error");
+            }
+        },
+
+        openCancelModal(inv) {
+            this.cancelForm = {
+                invoice_id: inv.id,
+                reason: ""
+            };
+            this.cancelInvoiceModalOpen = true;
+        },
+
+        async handleCancelInvoice() {
+            try {
+                const res = await window.API.cancelInvoice(this.cancelForm.invoice_id, this.cancelForm.reason);
+                this.showToast(res.message, "success");
+                this.cancelInvoiceModalOpen = false;
+                await this.loadInvoicesList();
+            } catch (err) {
+                this.showToast(`Cancel error: ${err.message}`, "error");
+            }
+        },
+
+        async viewInvoiceDetails(id) {
+            try {
+                this.selectedInvoice = await window.API.getInvoice(id);
+                this.invoiceDetailModalOpen = true;
+            } catch (err) {
+                this.showToast(`Failed to load invoice: ${err.message}`, "error");
+            }
+        },
+
+        async viewInvoiceReceipt(id) {
+            try {
+                this.activeReceipt = await window.API.getInvoiceReceipt(id);
+                this.receiptModalOpen = true;
+            } catch (err) {
+                this.showToast(`Failed to load receipt: ${err.message}`, "error");
             }
         }
     }));

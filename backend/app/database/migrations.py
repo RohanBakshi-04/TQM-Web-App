@@ -415,6 +415,151 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
             applied_now.append("006_attendance_leave_visitor_enhancements")
             logger.info("Migration 006_attendance_leave_visitor_enhancements applied successfully.")
 
+        # ---------------------------------------------------------
+        # Migration 007: Fee & Financial Management Enhancements
+        # ---------------------------------------------------------
+        if "007_fee_and_financial_enhancements" not in applied:
+            logger.info("Applying Migration 007_fee_and_financial_enhancements...")
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA foreign_keys = OFF;")
+
+            # 1. Enhance fee_structures
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS fee_structures_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    fee_category TEXT NOT NULL DEFAULT 'Hostel Accommodation Fee',
+                    hostel_id INTEGER NULL REFERENCES hostels(id) ON DELETE SET NULL,
+                    room_type TEXT NOT NULL DEFAULT 'All' CHECK(room_type IN ('Single', 'Double', 'Triple', 'Dormitory', 'All')),
+                    academic_year TEXT NOT NULL,
+                    semester TEXT NOT NULL DEFAULT 'All',
+                    amount REAL NOT NULL CHECK(amount >= 0),
+                    payment_frequency TEXT NOT NULL DEFAULT 'Semester' CHECK(payment_frequency IN ('Monthly', 'Quarterly', 'Semester', 'Annual', 'One_Time')),
+                    is_mandatory INTEGER NOT NULL DEFAULT 1 CHECK(is_mandatory IN (0, 1)),
+                    late_fine_amount REAL NOT NULL DEFAULT 0.0 CHECK(late_fine_amount >= 0),
+                    description TEXT DEFAULT '',
+                    is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            old_fs_cols = [c[1] for c in cursor.execute("PRAGMA table_info(fee_structures);").fetchall()]
+            common_fs = [c for c in ['id', 'name', 'room_type', 'academic_year', 'semester', 'amount', 'payment_frequency', 'description', 'is_active', 'created_at', 'updated_at'] if c in old_fs_cols]
+            if common_fs:
+                c_str = ", ".join(common_fs)
+                cursor.execute(f"INSERT INTO fee_structures_new ({c_str}) SELECT {c_str} FROM fee_structures;")
+            cursor.execute("DROP TABLE IF EXISTS fee_structures;")
+            cursor.execute("ALTER TABLE fee_structures_new RENAME TO fee_structures;")
+
+            # 2. Enhance invoices
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS invoices_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    invoice_number TEXT NOT NULL UNIQUE,
+                    student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE RESTRICT,
+                    fee_structure_id INTEGER NULL REFERENCES fee_structures(id) ON DELETE SET NULL,
+                    issue_date TEXT NOT NULL,
+                    due_date TEXT NOT NULL,
+                    total_amount REAL NOT NULL CHECK(total_amount >= 0),
+                    paid_amount REAL NOT NULL DEFAULT 0.0 CHECK(paid_amount >= 0),
+                    discount_amount REAL NOT NULL DEFAULT 0.0 CHECK(discount_amount >= 0),
+                    discount_reason TEXT DEFAULT '',
+                    fine_amount REAL NOT NULL DEFAULT 0.0 CHECK(fine_amount >= 0),
+                    status TEXT NOT NULL DEFAULT 'Issued' CHECK(status IN ('Draft', 'Issued', 'Unpaid', 'Partially_Paid', 'Partially Paid', 'Paid', 'Cancelled', 'Overdue')),
+                    cancellation_reason TEXT DEFAULT '',
+                    remarks TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    CHECK(due_date >= issue_date)
+                );
+            """)
+            old_inv_cols = [c[1] for c in cursor.execute("PRAGMA table_info(invoices);").fetchall()]
+            common_inv = [c for c in ['id', 'invoice_number', 'student_id', 'fee_structure_id', 'issue_date', 'due_date', 'total_amount', 'paid_amount', 'status', 'created_at', 'updated_at'] if c in old_inv_cols]
+            if common_inv:
+                c_str = ", ".join(common_inv)
+                cursor.execute(f"INSERT INTO invoices_new ({c_str}) SELECT {c_str} FROM invoices;")
+            cursor.execute("DROP TABLE IF EXISTS invoices;")
+            cursor.execute("ALTER TABLE invoices_new RENAME TO invoices;")
+
+            # 3. Enhance payments
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS payments_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    payment_reference TEXT NOT NULL UNIQUE,
+                    invoice_id INTEGER NOT NULL REFERENCES invoices(id) ON DELETE RESTRICT,
+                    student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE RESTRICT,
+                    amount REAL NOT NULL CHECK(amount > 0),
+                    payment_method TEXT NOT NULL CHECK(payment_method IN ('UPI', 'Credit_Card', 'Debit_Card', 'Net_Banking', 'Cash', 'Demand_Draft', 'Demand Draft', 'Card', 'Bank Transfer', 'Bank_Transfer', 'Cheque', 'Other')),
+                    payment_date TEXT NOT NULL,
+                    transaction_id TEXT DEFAULT '',
+                    receipt_number TEXT NULL,
+                    status TEXT NOT NULL DEFAULT 'Completed' CHECK(status IN ('Completed', 'Pending', 'Failed', 'Refunded', 'Reversed')),
+                    notes TEXT DEFAULT '',
+                    reversal_reason TEXT DEFAULT '',
+                    reversed_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    recorded_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            old_pay_cols = [c[1] for c in cursor.execute("PRAGMA table_info(payments);").fetchall()]
+            common_pay = [c for c in ['id', 'payment_reference', 'invoice_id', 'student_id', 'amount', 'payment_method', 'payment_date', 'transaction_id', 'status', 'notes', 'recorded_by', 'created_at'] if c in old_pay_cols]
+            if common_pay:
+                c_str = ", ".join(common_pay)
+                cursor.execute(f"INSERT INTO payments_new ({c_str}) SELECT {c_str} FROM payments;")
+            cursor.execute("DROP TABLE IF EXISTS payments;")
+            cursor.execute("ALTER TABLE payments_new RENAME TO payments;")
+
+            # 4. Enhance refunds
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS refunds_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    refund_reference TEXT NOT NULL UNIQUE,
+                    payment_id INTEGER NOT NULL REFERENCES payments(id) ON DELETE RESTRICT,
+                    invoice_id INTEGER NULL REFERENCES invoices(id) ON DELETE SET NULL,
+                    student_id INTEGER NULL REFERENCES students(id) ON DELETE SET NULL,
+                    amount REAL NOT NULL CHECK(amount > 0),
+                    reason TEXT NOT NULL,
+                    refund_method TEXT NOT NULL DEFAULT 'Bank_Transfer',
+                    rejection_reason TEXT DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'Requested' CHECK(status IN ('Requested', 'Initiated', 'Under_Review', 'Under Review', 'Approved', 'Rejected', 'Processed', 'Cancelled')),
+                    requested_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    reviewed_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    approved_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    processed_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    transaction_reference TEXT DEFAULT '',
+                    processed_at TIMESTAMP NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            old_ref_cols = [c[1] for c in cursor.execute("PRAGMA table_info(refunds);").fetchall()]
+            common_ref = [c for c in ['id', 'refund_reference', 'payment_id', 'amount', 'reason', 'status', 'approved_by', 'processed_at', 'created_at'] if c in old_ref_cols]
+            if common_ref:
+                c_str = ", ".join(common_ref)
+                cursor.execute(f"INSERT INTO refunds_new ({c_str}) SELECT {c_str} FROM refunds;")
+            cursor.execute("DROP TABLE IF EXISTS refunds;")
+            cursor.execute("ALTER TABLE refunds_new RENAME TO refunds;")
+
+            # 5. Financial B-Tree Indexes
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_fee_structures_hostel ON fee_structures(hostel_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_fee_structures_category ON fee_structures(fee_category);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_fee_structures_year ON fee_structures(academic_year, is_active);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoices_student ON invoices(student_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoices_due ON invoices(due_date);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoices_number ON invoices(invoice_number);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_payments_student ON payments(student_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_payments_ref ON payments(payment_reference);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(payment_date);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_refunds_payment ON refunds(payment_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_refunds_status ON refunds(status);")
+
+            cursor.execute("PRAGMA foreign_keys = ON;")
+            conn.commit()
+            record_migration(conn, "007_fee_and_financial_enhancements", "Fee Structures, Invoicing, Payments & Refund Workflows")
+            applied_now.append("007_fee_and_financial_enhancements")
+            logger.info("Migration 007_fee_and_financial_enhancements applied successfully.")
+
         return applied_now
     finally:
         if should_close:

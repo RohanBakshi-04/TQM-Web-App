@@ -1142,6 +1142,15 @@
                         </button>
                     </template>
 
+                    <template x-if="isAuthenticated">
+                        <button @click="navigateTo('finance')"
+                                :class="activeSection === 'finance' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
+                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
+                            <i class="fa-solid fa-file-invoice-dollar w-5 text-center text-sm"></i>
+                            <span x-show="!sidebarCollapsed" class="truncate">Fee & Finance</span>
+                        </button>
+                    </template>
+
                     <button @click="navigateTo('architecture')"
                             :class="activeSection === 'architecture' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
                             class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
@@ -3655,6 +3664,530 @@
                         </template>
                         <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                             <button @click="visitorDetailModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200">Close</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. FEE & FINANCIAL MANAGEMENT SECTION -->
+                <section x-show="activeSection === 'finance'" class="animate-fade-in space-y-6">
+                    <!-- Header & Sub-navigation -->
+                    <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div class="flex items-center space-x-4">
+                            <div class="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-xl font-bold">
+                                <i class="fa-solid fa-file-invoice-dollar"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                    Fee & Financial Management
+                                    <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300">TQM Audit Ready</span>
+                                </h2>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Fee structures, automated student demand invoicing, concessions, partial payments, and audit logs.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Sub-Navigation Pills -->
+                        <div class="flex items-center bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl text-xs font-semibold overflow-x-auto">
+                            <button @click="feeSubTab = 'invoices'; loadInvoicesList()"
+                                    :class="feeSubTab === 'invoices' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-300 shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl transition whitespace-nowrap">
+                                <i class="fa-solid fa-receipt mr-1.5"></i>Invoices & Dues
+                            </button>
+                            <button @click="feeSubTab = 'structures'; loadFeeStructures()"
+                                    :class="feeSubTab === 'structures' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-300 shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl transition whitespace-nowrap">
+                                <i class="fa-solid fa-tags mr-1.5"></i>Fee Structures
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 1. INVOICES & DUES VIEW -->
+                    <div x-show="feeSubTab === 'invoices'" class="space-y-6">
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
+                            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div class="flex items-center space-x-3">
+                                    <input type="text" x-model="invoiceSearch" @input.debounce.300ms="loadInvoicesList()" placeholder="Search invoice #..."
+                                           class="text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none" />
+                                    <select x-model="invoiceFilterStatus" @change="loadInvoicesList()"
+                                            class="text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none">
+                                        <option value="all">All Statuses</option>
+                                        <option value="Issued">Issued</option>
+                                        <option value="Partially_Paid">Partially Paid</option>
+                                        <option value="Paid">Paid</option>
+                                        <option value="Overdue">Overdue</option>
+                                        <option value="Cancelled">Cancelled</option>
+                                    </select>
+                                    <button @click="loadInvoicesList()" class="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200">
+                                        <i class="fa-solid fa-arrows-rotate mr-1"></i>Refresh
+                                    </button>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <button @click="newInvoiceModalOpen = true" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center space-x-1.5 shadow-sm">
+                                        <i class="fa-solid fa-plus"></i>
+                                        <span>Create Invoice</span>
+                                    </button>
+                                    <button @click="bulkInvoiceModalOpen = true" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition flex items-center space-x-1.5 shadow-sm">
+                                        <i class="fa-solid fa-layer-group"></i>
+                                        <span>Bulk Invoicing</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Invoices Table -->
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="text-[11px] uppercase font-bold text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                                        <tr>
+                                            <th class="py-3 px-3">Invoice #</th>
+                                            <th class="py-3 px-3">Student</th>
+                                            <th class="py-3 px-3">Fee Category</th>
+                                            <th class="py-3 px-3">Due Date</th>
+                                            <th class="py-3 px-3 text-right">Total</th>
+                                            <th class="py-3 px-3 text-right">Discount</th>
+                                            <th class="py-3 px-3 text-right">Paid</th>
+                                            <th class="py-3 px-3 text-right">Balance</th>
+                                            <th class="py-3 px-3">Status</th>
+                                            <th class="py-3 px-3 text-center">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                        <template x-if="invoicesList.length === 0">
+                                            <tr>
+                                                <td colspan="10" class="py-6 text-center text-slate-400">No invoices found matching criteria.</td>
+                                            </tr>
+                                        </template>
+                                        <template x-for="inv in invoicesList" :key="inv.id">
+                                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                                <td class="py-2.5 px-3 font-mono font-bold text-emerald-600 dark:text-emerald-400" x-text="inv.invoice_number"></td>
+                                                <td class="py-2.5 px-3">
+                                                    <div class="font-bold text-slate-800 dark:text-white" x-text="inv.student_name"></div>
+                                                    <div class="text-[10px] text-slate-400 font-mono" x-text="'Roll: ' + inv.student_roll_no"></div>
+                                                </td>
+                                                <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300" x-text="inv.fee_structure_name || inv.fee_category || 'Custom Fee'"></td>
+                                                <td class="py-2.5 px-3 font-mono" :class="inv.is_overdue ? 'text-rose-600 font-bold' : 'text-slate-600 dark:text-slate-400'" x-text="inv.due_date"></td>
+                                                <td class="py-2.5 px-3 text-right font-mono font-bold text-slate-900 dark:text-white" x-text="'₹' + (inv.total_amount).toFixed(2)"></td>
+                                                <td class="py-2.5 px-3 text-right font-mono text-purple-600 dark:text-purple-400" x-text="'₹' + (inv.discount_amount || 0).toFixed(2)"></td>
+                                                <td class="py-2.5 px-3 text-right font-mono text-emerald-600 dark:text-emerald-400" x-text="'₹' + (inv.paid_amount || 0).toFixed(2)"></td>
+                                                <td class="py-2.5 px-3 text-right font-mono font-bold" :class="inv.outstanding_balance > 0 ? 'text-rose-600' : 'text-emerald-600'" x-text="'₹' + (inv.outstanding_balance).toFixed(2)"></td>
+                                                <td class="py-2.5 px-3">
+                                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
+                                                          :class="{
+                                                              'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300': inv.effective_status === 'Paid',
+                                                              'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300': inv.effective_status === 'Partially_Paid',
+                                                              'bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-300': inv.effective_status === 'Issued' || inv.effective_status === 'Unpaid',
+                                                              'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300': inv.effective_status === 'Overdue',
+                                                              'bg-slate-100 dark:bg-slate-800 text-slate-500': inv.effective_status === 'Cancelled'
+                                                          }"
+                                                          x-text="inv.effective_status || inv.status"></span>
+                                                </td>
+                                                <td class="py-2.5 px-3 text-center">
+                                                    <div class="flex items-center justify-center space-x-1">
+                                                        <button @click="viewInvoiceReceipt(inv.id)" title="View Demand Receipt" class="p-1 text-slate-400 hover:text-emerald-600 transition">
+                                                            <i class="fa-solid fa-file-invoice"></i>
+                                                        </button>
+                                                        <template x-if="inv.status !== 'Paid' && inv.status !== 'Cancelled'">
+                                                            <button @click="openDiscountModal(inv)" title="Apply Concession" class="p-1 text-slate-400 hover:text-purple-600 transition">
+                                                                <i class="fa-solid fa-percent"></i>
+                                                            </button>
+                                                        </template>
+                                                        <template x-if="inv.paid_amount === 0 && inv.status !== 'Cancelled'">
+                                                            <button @click="openCancelModal(inv)" title="Cancel Invoice" class="p-1 text-slate-400 hover:text-rose-600 transition">
+                                                                <i class="fa-solid fa-ban"></i>
+                                                            </button>
+                                                        </template>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. FEE STRUCTURES VIEW -->
+                    <div x-show="feeSubTab === 'structures'" class="space-y-6">
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-base font-bold text-slate-900 dark:text-white">Configured Fee Schedules</h3>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">Institutional fee components governing automatic invoice calculations.</p>
+                                </div>
+                                <button @click="feeStructureModalOpen = true" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center space-x-1.5 shadow-sm">
+                                    <i class="fa-solid fa-plus"></i>
+                                    <span>New Fee Structure</span>
+                                </button>
+                            </div>
+
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="text-[11px] uppercase font-bold text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                                        <tr>
+                                            <th class="py-3 px-3">Category</th>
+                                            <th class="py-3 px-3">Structure Name</th>
+                                            <th class="py-3 px-3">Academic Session</th>
+                                            <th class="py-3 px-3">Room Type</th>
+                                            <th class="py-3 px-3">Frequency</th>
+                                            <th class="py-3 px-3 text-right">Amount</th>
+                                            <th class="py-3 px-3 text-right">Late Fine</th>
+                                            <th class="py-3 px-3">Mandatory</th>
+                                            <th class="py-3 px-3">Status</th>
+                                            <th class="py-3 px-3 text-center">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                        <template x-if="feeStructures.length === 0">
+                                            <tr>
+                                                <td colspan="10" class="py-6 text-center text-slate-400">No fee structures configured.</td>
+                                            </tr>
+                                        </template>
+                                        <template x-for="fs in feeStructures" :key="fs.id">
+                                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                                <td class="py-2.5 px-3 font-semibold text-slate-700 dark:text-slate-300" x-text="fs.fee_category"></td>
+                                                <td class="py-2.5 px-3 font-bold text-slate-900 dark:text-white" x-text="fs.name"></td>
+                                                <td class="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-400" x-text="fs.academic_year + ' (' + fs.semester + ')'"></td>
+                                                <td class="py-2.5 px-3 text-slate-600 dark:text-slate-400" x-text="fs.room_type"></td>
+                                                <td class="py-2.5 px-3 text-slate-600 dark:text-slate-400" x-text="fs.payment_frequency"></td>
+                                                <td class="py-2.5 px-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400" x-text="'₹' + (fs.amount).toFixed(2)"></td>
+                                                <td class="py-2.5 px-3 text-right font-mono text-rose-500" x-text="'₹' + (fs.late_fine_amount || 0).toFixed(2)"></td>
+                                                <td class="py-2.5 px-3">
+                                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                                                          :class="fs.is_mandatory ? 'bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'"
+                                                          x-text="fs.is_mandatory ? 'Mandatory' : 'Optional'"></span>
+                                                </td>
+                                                <td class="py-2.5 px-3">
+                                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                                                          :class="fs.is_active ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'"
+                                                          x-text="fs.is_active ? 'Active' : 'Inactive'"></span>
+                                                </td>
+                                                <td class="py-2.5 px-3 text-center">
+                                                    <template x-if="fs.is_active">
+                                                        <button @click="handleDeleteFeeStructure(fs.id)" class="text-rose-500 hover:text-rose-700 text-xs font-semibold">
+                                                            Deactivate
+                                                        </button>
+                                                    </template>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- MODALS FOR FINANCIAL MANAGEMENT -->
+
+                <!-- 1. CREATE FEE STRUCTURE MODAL -->
+                <div x-show="feeStructureModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in" style="display: none;">
+                    <div @click.away="feeStructureModalOpen = false" class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 shadow-2xl space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                <i class="fa-solid fa-tags text-emerald-500"></i>Create Fee Structure
+                            </h3>
+                            <button @click="feeStructureModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="space-y-3 text-xs">
+                            <div>
+                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Fee Structure Name *</label>
+                                <input type="text" x-model="newFeeStructure.name" placeholder="e.g. Standard Triple Room Fee 2026-27"
+                                       class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none" />
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Fee Category *</label>
+                                    <select x-model="newFeeStructure.fee_category" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none">
+                                        <option value="Hostel Accommodation Fee">Hostel Accommodation Fee</option>
+                                        <option value="Room Fee">Room Fee</option>
+                                        <option value="Mess Fee">Mess Fee</option>
+                                        <option value="Security Deposit">Security Deposit</option>
+                                        <option value="Electricity Fee">Electricity Fee</option>
+                                        <option value="Maintenance Fee">Maintenance Fee</option>
+                                        <option value="Admission Fee">Admission Fee</option>
+                                        <option value="Late Payment Fine">Late Payment Fine</option>
+                                        <option value="Other Charges">Other Charges</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Room Category</label>
+                                    <select x-model="newFeeStructure.room_type" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none">
+                                        <option value="All">All Room Types</option>
+                                        <option value="Single">Single Sharing</option>
+                                        <option value="Double">Double Sharing</option>
+                                        <option value="Triple">Triple Sharing</option>
+                                        <option value="Dormitory">Dormitory</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Fee Amount (₹) *</label>
+                                    <input type="number" step="0.01" x-model="newFeeStructure.amount" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none font-mono font-bold" />
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Late Payment Fine (₹)</label>
+                                    <input type="number" step="0.01" x-model="newFeeStructure.late_fine_amount" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none font-mono" />
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Academic Session *</label>
+                                    <input type="text" x-model="newFeeStructure.academic_year" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none" />
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Frequency *</label>
+                                    <select x-model="newFeeStructure.payment_frequency" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none">
+                                        <option value="Semester">Semester-wise</option>
+                                        <option value="Monthly">Monthly</option>
+                                        <option value="Quarterly">Quarterly</option>
+                                        <option value="Annual">Annual</option>
+                                        <option value="One_Time">One-Time Charge</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                            <button @click="feeStructureModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold">Cancel</button>
+                            <button @click="handleCreateFeeStructure()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold">Create Fee Structure</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. CREATE INVOICE MODAL -->
+                <div x-show="newInvoiceModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in" style="display: none;">
+                    <div @click.away="newInvoiceModalOpen = false" class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 shadow-2xl space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                <i class="fa-solid fa-receipt text-emerald-500"></i>Generate Single Invoice
+                            </h3>
+                            <button @click="newInvoiceModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="space-y-3 text-xs">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Student ID *</label>
+                                    <input type="number" x-model="newInvoice.student_id" placeholder="Student ID (e.g. 1)"
+                                           class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none font-mono" />
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Fee Structure</label>
+                                    <select x-model="newInvoice.fee_structure_id" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none">
+                                        <option value="">Custom / Ad-hoc</option>
+                                        <template x-for="fs in feeStructures" :key="fs.id">
+                                            <option :value="fs.id" x-text="fs.name + ' (₹' + fs.amount + ')'"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Issue Date *</label>
+                                    <input type="date" x-model="newInvoice.issue_date" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none font-mono" />
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Due Date *</label>
+                                    <input type="date" x-model="newInvoice.due_date" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none font-mono" />
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Total Fee Amount (₹) *</label>
+                                    <input type="number" step="0.01" x-model="newInvoice.total_amount" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none font-mono font-bold" />
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Discount Concession (₹)</label>
+                                    <input type="number" step="0.01" x-model="newInvoice.discount_amount" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none font-mono" />
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Remarks</label>
+                                <input type="text" x-model="newInvoice.remarks" placeholder="Optional notes or concession details..."
+                                       class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none" />
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                            <button @click="newInvoiceModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold">Cancel</button>
+                            <button @click="handleCreateInvoice()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold">Issue Invoice</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. BULK INVOICING MODAL -->
+                <div x-show="bulkInvoiceModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in" style="display: none;">
+                    <div @click.away="bulkInvoiceModalOpen = false" class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 shadow-2xl space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                <i class="fa-solid fa-layer-group text-indigo-500"></i>Bulk Student Invoicing
+                            </h3>
+                            <button @click="bulkInvoiceModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="space-y-3 text-xs">
+                            <div>
+                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Fee Structure Template *</label>
+                                <select x-model="bulkInvoiceForm.fee_structure_id" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none">
+                                    <option value="">Select fee structure...</option>
+                                    <template x-for="fs in feeStructures" :key="fs.id">
+                                        <option :value="fs.id" x-text="fs.name + ' (₹' + fs.amount + ')'"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Hostel Facility</label>
+                                    <select x-model="bulkInvoiceForm.hostel_id" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none">
+                                        <option value="">All Hostels</option>
+                                        <option value="1">Tagore Hostel (Boys)</option>
+                                        <option value="2">Sarojini Hostel (Girls)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Academic Year *</label>
+                                    <input type="text" x-model="bulkInvoiceForm.academic_year" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none" />
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Issue Date *</label>
+                                    <input type="date" x-model="bulkInvoiceForm.issue_date" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none font-mono" />
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Due Date *</label>
+                                    <input type="date" x-model="bulkInvoiceForm.due_date" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none font-mono" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                            <button @click="bulkInvoiceModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold">Cancel</button>
+                            <button @click="handleCreateBulkInvoices()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold">Run Bulk Generation</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. OFFICIAL RECEIPT MODAL -->
+                <div x-show="receiptModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in" style="display: none;">
+                    <div @click.away="receiptModalOpen = false" class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-xl w-full p-6 shadow-2xl space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                            <div class="flex items-center space-x-3">
+                                <i class="fa-solid fa-file-invoice text-emerald-500 text-2xl"></i>
+                                <div>
+                                    <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider" x-text="activeReceipt?.receipt_title"></h3>
+                                    <div class="text-[10px] text-slate-400" x-text="activeReceipt?.institution"></div>
+                                </div>
+                            </div>
+                            <button @click="receiptModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+
+                        <template x-if="activeReceipt">
+                            <div class="space-y-4 text-xs">
+                                <div class="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 grid grid-cols-2 gap-2">
+                                    <div><span class="text-slate-400">Invoice No:</span> <span class="font-bold font-mono text-emerald-600 dark:text-emerald-400" x-text="activeReceipt.invoice_number"></span></div>
+                                    <div><span class="text-slate-400">Status:</span> <span class="font-bold uppercase" x-text="activeReceipt.status"></span></div>
+                                    <div><span class="text-slate-400">Student:</span> <span class="font-bold text-slate-800 dark:text-white" x-text="activeReceipt.student_name"></span></div>
+                                    <div><span class="text-slate-400">Roll No:</span> <span class="font-bold font-mono" x-text="activeReceipt.roll_no"></span></div>
+                                    <div><span class="text-slate-400">Hostel / Room:</span> <span class="font-semibold" x-text="activeReceipt.hostel_name + ' • Room ' + activeReceipt.room_number"></span></div>
+                                    <div><span class="text-slate-400">Due Date:</span> <span class="font-mono font-semibold" x-text="activeReceipt.due_date"></span></div>
+                                </div>
+
+                                <div class="border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden">
+                                    <table class="w-full text-left text-xs">
+                                        <thead class="bg-slate-100 dark:bg-slate-800 text-[10px] uppercase font-bold text-slate-500">
+                                            <tr>
+                                                <th class="py-2 px-3">Item Description</th>
+                                                <th class="py-2 px-3 text-right">Amount</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                            <template x-for="item in activeReceipt.line_items" :key="item.id">
+                                                <tr>
+                                                    <td class="py-2 px-3 text-slate-700 dark:text-slate-300" x-text="item.title"></td>
+                                                    <td class="py-2 px-3 text-right font-mono font-semibold" x-text="'₹' + (item.amount).toFixed(2)"></td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                        <tfoot class="border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 text-xs font-bold">
+                                            <tr>
+                                                <td class="py-2 px-3 text-right">Subtotal:</td>
+                                                <td class="py-2 px-3 text-right font-mono" x-text="'₹' + (activeReceipt.subtotal).toFixed(2)"></td>
+                                            </tr>
+                                            <template x-if="activeReceipt.discount_amount > 0">
+                                                <tr class="text-purple-600">
+                                                    <td class="py-1 px-3 text-right">Concession Discount:</td>
+                                                    <td class="py-1 px-3 text-right font-mono" x-text="'-₹' + (activeReceipt.discount_amount).toFixed(2)"></td>
+                                                </tr>
+                                            </template>
+                                            <tr>
+                                                <td class="py-2 px-3 text-right">Net Payable Amount:</td>
+                                                <td class="py-2 px-3 text-right font-mono text-slate-900 dark:text-white" x-text="'₹' + (activeReceipt.total_amount).toFixed(2)"></td>
+                                            </tr>
+                                            <tr>
+                                                <td class="py-2 px-3 text-right text-emerald-600">Total Paid:</td>
+                                                <td class="py-2 px-3 text-right font-mono text-emerald-600" x-text="'₹' + (activeReceipt.paid_amount).toFixed(2)"></td>
+                                            </tr>
+                                            <tr class="border-t border-slate-200 dark:border-slate-700 text-sm">
+                                                <td class="py-2.5 px-3 text-right text-rose-600">Outstanding Due:</td>
+                                                <td class="py-2.5 px-3 text-right font-mono text-rose-600" x-text="'₹' + (activeReceipt.outstanding_balance).toFixed(2)"></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+                        </template>
+
+                        <div class="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+                            <span class="text-[10px] text-slate-400 font-mono">Issued by University Finance Board</span>
+                            <div class="flex items-center space-x-2">
+                                <button onclick="window.print()" class="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200">
+                                    <i class="fa-solid fa-print mr-1"></i>Print Notice
+                                </button>
+                                <button @click="receiptModalOpen = false" class="px-4 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold">Done</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. DISCOUNT CONCESSION MODAL -->
+                <div x-show="discountModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in" style="display: none;">
+                    <div @click.away="discountModalOpen = false" class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-sm w-full p-6 shadow-2xl space-y-4">
+                        <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <i class="fa-solid fa-percent text-purple-500"></i>Apply Fee Concession
+                        </h3>
+                        <div class="space-y-3 text-xs">
+                            <div>
+                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Discount Amount (₹) *</label>
+                                <input type="number" step="0.01" x-model="discountForm.amount" placeholder="e.g. 5000"
+                                       class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white font-mono font-bold" />
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Mandatory Justification Reason *</label>
+                                <textarea x-model="discountForm.reason" rows="2" placeholder="e.g. Approved merit-cum-means scholarship grant..."
+                                          class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white"></textarea>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <button @click="discountModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold">Cancel</button>
+                            <button @click="handleApplyDiscount()" class="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold">Apply Concession</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 6. CANCEL INVOICE MODAL -->
+                <div x-show="cancelInvoiceModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in" style="display: none;">
+                    <div @click.away="cancelInvoiceModalOpen = false" class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-sm w-full p-6 shadow-2xl space-y-4">
+                        <h3 class="text-base font-bold text-rose-600 flex items-center gap-2">
+                            <i class="fa-solid fa-triangle-exclamation"></i>Cancel Invoice
+                        </h3>
+                        <p class="text-xs text-slate-500">Cancelling an invoice is an audited transaction. Invoices with recorded payments cannot be cancelled.</p>
+                        <div class="space-y-3 text-xs">
+                            <div>
+                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Cancellation Reason *</label>
+                                <textarea x-model="cancelForm.reason" rows="2" placeholder="e.g. Erroneous duplicate generation for student..."
+                                          class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white"></textarea>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <button @click="cancelInvoiceModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold">Back</button>
+                            <button @click="handleCancelInvoice()" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold">Confirm Cancellation</button>
                         </div>
                     </div>
                 </div>
