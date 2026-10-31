@@ -304,6 +304,29 @@ document.addEventListener("alpine:init", () => {
         overdueOutpassesList: [],
         outpassVerifyRemarks: "",
 
+        // Visitor Management State
+        visitorSubTab: "active", // "active" | "register" | "history" | "approvals"
+        activeVisitorsList: [],
+        visitorLogs: [],
+        visitorLogsTotal: 0,
+        visitorSearch: "",
+        visitorFilterStatus: "all",
+        newVisitor: {
+            name: "",
+            phone: "",
+            id_proof_type: "Aadhaar",
+            id_proof_number: "",
+            address: "",
+            student_id: 1,
+            purpose: "Family Visit",
+            expected_exit_time: "",
+            immediate_checkin: true
+        },
+        selectedVisitor: null,
+        visitorDetailModalOpen: false,
+        visitorRejectModalOpen: false,
+        visitorRejectReason: "",
+
         dashboardStats: {
             hostels: { total: 1, rooms: 3, beds: 6, occupied_beds: 2, available_beds: 4, occupancy_rate: 33.3 },
             students: { total: 3, active: 3 },
@@ -804,6 +827,9 @@ document.addEventListener("alpine:init", () => {
                 this.loadLeaveApplications();
                 this.loadOutpasses();
                 this.loadOverdueOutpasses();
+            } else if (section === 'visitors') {
+                this.loadActiveVisitors();
+                this.loadVisitorLogs();
             }
             this.navigationLatencyMs = parseFloat((performance.now() - t0).toFixed(2));
         },
@@ -1475,6 +1501,153 @@ document.addEventListener("alpine:init", () => {
                 if (this.selectedLeave) this.selectedLeave = res;
             } catch (err) {
                 this.showToast(`Return verification failed: ${err.message}`, "error");
+            }
+        },
+
+        // ==================== VISITOR MANAGEMENT MODULE ====================
+        async loadActiveVisitors() {
+            try {
+                this.activeVisitorsList = await window.API.getActiveVisitors();
+            } catch (err) {
+                console.error("Failed to load active visitors:", err);
+            }
+        },
+
+        async loadVisitorLogs() {
+            try {
+                const filters = {
+                    status: this.visitorFilterStatus !== "all" ? this.visitorFilterStatus : null,
+                    search: this.visitorSearch || null,
+                    limit: 50,
+                    offset: 0
+                };
+                const res = await window.API.getVisitorLogs(filters);
+                this.visitorLogs = res.records || [];
+                this.visitorLogsTotal = res.total || 0;
+            } catch (err) {
+                console.error("Failed to load visitor logs:", err);
+            }
+        },
+
+        async submitVisitorRegistration() {
+            const form = this.newVisitor;
+            if (!form.name || form.name.trim().length < 2) {
+                this.showToast("Please enter visitor's legal name.", "error");
+                return;
+            }
+            if (!form.phone || form.phone.trim().length < 7) {
+                this.showToast("Please enter a valid contact phone number.", "error");
+                return;
+            }
+            if (!form.id_proof_number || form.id_proof_number.trim().length < 4) {
+                this.showToast("Please enter ID proof document number.", "error");
+                return;
+            }
+            if (!form.purpose || form.purpose.trim().length < 3) {
+                this.showToast("Please state visit purpose.", "error");
+                return;
+            }
+            try {
+                const res = await window.API.registerVisitor(form);
+                this.showToast(`Visitor pass #${res.pass_number} created successfully!`, "success");
+                this.visitorSubTab = "active";
+                // Reset form
+                this.newVisitor = {
+                    name: "",
+                    phone: "",
+                    id_proof_type: "Aadhaar",
+                    id_proof_number: "",
+                    address: "",
+                    student_id: 1,
+                    purpose: "Family Visit",
+                    expected_exit_time: "",
+                    immediate_checkin: true
+                };
+                await this.loadActiveVisitors();
+                await this.loadVisitorLogs();
+            } catch (err) {
+                this.showToast(`Registration failed: ${err.message}`, "error");
+            }
+        },
+
+        async openVisitorDetails(id) {
+            try {
+                this.selectedVisitor = await window.API.getVisitorLog(id);
+                this.visitorDetailModalOpen = true;
+            } catch (err) {
+                this.showToast(`Failed to load details: ${err.message}`, "error");
+            }
+        },
+
+        async handleApproveVisitor(id) {
+            this.openConfirmModal(
+                "Approve Visitor Pass",
+                "Do you authorize this visitor entry onto the hostel campus?",
+                async () => {
+                    try {
+                        const res = await window.API.approveVisitor(id, "Approved by Warden");
+                        this.showToast(`Pass #${res.pass_number} approved!`, "success");
+                        await this.loadVisitorLogs();
+                        await this.loadActiveVisitors();
+                        if (this.selectedVisitor && this.selectedVisitor.id === id) {
+                            this.selectedVisitor = res;
+                        }
+                    } catch (err) {
+                        this.showToast(`Approval failed: ${err.message}`, "error");
+                    }
+                },
+                "Approve Entry",
+                "primary"
+            );
+        },
+
+        openVisitorRejectModal(id) {
+            this.visitorRejectModalOpen = true;
+            this.visitorRejectReason = "";
+            if (this.selectedVisitor && this.selectedVisitor.id === id) {
+                // already selected
+            } else {
+                this.openVisitorDetails(id);
+            }
+        },
+
+        async submitVisitorReject() {
+            if (!this.visitorRejectReason || this.visitorRejectReason.trim().length < 5) {
+                this.showToast("Mandatory reason required to reject visitor (min 5 characters).", "error");
+                return;
+            }
+            try {
+                const res = await window.API.rejectVisitor(this.selectedVisitor.id, this.visitorRejectReason.trim());
+                this.showToast(`Visitor pass #${res.pass_number} denied.`, "warning");
+                this.visitorRejectModalOpen = false;
+                await this.loadVisitorLogs();
+                if (this.selectedVisitor) this.selectedVisitor = res;
+            } catch (err) {
+                this.showToast(`Rejection failed: ${err.message}`, "error");
+            }
+        },
+
+        async handleVisitorCheckIn(id) {
+            try {
+                const res = await window.API.checkInVisitor(id, "Gate check-in recorded");
+                this.showToast(`Visitor checked in: Pass #${res.pass_number}`, "success");
+                await this.loadActiveVisitors();
+                await this.loadVisitorLogs();
+                if (this.selectedVisitor) this.selectedVisitor = res;
+            } catch (err) {
+                this.showToast(`Check-in failed: ${err.message}`, "error");
+            }
+        },
+
+        async handleVisitorCheckOut(id) {
+            try {
+                const res = await window.API.checkOutVisitor(id, "Gate check-out recorded");
+                this.showToast(`Visitor checked out successfully.`, "success");
+                await this.loadActiveVisitors();
+                await this.loadVisitorLogs();
+                if (this.selectedVisitor) this.selectedVisitor = res;
+            } catch (err) {
+                this.showToast(`Check-out failed: ${err.message}`, "error");
             }
         }
     }));

@@ -928,6 +928,107 @@ const API = {
         const res = await response.json();
         if (!response.ok) throw new Error(res.detail || "Failed to verify gate return.");
         return res;
+    },
+
+    // ==================== VISITOR MANAGEMENT ====================
+    async getVisitorLogs(filters = {}) {
+        const params = new URLSearchParams();
+        if (filters.status && filters.status !== 'all') params.append('status', filters.status);
+        if (filters.hostel_id) params.append('hostel_id', filters.hostel_id);
+        if (filters.date) params.append('date', filters.date);
+        if (filters.search) params.append('search', filters.search);
+        if (filters.limit) params.append('limit', filters.limit);
+        if (filters.offset) params.append('offset', filters.offset);
+
+        const qs = params.toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/visitors${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to load visitor logs.");
+        return await response.json();
+    },
+
+    async registerVisitor(data) {
+        const response = await fetch(`${this.baseUrl}/api/v1/visitors`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to register visitor.");
+        return res;
+    },
+
+    async getVisitorLog(id) {
+        const response = await fetch(`${this.baseUrl}/api/v1/visitors/${id}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to load visitor details.");
+        return await response.json();
+    },
+
+    async approveVisitor(id, remarks = "") {
+        const response = await fetch(`${this.baseUrl}/api/v1/visitors/${id}/approve`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ remarks })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to approve visitor.");
+        return res;
+    },
+
+    async rejectVisitor(id, reason) {
+        const response = await fetch(`${this.baseUrl}/api/v1/visitors/${id}/reject`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ reason })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to reject visitor.");
+        return res;
+    },
+
+    async checkInVisitor(id, remarks = "", expectedExitTime = null) {
+        const response = await fetch(`${this.baseUrl}/api/v1/visitors/${id}/check-in`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ remarks, expected_exit_time: expectedExitTime })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to check in visitor.");
+        return res;
+    },
+
+    async checkOutVisitor(id, remarks = "") {
+        const response = await fetch(`${this.baseUrl}/api/v1/visitors/${id}/check-out`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ remarks })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to check out visitor.");
+        return res;
+    },
+
+    async getActiveVisitors(hostelId = null) {
+        const qs = hostelId ? `?hostel_id=${hostelId}` : "";
+        const response = await fetch(`${this.baseUrl}/api/v1/visitors/active${qs}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to load active visitors.");
+        return await response.json();
+    },
+
+    async getVisitorReports(startDate, endDate, hostelId = null) {
+        const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+        if (hostelId) params.append('hostel_id', hostelId);
+
+        const response = await fetch(`${this.baseUrl}/api/v1/visitors/reports?${params.toString()}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to load visitor reports.");
+        return await response.json();
     }
 };
 
