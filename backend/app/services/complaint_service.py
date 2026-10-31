@@ -113,7 +113,7 @@ class ComplaintService:
         if submitted_by_user_id:
             cursor.execute("""
                 INSERT INTO notifications (user_id, title, message, notification_type)
-                VALUES (?, 'Complaint Received', ?, 'complaint');
+                VALUES (?, 'Complaint Received', ?, 'info');
             """, (
                 submitted_by_user_id,
                 f"Your complaint '{data.title}' has been logged with Ticket #{complaint_ticket}."
@@ -465,8 +465,7 @@ class ComplaintService:
                 assigned_to = ?,
                 severity = ?,
                 internal_remarks = ?,
-                affects_occupancy = CASE WHEN ? THEN 1 ELSE affects_occupancy END,
-                updated_at = CURRENT_TIMESTAMP
+                affects_occupancy = CASE WHEN ? THEN 1 ELSE affects_occupancy END
             WHERE id = ?;
         """, (data.assigned_to, new_priority, data.internal_remarks or "", 1 if data.affects_occupancy else 0, complaint_id))
 
@@ -499,11 +498,11 @@ class ComplaintService:
             task_code = f"MT-{time.strftime('%Y')}-{task_count:04d}"
             cursor.execute("""
                 INSERT INTO maintenance_tasks (
-                    complaint_id, task_code, room_id, title, description,
+                    complaint_id, task_code, room_id, category, title, description,
                     priority, status, assigned_to, assigned_worker, deadline
-                ) VALUES (?, ?, ?, ?, ?, ?, 'Assigned', ?, ?, ?);
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'Assigned', ?, ?, ?);
             """, (
-                complaint_id, task_code, c["room_id"], c["title"], c["description"],
+                complaint_id, task_code, c["room_id"], c["category"], c["title"], c["description"],
                 new_priority, data.assigned_to, tech_name, data.deadline
             ))
             new_task_id = cursor.lastrowid
@@ -515,7 +514,7 @@ class ComplaintService:
         # Notify technician
         cursor.execute("""
             INSERT INTO notifications (user_id, title, message, notification_type)
-            VALUES (?, 'Work Order Assigned', ?, 'maintenance');
+            VALUES (?, 'Work Order Assigned', ?, 'info');
         """, (
             data.assigned_to,
             f"Grievance Ticket #{c['complaint_id']} ('{c['title']}') has been assigned to you."
@@ -526,7 +525,7 @@ class ComplaintService:
         if s_user:
             cursor.execute("""
                 INSERT INTO notifications (user_id, title, message, notification_type)
-                VALUES (?, 'Grievance Assigned to Technician', ?, 'complaint');
+                VALUES (?, 'Grievance Assigned to Technician', ?, 'info');
             """, (
                 s_user["id"],
                 f"Your grievance '{c['title']}' has been assigned to technician {tech_name}."
@@ -552,7 +551,7 @@ class ComplaintService:
 
         cursor.execute("""
             UPDATE complaints
-            SET escalated = 1, escalated_at = CURRENT_TIMESTAMP, escalation_reason = ?, updated_at = CURRENT_TIMESTAMP
+            SET escalated = 1, escalated_at = CURRENT_TIMESTAMP, escalation_reason = ?
             WHERE id = ?;
         """, (reason.strip(), complaint_id))
 
@@ -604,7 +603,7 @@ class ComplaintService:
 
         cursor.execute("""
             UPDATE complaints
-            SET status = 'Rejected', rejection_reason = ?, updated_at = CURRENT_TIMESTAMP
+            SET status = 'Rejected', rejection_reason = ?
             WHERE id = ?;
         """, (reason.strip(), complaint_id))
 
@@ -625,7 +624,7 @@ class ComplaintService:
         if s_user:
             cursor.execute("""
                 INSERT INTO notifications (user_id, title, message, notification_type)
-                VALUES (?, 'Grievance Rejected', ?, 'complaint');
+                VALUES (?, 'Grievance Rejected', ?, 'info');
             """, (
                 s_user["id"],
                 f"Your grievance '{c['title']}' has been reviewed and rejected. Reason: {reason.strip()}"
@@ -657,7 +656,7 @@ class ComplaintService:
 
         cursor.execute("""
             UPDATE complaints
-            SET status = 'Closed', closed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+            SET status = 'Closed', closed_at = CURRENT_TIMESTAMP
             WHERE id = ?;
         """, (complaint_id,))
 
@@ -681,7 +680,7 @@ class ComplaintService:
         if s_user:
             cursor.execute("""
                 INSERT INTO notifications (user_id, title, message, notification_type)
-                VALUES (?, 'Grievance Closed by Warden', ?, 'complaint');
+                VALUES (?, 'Grievance Closed by Warden', ?, 'info');
             """, (
                 s_user["id"],
                 f"Your grievance '{c['title']}' has been officially verified and closed. Please take a moment to rate the service resolution."

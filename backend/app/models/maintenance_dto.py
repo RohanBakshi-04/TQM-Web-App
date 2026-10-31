@@ -25,6 +25,7 @@ class MaintenanceTaskCreate(BaseModel):
     """Schema for creating a maintenance task work-order."""
     complaint_id: Optional[int] = Field(None, description="Optional linked student complaint ID")
     room_id: Optional[int] = Field(None, description="Optional target room ID")
+    category: str = Field("General", description="Category: Electrical, Plumbing, Carpentry, etc.")
     title: str = Field(..., min_length=3, max_length=200, description="Task summary")
     description: str = Field(..., min_length=5, description="Work order scope and repair details")
     priority: str = Field("Medium", description="Priority level: Low, Medium, High, Critical")

@@ -89,16 +89,19 @@ class MaintenanceService:
             if w:
                 assigned_worker_name = f"{w['first_name']} {w['last_name']}".strip()
 
+        category = getattr(data, "category", None) or (complaint["category"] if complaint else "General")
+
         cursor.execute("""
             INSERT INTO maintenance_tasks (
-                complaint_id, task_code, room_id, title, description,
+                complaint_id, task_code, room_id, category, title, description,
                 priority, status, assigned_to, assigned_worker,
                 deadline, estimated_cost, scheduled_date
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """, (
             data.complaint_id,
             task_code,
             room_id,
+            category,
             data.title.strip(),
             data.description.strip(),
             data.priority,
@@ -130,8 +133,7 @@ class MaintenanceService:
                 UPDATE complaints
                 SET status = 'Assigned',
                     assigned_to = ?,
-                    affects_occupancy = CASE WHEN ? THEN 1 ELSE affects_occupancy END,
-                    updated_at = CURRENT_TIMESTAMP
+                    affects_occupancy = CASE WHEN ? THEN 1 ELSE affects_occupancy END
                 WHERE id = ?;
             """, (data.assigned_to, 1 if data.affects_occupancy else 0, data.complaint_id))
 
@@ -149,7 +151,7 @@ class MaintenanceService:
         if data.assigned_to:
             cursor.execute("""
                 INSERT INTO notifications (user_id, title, message, notification_type)
-                VALUES (?, 'New Work Order Assigned', ?, 'maintenance');
+                VALUES (?, 'New Work Order Assigned', ?, 'info');
             """, (
                 data.assigned_to,
                 f"Work Order #{task_code} ('{data.title}') has been assigned to you with {data.priority} priority."
@@ -288,7 +290,7 @@ class MaintenanceService:
                 INSERT INTO complaint_updates (complaint_id, updated_by, previous_status, new_status, comment)
                 VALUES (?, ?, 'Assigned', 'In Progress', 'Technician acknowledged and accepted work order.');
             """, (task["complaint_id"], worker_user_id))
-            cursor.execute("UPDATE complaints SET status = 'In Progress', updated_at = CURRENT_TIMESTAMP WHERE id = ?;", (task["complaint_id"],))
+            cursor.execute("UPDATE complaints SET status = 'In Progress' WHERE id = ?;", (task["complaint_id"],))
 
         conn.commit()
         CacheInvalidator.on_maintenance_mutation()
@@ -310,7 +312,7 @@ class MaintenanceService:
         """, (task_id, worker_user_id, notes or "Repair work commenced on-site."))
 
         if task["complaint_id"]:
-            cursor.execute("UPDATE complaints SET status = 'In Progress', updated_at = CURRENT_TIMESTAMP WHERE id = ?;", (task["complaint_id"],))
+            cursor.execute("UPDATE complaints SET status = 'In Progress' WHERE id = ?;", (task["complaint_id"],))
             cursor.execute("""
                 INSERT INTO complaint_updates (complaint_id, updated_by, previous_status, new_status, comment)
                 VALUES (?, ?, 'Assigned', 'In Progress', 'Physical repair work in progress.');
@@ -363,7 +365,7 @@ class MaintenanceService:
         """, (task_id, worker_user_id, notes_combined))
 
         if task["complaint_id"]:
-            cursor.execute("UPDATE complaints SET status = 'On Hold', updated_at = CURRENT_TIMESTAMP WHERE id = ?;", (task["complaint_id"],))
+            cursor.execute("UPDATE complaints SET status = 'On Hold' WHERE id = ?;", (task["complaint_id"],))
             cursor.execute("""
                 INSERT INTO complaint_updates (complaint_id, updated_by, previous_status, new_status, comment)
                 VALUES (?, ?, 'In Progress', 'On Hold', ?);
@@ -400,8 +402,7 @@ class MaintenanceService:
             cursor.execute("""
                 UPDATE complaints
                 SET status = 'Resolved',
-                    resolved_at = CURRENT_TIMESTAMP,
-                    updated_at = CURRENT_TIMESTAMP
+                    resolved_at = CURRENT_TIMESTAMP
                 WHERE id = ?;
             """, (task["complaint_id"],))
 
@@ -455,8 +456,7 @@ class MaintenanceService:
                 cursor.execute("""
                     UPDATE complaints
                     SET status = 'Closed',
-                        closed_at = CURRENT_TIMESTAMP,
-                        updated_at = CURRENT_TIMESTAMP
+                        closed_at = CURRENT_TIMESTAMP
                     WHERE id = ?;
                 """, (task["complaint_id"],))
 
@@ -472,7 +472,7 @@ class MaintenanceService:
                     if s_user:
                         cursor.execute("""
                             INSERT INTO notifications (user_id, title, message, notification_type)
-                            VALUES (?, 'Grievance Verified & Closed', ?, 'complaint');
+                            VALUES (?, 'Grievance Verified & Closed', ?, 'info');
                         """, (
                             s_user["id"],
                             f"Your grievance '{c_row['title']}' has been verified by the Warden and closed. Please submit your satisfaction rating."
