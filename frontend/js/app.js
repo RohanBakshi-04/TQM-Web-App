@@ -182,6 +182,27 @@ document.addEventListener("alpine:init", () => {
         },
         checkoutModalOpen: false,
 
+        // Complaint & Maintenance Workflow State
+        myComplaints: [],
+        complaintsLoading: false,
+        selectedComplaint: null,
+        complaintDetailModalOpen: false,
+        complaintSubmitModalOpen: false,
+        complaintFilterStatus: "all",
+        complaintFilterCategory: "all",
+        newComplaint: {
+            category: "Electrical",
+            title: "",
+            description: "",
+            severity: "Medium",
+            room_id: null,
+            attachment_url: ""
+        },
+        complaintNewComment: "",
+        complaintReopenReason: "",
+        complaintRating: 5,
+        complaintFeedbackComment: "",
+
         dashboardStats: {
             hostels: { total: 1, rooms: 3, beds: 6, occupied_beds: 2, available_beds: 4, occupancy_rate: 33.3 },
             students: { total: 3, active: 3 },
@@ -349,6 +370,7 @@ document.addEventListener("alpine:init", () => {
 
             if (this.activeRoleView === "student" && user.linked_student_id) {
                 this.loadMyStudentProfile();
+                this.loadMyComplaints();
             } else if (this.activeRoleView === "super_admin" || this.activeRoleView === "hostel_admin") {
                 this.loadUsers();
             }
@@ -395,6 +417,7 @@ document.addEventListener("alpine:init", () => {
                 this.loadDashboardStats();
                 if (roleKey === "student") {
                     this.loadMyStudentProfile();
+                    this.loadMyComplaints();
                 } else if (roleKey === "super_admin" || roleKey === "hostel_admin") {
                     this.loadUsers();
                 }
@@ -676,8 +699,123 @@ document.addEventListener("alpine:init", () => {
             } else if (item.category === 'students') {
                 this.navigateTo('dashboard');
                 this.switchRoleDashboard('super_admin');
+            } else if (item.category === 'complaints') {
+                this.openComplaintDetails(item.entity_id);
             } else {
                 this.showToast(`Selected ${item.category}: ${item.title}`, "info");
+            }
+        },
+
+        // ==================== STUDENT COMPLAINT METHODS ====================
+        async loadMyComplaints() {
+            this.complaintsLoading = true;
+            try {
+                const status = this.complaintFilterStatus !== "all" ? this.complaintFilterStatus : null;
+                const cat = this.complaintFilterCategory !== "all" ? this.complaintFilterCategory : null;
+                this.myComplaints = await window.API.getMyComplaints(status, cat);
+            } catch (err) {
+                console.error("Failed to load student complaints:", err);
+                this.myComplaints = [];
+            } finally {
+                this.complaintsLoading = false;
+            }
+        },
+
+        openComplaintSubmitModal() {
+            this.newComplaint = {
+                category: "Electrical",
+                title: "",
+                description: "",
+                severity: "Medium",
+                room_id: (this.studentProfile && this.studentProfile.allocation) ? this.studentProfile.allocation.room_id : null,
+                attachment_url: ""
+            };
+            this.complaintSubmitModalOpen = true;
+        },
+
+        async submitNewComplaint() {
+            if (!this.newComplaint.title || !this.newComplaint.title.trim()) {
+                this.showToast("Please enter a complaint title", "error");
+                return;
+            }
+            if (!this.newComplaint.description || !this.newComplaint.description.trim()) {
+                this.showToast("Please describe the issue", "error");
+                return;
+            }
+
+            try {
+                const res = await window.API.submitComplaint({
+                    category: this.newComplaint.category,
+                    title: this.newComplaint.title.trim(),
+                    description: this.newComplaint.description.trim(),
+                    severity: this.newComplaint.severity,
+                    room_id: this.newComplaint.room_id || undefined,
+                    attachment_url: this.newComplaint.attachment_url ? this.newComplaint.attachment_url.trim() : null
+                });
+                this.showToast(`Grievance submitted successfully: ${res.complaint_id}`, "success");
+                this.complaintSubmitModalOpen = false;
+                await this.loadMyComplaints();
+                this.loadDashboardStats();
+            } catch (err) {
+                this.showToast(`Submission failed: ${err.message}`, "error");
+            }
+        },
+
+        async openComplaintDetails(complaintId) {
+            try {
+                this.selectedComplaint = await window.API.getComplaintDetails(complaintId);
+                this.complaintNewComment = "";
+                this.complaintReopenReason = "";
+                this.complaintRating = this.selectedComplaint.feedback_rating || 5;
+                this.complaintFeedbackComment = this.selectedComplaint.feedback_comment || "";
+                this.complaintDetailModalOpen = true;
+            } catch (err) {
+                this.showToast(`Failed to load grievance details: ${err.message}`, "error");
+            }
+        },
+
+        async postComplaintComment() {
+            if (!this.complaintNewComment || !this.complaintNewComment.trim()) return;
+            try {
+                const res = await window.API.addComplaintComment(this.selectedComplaint.id, this.complaintNewComment.trim());
+                this.showToast("Comment added to record", "success");
+                this.selectedComplaint.updates = res.updates || [];
+                this.complaintNewComment = "";
+                await this.loadMyComplaints();
+            } catch (err) {
+                this.showToast(`Comment failed: ${err.message}`, "error");
+            }
+        },
+
+        async triggerReopenComplaint() {
+            if (!this.complaintReopenReason || !this.complaintReopenReason.trim()) {
+                this.showToast("Please provide an explanation for reopening", "error");
+                return;
+            }
+            try {
+                const res = await window.API.reopenComplaint(this.selectedComplaint.id, this.complaintReopenReason.trim());
+                this.showToast(`Grievance reopened (Ticket #${res.complaint_id})`, "info");
+                this.selectedComplaint = res;
+                this.complaintReopenReason = "";
+                await this.loadMyComplaints();
+                this.loadDashboardStats();
+            } catch (err) {
+                this.showToast(`Reopening failed: ${err.message}`, "error");
+            }
+        },
+
+        async submitComplaintFeedback() {
+            try {
+                const res = await window.API.submitComplaintFeedback(
+                    this.selectedComplaint.id,
+                    this.complaintRating,
+                    this.complaintFeedbackComment
+                );
+                this.showToast("Feedback submitted. Thank you!", "success");
+                this.selectedComplaint = res;
+                await this.loadMyComplaints();
+            } catch (err) {
+                this.showToast(`Feedback failed: ${err.message}`, "error");
             }
         }
     }));

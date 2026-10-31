@@ -57,23 +57,35 @@ CREATE TABLE IF NOT EXISTS visitor_logs (
     remarks TEXT DEFAULT ''
 );
 
--- 21. Complaints Table
+-- 21. Complaints Table (Q05 Comprehensive Workflow)
 CREATE TABLE IF NOT EXISTS complaints (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     complaint_id TEXT NOT NULL UNIQUE,
     student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
     room_id INTEGER NULL REFERENCES rooms(id) ON DELETE SET NULL,
-    category TEXT NOT NULL CHECK(category IN ('Electrical', 'Plumbing', 'Carpentry', 'Cleanliness', 'Internet', 'Mess', 'Other')),
+    bed_id INTEGER NULL REFERENCES beds(id) ON DELETE SET NULL,
+    category TEXT NOT NULL CHECK(category IN ('Electrical', 'Plumbing', 'Carpentry', 'Wi-Fi and Internet', 'Cleanliness', 'Water Supply', 'Furniture', 'Security', 'Mess', 'Other', 'Internet')),
     title TEXT NOT NULL,
     description TEXT NOT NULL,
-    severity TEXT NOT NULL DEFAULT 'Medium' CHECK(severity IN ('Low', 'Medium', 'High', 'Emergency')),
-    status TEXT NOT NULL DEFAULT 'Pending' CHECK(status IN ('Pending', 'In_Progress', 'Resolved', 'Closed')),
+    severity TEXT NOT NULL DEFAULT 'Medium' CHECK(severity IN ('Low', 'Medium', 'High', 'Critical', 'Emergency')),
+    status TEXT NOT NULL DEFAULT 'Submitted' CHECK(status IN ('Submitted', 'Pending', 'Assigned', 'In Progress', 'In_Progress', 'On Hold', 'Resolved', 'Closed', 'Rejected', 'Reopened')),
     assigned_to INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+    attachment_url TEXT NULL,
+    internal_remarks TEXT NULL,
+    rejection_reason TEXT NULL,
+    escalated INTEGER NOT NULL DEFAULT 0,
+    escalated_at TIMESTAMP NULL,
+    escalation_reason TEXT NULL,
+    feedback_rating INTEGER NULL CHECK(feedback_rating IS NULL OR (feedback_rating >= 1 AND feedback_rating <= 5)),
+    feedback_comment TEXT NULL,
+    reopened_count INTEGER NOT NULL DEFAULT 0,
+    affects_occupancy INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    resolved_at TIMESTAMP NULL
+    resolved_at TIMESTAMP NULL,
+    closed_at TIMESTAMP NULL
 );
 
--- 22. Complaint Updates Table (Preserves History)
+-- 22. Complaint Updates Table (Preserves Complete Status History & Audit Trail)
 CREATE TABLE IF NOT EXISTS complaint_updates (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     complaint_id INTEGER NOT NULL REFERENCES complaints(id) ON DELETE CASCADE,
@@ -84,21 +96,30 @@ CREATE TABLE IF NOT EXISTS complaint_updates (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 23. Maintenance Tasks Table
+-- 23. Maintenance Tasks Table (Q05 Work Order System)
 CREATE TABLE IF NOT EXISTS maintenance_tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     task_code TEXT NOT NULL UNIQUE,
+    complaint_id INTEGER NULL REFERENCES complaints(id) ON DELETE SET NULL,
     room_id INTEGER NULL REFERENCES rooms(id) ON DELETE SET NULL,
     building_id INTEGER NULL REFERENCES buildings(id) ON DELETE SET NULL,
+    bed_id INTEGER NULL REFERENCES beds(id) ON DELETE SET NULL,
     category TEXT NOT NULL,
     title TEXT NOT NULL,
     description TEXT NOT NULL,
-    priority TEXT NOT NULL DEFAULT 'Medium' CHECK(priority IN ('Low', 'Medium', 'High', 'Urgent')),
-    status TEXT NOT NULL DEFAULT 'Open' CHECK(status IN ('Open', 'Scheduled', 'In_Progress', 'Completed', 'Cancelled')),
+    priority TEXT NOT NULL DEFAULT 'Medium' CHECK(priority IN ('Low', 'Medium', 'High', 'Critical', 'Urgent')),
+    status TEXT NOT NULL DEFAULT 'Assigned' CHECK(status IN ('Open', 'Assigned', 'Accepted', 'In Progress', 'In_Progress', 'On Hold', 'Completed', 'Verified', 'Cancelled')),
     assigned_worker TEXT DEFAULT '',
+    assigned_to INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+    resolution_notes TEXT DEFAULT '',
+    completion_photo_url TEXT NULL,
+    hold_reason TEXT NULL,
+    deadline TEXT NULL,
     estimated_cost REAL NOT NULL DEFAULT 0.0 CHECK(estimated_cost >= 0),
     actual_cost REAL NOT NULL DEFAULT 0.0 CHECK(actual_cost >= 0),
     scheduled_date TEXT DEFAULT '',
+    verified_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+    verified_at TIMESTAMP NULL,
     completed_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

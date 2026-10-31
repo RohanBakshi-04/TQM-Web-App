@@ -452,6 +452,73 @@ const API = {
             throw new Error(err.detail || "Index rebuild failed.");
         }
         return await response.json();
+    },
+
+    // ==================== COMPLAINTS ====================
+
+    async submitComplaint(data) {
+        const response = await fetch(`${this.baseUrl}/api/v1/complaints`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to submit complaint.");
+        return res;
+    },
+
+    async getMyComplaints(statusFilter = null, category = null) {
+        const params = new URLSearchParams();
+        if (statusFilter) params.append("status_filter", statusFilter);
+        if (category) params.append("category", category);
+        const qs = params.toString();
+
+        const response = await this.deduplicatedFetch(`${this.baseUrl}/api/v1/complaints/my${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to load my complaints.");
+        return await response.json();
+    },
+
+    async getComplaintDetails(complaintId) {
+        const response = await fetch(`${this.baseUrl}/api/v1/complaints/${complaintId}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to load complaint details.");
+        return await response.json();
+    },
+
+    async addComplaintComment(complaintId, comment) {
+        const response = await fetch(`${this.baseUrl}/api/v1/complaints/${complaintId}/comments`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ comment })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to add comment.");
+        return res;
+    },
+
+    async reopenComplaint(complaintId, reason) {
+        const response = await fetch(`${this.baseUrl}/api/v1/complaints/${complaintId}/reopen`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ reason })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to reopen complaint.");
+        return res;
+    },
+
+    async submitComplaintFeedback(complaintId, rating, comment = "") {
+        const response = await fetch(`${this.baseUrl}/api/v1/complaints/${complaintId}/feedback`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ rating, comment })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to submit feedback.");
+        return res;
     }
 };
 

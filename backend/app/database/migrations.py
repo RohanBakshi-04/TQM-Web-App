@@ -179,6 +179,107 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
             applied_now.append("004_q05_search_and_indexes")
             logger.info("Migration 004_q05_search_and_indexes applied successfully.")
 
+        # Migration 005: Complaints Lifecycle & Maintenance Work Orders
+        if "005_complaints_and_maintenance_workflow" not in applied:
+            logger.info("Applying Migration 005_complaints_and_maintenance_workflow (rebuilding complaints & maintenance schemas)...")
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA foreign_keys = OFF;")
+
+            # 1. Rebuild complaints table
+            cursor.execute("""
+                CREATE TABLE complaints_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    complaint_id TEXT NOT NULL UNIQUE,
+                    student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+                    room_id INTEGER NULL REFERENCES rooms(id) ON DELETE SET NULL,
+                    bed_id INTEGER NULL REFERENCES beds(id) ON DELETE SET NULL,
+                    category TEXT NOT NULL CHECK(category IN ('Electrical', 'Plumbing', 'Carpentry', 'Wi-Fi and Internet', 'Cleanliness', 'Water Supply', 'Furniture', 'Security', 'Mess', 'Other', 'Internet')),
+                    title TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    severity TEXT NOT NULL DEFAULT 'Medium' CHECK(severity IN ('Low', 'Medium', 'High', 'Critical', 'Emergency')),
+                    status TEXT NOT NULL DEFAULT 'Submitted' CHECK(status IN ('Submitted', 'Pending', 'Assigned', 'In Progress', 'In_Progress', 'On Hold', 'Resolved', 'Closed', 'Rejected', 'Reopened')),
+                    assigned_to INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    attachment_url TEXT NULL,
+                    internal_remarks TEXT NULL,
+                    rejection_reason TEXT NULL,
+                    escalated INTEGER NOT NULL DEFAULT 0,
+                    escalated_at TIMESTAMP NULL,
+                    escalation_reason TEXT NULL,
+                    feedback_rating INTEGER NULL CHECK(feedback_rating IS NULL OR (feedback_rating >= 1 AND feedback_rating <= 5)),
+                    feedback_comment TEXT NULL,
+                    reopened_count INTEGER NOT NULL DEFAULT 0,
+                    affects_occupancy INTEGER NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    resolved_at TIMESTAMP NULL,
+                    closed_at TIMESTAMP NULL
+                );
+            """)
+
+            old_cols = [c[1] for c in cursor.execute("PRAGMA table_info(complaints);").fetchall()]
+            common_cols = [c for c in ['id', 'complaint_id', 'student_id', 'room_id', 'category', 'title', 'description', 'severity', 'status', 'assigned_to', 'created_at', 'resolved_at'] if c in old_cols]
+            if common_cols:
+                cols_str = ", ".join(common_cols)
+                cursor.execute(f"INSERT INTO complaints_new ({cols_str}) SELECT {cols_str} FROM complaints;")
+
+            cursor.execute("DROP TABLE IF EXISTS complaints;")
+            cursor.execute("ALTER TABLE complaints_new RENAME TO complaints;")
+
+            # 2. Rebuild maintenance_tasks table
+            cursor.execute("""
+                CREATE TABLE maintenance_tasks_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    task_code TEXT NOT NULL UNIQUE,
+                    complaint_id INTEGER NULL REFERENCES complaints(id) ON DELETE SET NULL,
+                    room_id INTEGER NULL REFERENCES rooms(id) ON DELETE SET NULL,
+                    building_id INTEGER NULL REFERENCES buildings(id) ON DELETE SET NULL,
+                    bed_id INTEGER NULL REFERENCES beds(id) ON DELETE SET NULL,
+                    category TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    priority TEXT NOT NULL DEFAULT 'Medium' CHECK(priority IN ('Low', 'Medium', 'High', 'Critical', 'Urgent')),
+                    status TEXT NOT NULL DEFAULT 'Assigned' CHECK(status IN ('Open', 'Assigned', 'Accepted', 'In Progress', 'In_Progress', 'On Hold', 'Completed', 'Verified', 'Cancelled')),
+                    assigned_worker TEXT DEFAULT '',
+                    assigned_to INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    resolution_notes TEXT DEFAULT '',
+                    completion_photo_url TEXT NULL,
+                    hold_reason TEXT NULL,
+                    deadline TEXT NULL,
+                    estimated_cost REAL NOT NULL DEFAULT 0.0 CHECK(estimated_cost >= 0),
+                    actual_cost REAL NOT NULL DEFAULT 0.0 CHECK(actual_cost >= 0),
+                    scheduled_date TEXT DEFAULT '',
+                    verified_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    verified_at TIMESTAMP NULL,
+                    completed_at TIMESTAMP NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            old_m_cols = [c[1] for c in cursor.execute("PRAGMA table_info(maintenance_tasks);").fetchall()]
+            common_m_cols = [c for c in ['id', 'task_code', 'room_id', 'building_id', 'category', 'title', 'description', 'priority', 'status', 'assigned_worker', 'estimated_cost', 'actual_cost', 'scheduled_date', 'completed_at', 'created_at'] if c in old_m_cols]
+            if common_m_cols:
+                m_cols_str = ", ".join(common_m_cols)
+                cursor.execute(f"INSERT INTO maintenance_tasks_new ({m_cols_str}) SELECT {m_cols_str} FROM maintenance_tasks;")
+
+            cursor.execute("DROP TABLE IF EXISTS maintenance_tasks;")
+            cursor.execute("ALTER TABLE maintenance_tasks_new RENAME TO maintenance_tasks;")
+
+            # 3. Performance indexes
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_complaints_ticket ON complaints(complaint_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_complaints_student ON complaints(student_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_complaints_status ON complaints(status);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_complaints_created_at ON complaints(created_at DESC);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_complaints_status_date ON complaints(status, created_at DESC);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_maintenance_room ON maintenance_tasks(room_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_maintenance_status ON maintenance_tasks(status);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_maintenance_complaint ON maintenance_tasks(complaint_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_maintenance_assigned ON maintenance_tasks(assigned_to);")
+
+            cursor.execute("PRAGMA foreign_keys = ON;")
+            conn.commit()
+            record_migration(conn, "005_complaints_and_maintenance_workflow", "Expanded Complaints Lifecycle & Work Order Engine")
+            applied_now.append("005_complaints_and_maintenance_workflow")
+            logger.info("Migration 005_complaints_and_maintenance_workflow applied successfully.")
+
         return applied_now
     finally:
         if should_close:

@@ -492,6 +492,240 @@
         </div>
     </div>
 
+    <!-- 6. COMPLAINT SUBMISSION MODAL -->
+    <div x-show="complaintSubmitModalOpen" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+         @click.self="complaintSubmitModalOpen = false">
+        <div class="bg-white dark:bg-slate-900 w-full max-w-xl rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden p-6 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center space-x-3">
+                    <div class="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 flex items-center justify-center text-sm font-bold">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-extrabold text-slate-900 dark:text-white text-base">Submit Grievance / Repair Request</h3>
+                        <p class="text-[11px] text-slate-400">TQM Defect Reporting & SLA Tracking</p>
+                    </div>
+                </div>
+                <button @click="complaintSubmitModalOpen = false" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+
+            <form @submit.prevent="submitNewComplaint()" class="space-y-4 text-xs">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Category <span class="text-rose-500">*</span></label>
+                        <select x-model="newComplaint.category" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-brand-600 dark:text-white text-xs">
+                            <option value="Electrical">⚡ Electrical</option>
+                            <option value="Plumbing">🚰 Plumbing</option>
+                            <option value="Carpentry">🪚 Carpentry</option>
+                            <option value="Wi-Fi and Internet">📶 Wi-Fi and Internet</option>
+                            <option value="Cleanliness">🧹 Cleanliness</option>
+                            <option value="Water Supply">💧 Water Supply</option>
+                            <option value="Furniture">🪑 Furniture</option>
+                            <option value="Security">🛡️ Security</option>
+                            <option value="Mess">🍽️ Mess</option>
+                            <option value="Other">📌 Other</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Severity Level <span class="text-rose-500">*</span></label>
+                        <div class="grid grid-cols-4 gap-1 text-[11px]">
+                            <template x-for="sev in ['Low', 'Medium', 'High', 'Critical']" :key="sev">
+                                <button type="button" @click="newComplaint.severity = sev"
+                                        :class="newComplaint.severity === sev ? 'bg-brand-600 text-white font-bold' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'"
+                                        class="py-2 rounded-lg text-center transition"
+                                        x-text="sev"></button>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Grievance Title <span class="text-rose-500">*</span></label>
+                    <input type="text" x-model="newComplaint.title" required
+                           placeholder="Brief summary (e.g. Geyser tripping switch in Room 201)"
+                           class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-brand-600 dark:text-white text-xs">
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Detailed Description <span class="text-rose-500">*</span></label>
+                    <textarea x-model="newComplaint.description" rows="3" required
+                              placeholder="Please describe what happened, location, when it started, and any safety hazards..."
+                              class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-brand-600 dark:text-white text-xs"></textarea>
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Supporting Photo / Evidence Document URL (Optional)</label>
+                    <input type="text" x-model="newComplaint.attachment_url"
+                           placeholder="https://... or photo file reference"
+                           class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-brand-600 dark:text-white text-xs">
+                </div>
+
+                <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                    <button type="button" @click="complaintSubmitModalOpen = false"
+                            class="px-4 py-2 text-slate-500 dark:text-slate-400 font-semibold hover:text-slate-700">Cancel</button>
+                    <button type="submit"
+                            class="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl shadow-xs transition">
+                        <i class="fa-solid fa-paper-plane mr-1.5"></i> Submit Grievance
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 7. COMPLAINT DETAILS & TRACKING MODAL -->
+    <div x-show="complaintDetailModalOpen" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+         @click.self="complaintDetailModalOpen = false">
+        <div class="bg-white dark:bg-slate-900 w-full max-w-2xl max-h-[90vh] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-y-auto p-6 space-y-5">
+            <template x-if="selectedComplaint">
+                <div class="space-y-4">
+                    <!-- Header -->
+                    <div class="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                        <div>
+                            <div class="flex items-center space-x-2">
+                                <span class="px-2.5 py-0.5 rounded-md text-[10px] font-mono font-black uppercase bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                      x-text="selectedComplaint.complaint_id"></span>
+                                <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold"
+                                      :class="{
+                                          'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300': selectedComplaint.status === 'Submitted' || selectedComplaint.status === 'Pending',
+                                          'bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300': selectedComplaint.status === 'Assigned',
+                                          'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300': selectedComplaint.status === 'In Progress' || selectedComplaint.status === 'On Hold',
+                                          'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300': selectedComplaint.status === 'Resolved' || selectedComplaint.status === 'Closed',
+                                          'bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300': selectedComplaint.status === 'Rejected' || selectedComplaint.status === 'Reopened'
+                                      }"
+                                      x-text="selectedComplaint.status"></span>
+                                <span class="text-xs font-semibold px-2 py-0.5 rounded"
+                                      :class="{
+                                          'bg-slate-100 text-slate-600': selectedComplaint.severity === 'Low',
+                                          'bg-blue-100 text-blue-700': selectedComplaint.severity === 'Medium',
+                                          'bg-amber-100 text-amber-800': selectedComplaint.severity === 'High',
+                                          'bg-rose-100 text-rose-800 font-bold': selectedComplaint.severity === 'Critical'
+                                      }"
+                                      x-text="selectedComplaint.severity"></span>
+                            </div>
+                            <h3 class="font-extrabold text-slate-900 dark:text-white text-lg mt-1" x-text="selectedComplaint.title"></h3>
+                            <div class="text-xs text-slate-400 mt-0.5 flex flex-wrap gap-2">
+                                <span>Category: <strong class="text-slate-700 dark:text-slate-300" x-text="selectedComplaint.category"></strong></span>
+                                <span>•</span>
+                                <span>Logged: <strong class="text-slate-700 dark:text-slate-300" x-text="new Date(selectedComplaint.created_at).toLocaleString()"></strong></span>
+                            </div>
+                        </div>
+                        <button @click="complaintDetailModalOpen = false" class="text-slate-400 hover:text-slate-600">
+                            <i class="fa-solid fa-xmark text-base"></i>
+                        </button>
+                    </div>
+
+                    <!-- Meta Information Grid -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                        <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                            <span class="text-slate-400 text-[10px] uppercase font-bold">Resident</span>
+                            <div class="font-bold text-slate-800 dark:text-slate-200 truncate mt-0.5" x-text="selectedComplaint.student_name || 'Resident'"></div>
+                        </div>
+                        <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                            <span class="text-slate-400 text-[10px] uppercase font-bold">Location</span>
+                            <div class="font-bold text-slate-800 dark:text-slate-200 truncate mt-0.5" x-text="'Room ' + (selectedComplaint.room_number || 'General')"></div>
+                        </div>
+                        <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                            <span class="text-slate-400 text-[10px] uppercase font-bold">Hostel</span>
+                            <div class="font-bold text-slate-800 dark:text-slate-200 truncate mt-0.5" x-text="selectedComplaint.hostel_name || 'Campus Hostel'"></div>
+                        </div>
+                        <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                            <span class="text-slate-400 text-[10px] uppercase font-bold">Assigned Staff</span>
+                            <div class="font-bold text-brand-600 dark:text-brand-400 truncate mt-0.5" x-text="selectedComplaint.assigned_worker_name || 'Unassigned'"></div>
+                        </div>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 text-xs">
+                        <span class="font-bold text-slate-700 dark:text-slate-300 block mb-1">Issue Description</span>
+                        <p class="text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-wrap" x-text="selectedComplaint.description"></p>
+                        <template x-if="selectedComplaint.attachment_url">
+                            <div class="mt-2.5 pt-2 border-t border-slate-200 dark:border-slate-700/60 flex items-center space-x-2 text-[11px] text-brand-600">
+                                <i class="fa-solid fa-paperclip"></i>
+                                <a :href="selectedComplaint.attachment_url" target="_blank" class="underline font-semibold" x-text="selectedComplaint.attachment_url"></a>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Updates Timeline -->
+                    <div class="space-y-2">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Activity Timeline & Updates</h4>
+                        <div class="space-y-2 border-l-2 border-slate-200 dark:border-slate-700 ml-3 pl-3">
+                            <template x-for="upd in selectedComplaint.updates" :key="upd.id">
+                                <div class="text-xs relative">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="font-bold text-slate-800 dark:text-slate-200" x-text="upd.updater_name || 'System'"></span>
+                                        <span class="text-[10px] text-slate-400" x-text="new Date(upd.created_at).toLocaleString()"></span>
+                                        <span class="text-[10px] px-1.5 py-0.2 rounded font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                                              x-text="upd.previous_status + ' → ' + upd.new_status"></span>
+                                    </div>
+                                    <p class="text-slate-600 dark:text-slate-400 mt-0.5" x-text="upd.comment"></p>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Add Comment / Query Box -->
+                    <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex items-center space-x-2">
+                        <input type="text" x-model="complaintNewComment" @keydown.enter.prevent="postComplaintComment()"
+                               placeholder="Add query or additional details to this grievance..."
+                               class="flex-1 px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:border-brand-600 dark:text-white">
+                        <button type="button" @click="postComplaintComment()"
+                                class="px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs rounded-xl transition">
+                            <i class="fa-solid fa-paper-plane mr-1"></i> Send
+                        </button>
+                    </div>
+
+                    <!-- Post Resolution Actions: Feedback Rating & Reopening -->
+                    <template x-if="selectedComplaint.status === 'Resolved' || selectedComplaint.status === 'Closed'">
+                        <div class="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                            <!-- Satisfaction Rating -->
+                            <div class="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-bold text-emerald-900 dark:text-emerald-200">Resident Satisfaction Feedback (TQM Voice of Customer)</span>
+                                    <div class="flex items-center space-x-1 text-amber-400">
+                                        <template x-for="star in [1, 2, 3, 4, 5]" :key="star">
+                                            <button type="button" @click="complaintRating = star" class="text-sm focus:outline-none">
+                                                <i :class="star <= complaintRating ? 'fa-solid fa-star' : 'fa-regular fa-star'"></i>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <input type="text" x-model="complaintFeedbackComment"
+                                           placeholder="Rate service resolution quality..."
+                                           class="flex-1 px-3 py-1.5 bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs outline-none dark:text-white">
+                                    <button type="button" @click="submitComplaintFeedback()"
+                                            class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition">
+                                        Save Rating
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Reopen Box -->
+                            <div class="p-3.5 rounded-2xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 space-y-2">
+                                <span class="text-xs font-bold text-rose-800 dark:text-rose-300">Issue Not Resolved or Reoccurred?</span>
+                                <div class="flex items-center space-x-2">
+                                    <input type="text" x-model="complaintReopenReason"
+                                           placeholder="Explain why issue is still not fixed..."
+                                           class="flex-1 px-3 py-1.5 bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-800 rounded-xl text-xs outline-none dark:text-white">
+                                    <button type="button" @click="triggerReopenComplaint()"
+                                            class="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl transition">
+                                        Reopen Ticket
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+    </div>
+
     <!-- MAIN APP SHELL -->
     <div class="flex-1 flex overflow-hidden">
 
@@ -1239,6 +1473,103 @@
                                         <div class="mt-1 font-mono text-[11px]" x-text="isolationTestResult.message"></div>
                                     </div>
                                 </template>
+                            </div>
+                        </div>
+
+                        <!-- Student Grievances & Maintenance Section -->
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+                                <div>
+                                    <h3 class="font-extrabold text-slate-900 dark:text-white text-lg flex items-center space-x-2">
+                                        <i class="fa-solid fa-triangle-exclamation text-rose-600"></i>
+                                        <span>Grievances & Maintenance Requests</span>
+                                    </h3>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">Submit defect reports, track repair progress, communicate with wardens, and provide resolution feedback</p>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <button type="button" @click="loadMyComplaints()" class="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-xs">
+                                        <i class="fa-solid fa-rotate text-xs"></i>
+                                    </button>
+                                    <button type="button" @click="openComplaintSubmitModal()"
+                                            class="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs shadow-xs transition flex items-center space-x-1.5">
+                                        <i class="fa-solid fa-plus text-xs"></i>
+                                        <span>File Grievance</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Filter Controls -->
+                            <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+                                <div class="flex items-center space-x-1 overflow-x-auto pb-1">
+                                    <template x-for="st in ['all', 'Submitted', 'Assigned', 'In Progress', 'Resolved', 'Closed']" :key="st">
+                                        <button type="button" @click="complaintFilterStatus = st; loadMyComplaints();"
+                                                :class="complaintFilterStatus === st ? 'bg-brand-600 text-white font-bold' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'"
+                                                class="px-3 py-1 rounded-lg text-[11px] transition"
+                                                x-text="st === 'all' ? 'All Statuses' : st"></button>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <!-- Complaints List -->
+                            <div class="space-y-3">
+                                <!-- Loading State -->
+                                <div x-show="complaintsLoading" class="py-10 text-center space-y-2">
+                                    <i class="fa-solid fa-circle-notch fa-spin text-brand-600 text-lg"></i>
+                                    <p class="text-xs text-slate-400">Loading grievance records...</p>
+                                </div>
+
+                                <!-- Empty State -->
+                                <div x-show="!complaintsLoading && myComplaints.length === 0" class="py-10 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl space-y-2">
+                                    <i class="fa-solid fa-circle-check text-emerald-500 text-2xl"></i>
+                                    <p class="text-xs font-bold text-slate-700 dark:text-slate-300">No grievances logged</p>
+                                    <p class="text-[11px] text-slate-400 max-w-sm mx-auto">All hostel facilities are in working order. If you encounter any electrical, plumbing, or facility issues, click "File Grievance".</p>
+                                </div>
+
+                                <!-- Live Records Grid -->
+                                <div x-show="!complaintsLoading && myComplaints.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <template x-for="c in myComplaints" :key="c.id">
+                                        <div class="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:border-brand-300 dark:hover:border-brand-700 transition space-y-3">
+                                            <div class="flex items-start justify-between">
+                                                <div>
+                                                    <div class="flex items-center space-x-1.5">
+                                                        <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-200/80 dark:bg-slate-700 text-slate-700 dark:text-slate-200" x-text="c.complaint_id"></span>
+                                                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                                                              :class="{
+                                                                  'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300': c.status === 'Submitted' || c.status === 'Pending',
+                                                                  'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300': c.status === 'Assigned',
+                                                                  'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300': c.status === 'In Progress' || c.status === 'On Hold',
+                                                                  'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300': c.status === 'Resolved' || c.status === 'Closed',
+                                                                  'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300': c.status === 'Rejected' || c.status === 'Reopened'
+                                                              }"
+                                                              x-text="c.status"></span>
+                                                    </div>
+                                                    <h4 class="font-bold text-slate-900 dark:text-white text-xs mt-1.5 line-clamp-1" x-text="c.title"></h4>
+                                                </div>
+                                                <span class="text-[10px] font-bold px-2 py-0.5 rounded uppercase"
+                                                      :class="{
+                                                          'bg-slate-200 text-slate-700': c.severity === 'Low',
+                                                          'bg-blue-100 text-blue-700': c.severity === 'Medium',
+                                                          'bg-amber-100 text-amber-800': c.severity === 'High',
+                                                          'bg-rose-100 text-rose-800 font-bold': c.severity === 'Critical'
+                                                      }"
+                                                      x-text="c.severity"></span>
+                                            </div>
+
+                                            <p class="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2" x-text="c.description"></p>
+
+                                            <div class="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px]">
+                                                <div class="text-slate-400">
+                                                    <span x-text="c.category"></span> • <span x-text="'Room ' + (c.room_number || 'General')"></span>
+                                                </div>
+                                                <button type="button" @click="openComplaintDetails(c.id)"
+                                                        class="text-brand-600 dark:text-brand-400 font-bold hover:underline flex items-center space-x-1">
+                                                    <span>View Details</span>
+                                                    <i class="fa-solid fa-chevron-right text-[9px]"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
                             </div>
                         </div>
                     </div>
