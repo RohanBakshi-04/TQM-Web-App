@@ -1390,6 +1390,138 @@ const API = {
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load mess dashboard.");
         return await response.json();
+    },
+
+    // ==================== INVENTORY & STOCK API ====================
+    async getInventoryCategories() {
+        const response = await fetch(`${this.baseUrl}/api/v1/inventory/categories`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load categories.");
+        return await response.json();
+    },
+
+    async createInventoryCategory(payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/inventory/categories`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to create category.");
+        return res;
+    },
+
+    async getSuppliers(activeOnly = false) {
+        const qs = activeOnly ? "?active_only=true" : "";
+        const response = await fetch(`${this.baseUrl}/api/v1/inventory/suppliers${qs}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load suppliers.");
+        return await response.json();
+    },
+
+    async createSupplier(payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/inventory/suppliers`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to create supplier.");
+        return res;
+    },
+
+    async updateSupplier(id, payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/inventory/suppliers/${id}`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to update supplier.");
+        return res;
+    },
+
+    async getInventoryItems(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/inventory/items${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load items.");
+        return await response.json();
+    },
+
+    async createInventoryItem(payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/inventory/items`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to create item.");
+        return res;
+    },
+
+    async updateInventoryItem(id, payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/inventory/items/${id}`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to update item.");
+        return res;
+    },
+
+    async recordStockInward(payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/inventory/stock/inward`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to record stock inward.");
+        return res;
+    },
+
+    async recordStockOutward(payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/inventory/stock/outward`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to record stock outward.");
+        return res;
+    },
+
+    async recordStockAdjustment(payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/inventory/stock/adjustment`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to record stock adjustment.");
+        return res;
+    },
+
+    async getInventoryTransactions(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/inventory/transactions${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load transactions.");
+        return await response.json();
+    },
+
+    async getInventoryDashboard() {
+        const response = await fetch(`${this.baseUrl}/api/v1/inventory/dashboard`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load inventory dashboard.");
+        return await response.json();
     }
 };
 

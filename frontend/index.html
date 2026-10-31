@@ -5213,6 +5213,566 @@
                     </div>
                 </div>
 
+
+                <!-- 4. INVENTORY & STOCK SECTION -->
+                <section x-show="activeSection === 'inventory'" class="animate-fade-in space-y-6">
+                    <!-- Header & Sub-navigation -->
+                    <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div>
+                            <div class="flex items-center space-x-2.5">
+                                <div class="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-lg">
+                                    <i class="fa-solid fa-boxes-stacked"></i>
+                                </div>
+                                <div>
+                                    <h2 class="text-xl font-black text-slate-900 dark:text-white tracking-tight">Inventory & Stock Operations</h2>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Real-time stock ledger, Poka-Yoke issuance, supplier directory & expiry alerts</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sub-tab Pills -->
+                        <div class="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+                            <button @click="inventorySubTab = 'dashboard'; loadInventoryDashboard()"
+                                    :class="inventorySubTab === 'dashboard' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl text-xs transition flex items-center space-x-1.5">
+                                <i class="fa-solid fa-chart-pie"></i>
+                                <span>Overview</span>
+                            </button>
+                            <button @click="inventorySubTab = 'items'; loadInventoryItems(); loadInventoryCategories()"
+                                    :class="inventorySubTab === 'items' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl text-xs transition flex items-center space-x-1.5">
+                                <i class="fa-solid fa-box"></i>
+                                <span>Stock Ledger</span>
+                            </button>
+                            <button @click="inventorySubTab = 'inward'; loadInventoryTransactions()"
+                                    :class="inventorySubTab === 'inward' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl text-xs transition flex items-center space-x-1.5">
+                                <i class="fa-solid fa-arrow-down"></i>
+                                <span>Inward Log</span>
+                            </button>
+                            <button @click="inventorySubTab = 'outward'; loadInventoryTransactions()"
+                                    :class="inventorySubTab === 'outward' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl text-xs transition flex items-center space-x-1.5">
+                                <i class="fa-solid fa-arrow-up"></i>
+                                <span>Outward Log</span>
+                            </button>
+                            <button @click="inventorySubTab = 'suppliers'; loadSuppliers()"
+                                    :class="inventorySubTab === 'suppliers' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl text-xs transition flex items-center space-x-1.5">
+                                <i class="fa-solid fa-truck"></i>
+                                <span>Suppliers</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 1. INVENTORY OVERVIEW DASHBOARD -->
+                    <div x-show="inventorySubTab === 'dashboard'" class="space-y-6">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                                <div class="flex items-center justify-between text-slate-400 text-xs font-bold uppercase">
+                                    <span>Total Stock Value</span>
+                                    <i class="fa-solid fa-sack-dollar text-emerald-500"></i>
+                                </div>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-2" x-text="inventoryDashboardData ? ('INR ' + Number(inventoryDashboardData.total_valuation).toLocaleString()) : '--'"></div>
+                                <div class="text-[11px] text-slate-500 mt-1" x-text="inventoryDashboardData ? (inventoryDashboardData.total_items + ' distinct catalog items') : ''"></div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                                <div class="flex items-center justify-between text-slate-400 text-xs font-bold uppercase">
+                                    <span>Low Stock Alerts</span>
+                                    <i class="fa-solid fa-triangle-exclamation text-amber-500"></i>
+                                </div>
+                                <div class="text-2xl font-black text-amber-600 mt-2" x-text="inventoryDashboardData ? inventoryDashboardData.low_stock_count : '--'"></div>
+                                <div class="text-[11px] text-amber-500 font-medium mt-1">Below minimum threshold</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                                <div class="flex items-center justify-between text-slate-400 text-xs font-bold uppercase">
+                                    <span>Out of Stock</span>
+                                    <i class="fa-solid fa-ban text-rose-500"></i>
+                                </div>
+                                <div class="text-2xl font-black text-rose-600 mt-2" x-text="inventoryDashboardData ? inventoryDashboardData.out_of_stock_count : '--'"></div>
+                                <div class="text-[11px] text-rose-500 font-medium mt-1">Zero quantity remaining</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                                <div class="flex items-center justify-between text-slate-400 text-xs font-bold uppercase">
+                                    <span>Expiring in 30 Days</span>
+                                    <i class="fa-solid fa-hourglass-half text-blue-500"></i>
+                                </div>
+                                <div class="text-2xl font-black text-blue-600 mt-2" x-text="inventoryDashboardData ? inventoryDashboardData.expiring_soon_count : '--'"></div>
+                                <div class="text-[11px] text-slate-500 mt-1">Perishables requiring rotation</div>
+                            </div>
+                        </div>
+
+                        <!-- Action Bar & Recent Transactions -->
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                                    <i class="fa-solid fa-clock-rotate-left text-emerald-500"></i>
+                                    <span>Recent Stock Movement Ledger</span>
+                                </h3>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <button @click="stockInwardModalOpen = true; loadInventoryItems(); loadSuppliers()" class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center space-x-1.5 shadow-sm">
+                                        <i class="fa-solid fa-plus"></i>
+                                        <span>Stock Inward</span>
+                                    </button>
+                                    <button @click="stockOutwardModalOpen = true; loadInventoryItems()" class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition flex items-center space-x-1.5 shadow-sm">
+                                        <i class="fa-solid fa-minus"></i>
+                                        <span>Stock Outward</span>
+                                    </button>
+                                    <button @click="stockAdjustmentModalOpen = true; loadInventoryItems()" class="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition flex items-center space-x-1.5 shadow-sm">
+                                        <i class="fa-solid fa-sliders"></i>
+                                        <span>Adjustment</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs text-slate-600 dark:text-slate-400">
+                                    <thead class="bg-slate-50 dark:bg-slate-800/50 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                                        <tr>
+                                            <th class="py-3 px-3">Item</th>
+                                            <th class="py-3 px-3">Type</th>
+                                            <th class="py-3 px-3">Qty</th>
+                                            <th class="py-3 px-3">Total Value</th>
+                                            <th class="py-3 px-3">Reference / Dept</th>
+                                            <th class="py-3 px-3">Authorized By</th>
+                                            <th class="py-3 px-3">Time</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                        <template x-for="tx in (inventoryDashboardData ? inventoryDashboardData.recent_transactions : [])" :key="tx.id">
+                                            <tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
+                                                <td class="py-3 px-3">
+                                                    <span class="font-bold text-slate-900 dark:text-white" x-text="tx.item_name"></span>
+                                                    <span class="text-[10px] text-slate-400 font-mono ml-1" x-text="'[' + tx.item_code + ']'"></span>
+                                                </td>
+                                                <td class="py-3 px-3">
+                                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
+                                                          :class="tx.transaction_type === 'Inward' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400' :
+                                                                  tx.transaction_type === 'Outward' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400' :
+                                                                  'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400'"
+                                                          x-text="tx.transaction_type"></span>
+                                                </td>
+                                                <td class="py-3 px-3 font-mono font-bold" x-text="tx.quantity"></td>
+                                                <td class="py-3 px-3 font-bold text-slate-900 dark:text-white" x-text="tx.total_amount ? ('INR ' + Number(tx.total_amount).toLocaleString()) : '--'"></td>
+                                                <td class="py-3 px-3 text-[11px]" x-text="tx.invoice_ref || tx.department || tx.adjustment_reason || '--'"></td>
+                                                <td class="py-3 px-3 text-[11px]" x-text="tx.approved_by_name || tx.created_by_name || 'Staff'"></td>
+                                                <td class="py-3 px-3 font-mono text-[10px] text-slate-400" x-text="tx.created_at ? tx.created_at.substring(0, 16).replace('T', ' ') : ''"></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. STOCK LEDGER ITEMS SUB-TAB -->
+                    <div x-show="inventorySubTab === 'items'" class="space-y-4">
+                        <div class="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                            <div class="flex flex-wrap items-center gap-3">
+                                <input type="text" x-model="inventorySearchTerm" @input.debounce.300ms="loadInventoryItems()" placeholder="Search item or code..." class="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold w-48">
+                                <button @click="loadInventoryItems()" class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-200">
+                                    <i class="fa-solid fa-arrows-rotate mr-1"></i>Refresh
+                                </button>
+                            </div>
+                            <button @click="inventoryItemModalOpen = true; loadInventoryCategories(); loadSuppliers()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center space-x-1.5 shadow-sm">
+                                <i class="fa-solid fa-plus"></i>
+                                <span>Add Inventory Item</span>
+                            </button>
+                        </div>
+
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs text-slate-600 dark:text-slate-400">
+                                    <thead class="bg-slate-50 dark:bg-slate-800/50 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                                        <tr>
+                                            <th class="py-3.5 px-4">Item Details</th>
+                                            <th class="py-3.5 px-4">Category</th>
+                                            <th class="py-3.5 px-4">Stock on Hand</th>
+                                            <th class="py-3.5 px-4">Min Reorder</th>
+                                            <th class="py-3.5 px-4">Unit Price</th>
+                                            <th class="py-3.5 px-4">Total Valuation</th>
+                                            <th class="py-3.5 px-4">Location</th>
+                                            <th class="py-3.5 px-4">Status & Alerts</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                        <template x-for="item in inventoryItemsList" :key="item.id">
+                                            <tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition">
+                                                <td class="py-3.5 px-4">
+                                                    <div class="font-bold text-slate-900 dark:text-white" x-text="item.name"></div>
+                                                    <div class="text-[10px] text-slate-400 font-mono" x-text="item.item_code"></div>
+                                                </td>
+                                                <td class="py-3.5 px-4">
+                                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" x-text="item.category_name || 'General'"></span>
+                                                </td>
+                                                <td class="py-3.5 px-4">
+                                                    <span class="font-mono font-bold text-sm" :class="item.quantity_in_stock <= 0 ? 'text-rose-600' : item.is_low_stock ? 'text-amber-600' : 'text-slate-900 dark:text-white'" x-text="item.quantity_in_stock"></span>
+                                                    <span class="text-[10px] text-slate-400 ml-0.5" x-text="item.unit"></span>
+                                                </td>
+                                                <td class="py-3.5 px-4 font-mono text-slate-500" x-text="item.min_reorder_level + ' ' + item.unit"></td>
+                                                <td class="py-3.5 px-4 font-mono" x-text="'INR ' + Number(item.unit_price).toFixed(2)"></td>
+                                                <td class="py-3.5 px-4 font-bold text-slate-900 dark:text-white" x-text="'INR ' + Number(item.total_valuation).toLocaleString()"></td>
+                                                <td class="py-3.5 px-4 text-[11px]" x-text="item.location || '--'"></td>
+                                                <td class="py-3.5 px-4 space-x-1">
+                                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
+                                                          :class="item.quantity_in_stock <= 0 ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400' :
+                                                                  item.is_low_stock ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400' :
+                                                                  'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'"
+                                                          x-text="item.quantity_in_stock <= 0 ? 'Out of Stock' : item.is_low_stock ? 'Low Stock' : 'Adequate'"></span>
+                                                    <span x-show="item.is_expiring_soon" class="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400 uppercase">Expiring</span>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. INWARD / OUTWARD TRANSACTIONS SUB-TABS -->
+                    <div x-show="inventorySubTab === 'inward' || inventorySubTab === 'outward'" class="space-y-4">
+                        <div class="flex items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                            <div class="text-xs font-bold text-slate-500 dark:text-slate-400" x-text="inventorySubTab === 'inward' ? 'Procurement & Stock Receipt Ledger' : 'Departmental Stock Consumption Ledger'"></div>
+                            <button @click="loadInventoryTransactions()" class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-200">
+                                <i class="fa-solid fa-arrows-rotate mr-1"></i>Refresh Log
+                            </button>
+                        </div>
+
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs text-slate-600 dark:text-slate-400">
+                                    <thead class="bg-slate-50 dark:bg-slate-800/50 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                                        <tr>
+                                            <th class="py-3.5 px-4">Transaction ID</th>
+                                            <th class="py-3.5 px-4">Item</th>
+                                            <th class="py-3.5 px-4">Quantity</th>
+                                            <th class="py-3.5 px-4">Unit Price</th>
+                                            <th class="py-3.5 px-4">Total Amount</th>
+                                            <th class="py-3.5 px-4">Party / Destination</th>
+                                            <th class="py-3.5 px-4">Date & Time</th>
+                                            <th class="py-3.5 px-4">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                        <template x-for="tx in inventoryTransactionsList.filter(t => inventorySubTab === 'inward' ? t.transaction_type === 'Inward' : t.transaction_type === 'Outward')" :key="tx.id">
+                                            <tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
+                                                <td class="py-3.5 px-4 font-mono font-bold" x-text="'#TX-' + tx.id"></td>
+                                                <td class="py-3.5 px-4">
+                                                    <div class="font-bold text-slate-900 dark:text-white" x-text="tx.item_name"></div>
+                                                    <div class="text-[10px] text-slate-400 font-mono" x-text="tx.item_code"></div>
+                                                </td>
+                                                <td class="py-3.5 px-4 font-mono font-bold" x-text="tx.quantity"></td>
+                                                <td class="py-3.5 px-4 font-mono" x-text="tx.unit_price ? ('INR ' + Number(tx.unit_price).toFixed(2)) : '--'"></td>
+                                                <td class="py-3.5 px-4 font-bold text-slate-900 dark:text-white" x-text="tx.total_amount ? ('INR ' + Number(tx.total_amount).toLocaleString()) : '--'"></td>
+                                                <td class="py-3.5 px-4 text-[11px]" x-text="tx.supplier_name || tx.department || tx.issued_to || '--'"></td>
+                                                <td class="py-3.5 px-4 font-mono text-[11px]" x-text="tx.created_at ? tx.created_at.substring(0, 16).replace('T', ' ') : ''"></td>
+                                                <td class="py-3.5 px-4">
+                                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400" x-text="tx.approval_status"></span>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4. SUPPLIERS SUB-TAB -->
+                    <div x-show="inventorySubTab === 'suppliers'" class="space-y-4">
+                        <div class="flex items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                            <div class="text-xs font-bold text-slate-500 dark:text-slate-400">Approved Institutional Suppliers Directory</div>
+                            <button @click="supplierModalOpen = true" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center space-x-1.5 shadow-sm">
+                                <i class="fa-solid fa-plus"></i>
+                                <span>Register Supplier</span>
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <template x-for="sup in suppliersList" :key="sup.id">
+                                <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-3">
+                                    <div class="flex items-center justify-between">
+                                        <span class="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300" x-text="sup.category || 'Vendor'"></span>
+                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
+                                              :class="sup.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400' : 'bg-slate-100 text-slate-500'"
+                                              x-text="sup.is_active ? 'Active' : 'Inactive'"></span>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-sm font-bold text-slate-900 dark:text-white" x-text="sup.name"></h4>
+                                        <div class="text-[11px] text-slate-400 font-mono" x-text="'Vendor Code: ' + (sup.code || 'N/A')"></div>
+                                    </div>
+                                    <div class="space-y-1 text-xs text-slate-500 pt-1 border-t border-slate-100 dark:border-slate-800">
+                                        <div x-show="sup.contact_person"><i class="fa-solid fa-user mr-1.5 text-slate-400"></i><span x-text="sup.contact_person"></span></div>
+                                        <div x-show="sup.phone"><i class="fa-solid fa-phone mr-1.5 text-slate-400"></i><span x-text="sup.phone"></span></div>
+                                        <div x-show="sup.email"><i class="fa-solid fa-envelope mr-1.5 text-slate-400"></i><span x-text="sup.email"></span></div>
+                                        <div x-show="sup.tax_id"><i class="fa-solid fa-file-invoice mr-1.5 text-slate-400"></i><span x-text="'GST/Tax: ' + sup.tax_id"></span></div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- INVENTORY MODALS -->
+                <!-- Create Inventory Item Modal -->
+                <div x-show="inventoryItemModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs" style="display: none;">
+                    <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white">Add Inventory Catalog Item</h3>
+                            <button @click="inventoryItemModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <form @submit.prevent="handleCreateInventoryItem()" class="space-y-3 text-xs">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Item Code</label>
+                                    <input type="text" x-model="newInventoryItem.item_code" required placeholder="e.g. FG-BAS-RICE" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Item Name</label>
+                                    <input type="text" x-model="newInventoryItem.name" required placeholder="e.g. Basmati Rice (Premium)" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Category</label>
+                                    <select x-model="newInventoryItem.category_id" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                        <template x-for="cat in inventoryCategoriesList" :key="cat.id">
+                                            <option :value="cat.id" x-text="cat.name"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Unit of Measurement</label>
+                                    <input type="text" x-model="newInventoryItem.unit" required placeholder="kg, litre, packet, box, piece" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-3 gap-3">
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Initial Stock</label>
+                                    <input type="number" step="0.01" x-model="newInventoryItem.quantity_in_stock" required class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Min Reorder Lvl</label>
+                                    <input type="number" step="0.01" x-model="newInventoryItem.min_reorder_level" required class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Unit Price (INR)</label>
+                                    <input type="number" step="0.01" x-model="newInventoryItem.unit_price" required class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Storage Location</label>
+                                    <input type="text" x-model="newInventoryItem.location" placeholder="e.g. Main Pantry - Bay A" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Expiry Date (Optional)</label>
+                                    <input type="date" x-model="newInventoryItem.expiry_date" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                </div>
+                            </div>
+                            <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                <button type="button" @click="inventoryItemModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">Cancel</button>
+                                <button type="submit" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold">Save Item</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Stock Inward Modal -->
+                <div x-show="stockInwardModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs" style="display: none;">
+                    <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white">Record Stock Procurement Inward</h3>
+                            <button @click="stockInwardModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <form @submit.prevent="handleRecordStockInward()" class="space-y-3 text-xs">
+                            <div>
+                                <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Select Item</label>
+                                <select x-model="newStockInward.item_id" required class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                    <option value="">-- Choose Stock Item --</option>
+                                    <template x-for="item in inventoryItemsList" :key="item.id">
+                                        <option :value="item.id" x-text="item.name + ' (' + item.item_code + ') - In Stock: ' + item.quantity_in_stock + ' ' + item.unit"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Received Quantity</label>
+                                    <input type="number" step="0.01" min="0.01" x-model="newStockInward.quantity" required class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Unit Price (INR)</label>
+                                    <input type="number" step="0.01" x-model="newStockInward.unit_price" placeholder="Leave blank to retain" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Supplier</label>
+                                    <select x-model="newStockInward.supplier_id" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                        <option value="">-- Choose Vendor --</option>
+                                        <template x-for="sup in suppliersList" :key="sup.id">
+                                            <option :value="sup.id" x-text="sup.name"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Invoice Reference</label>
+                                    <input type="text" x-model="newStockInward.invoice_ref" placeholder="INV-2026-001" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Remarks</label>
+                                <input type="text" x-model="newStockInward.remarks" placeholder="Delivery notes..." class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                            </div>
+                            <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                <button type="button" @click="stockInwardModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">Cancel</button>
+                                <button type="submit" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold">Record Inward</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Stock Outward Modal (Poka-Yoke Protected) -->
+                <div x-show="stockOutwardModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs" style="display: none;">
+                    <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white">Issue Stock Outward (Poka-Yoke)</h3>
+                            <button @click="stockOutwardModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <form @submit.prevent="handleRecordStockOutward()" class="space-y-3 text-xs">
+                            <div>
+                                <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Select Item</label>
+                                <select x-model="newStockOutward.item_id" required class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                    <option value="">-- Choose Stock Item --</option>
+                                    <template x-for="item in inventoryItemsList" :key="item.id">
+                                        <option :value="item.id" x-text="item.name + ' (' + item.item_code + ') - Available: ' + item.quantity_in_stock + ' ' + item.unit"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Quantity to Issue</label>
+                                    <input type="number" step="0.01" min="0.01" x-model="newStockOutward.quantity" required class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Department</label>
+                                    <input type="text" x-model="newStockOutward.department" required placeholder="e.g. Mess Kitchen, Floor 1" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Issued To (Person)</label>
+                                <input type="text" x-model="newStockOutward.issued_to" placeholder="Staff member name" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                            </div>
+                            <div>
+                                <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Remarks / Requisition Reason</label>
+                                <input type="text" x-model="newStockOutward.remarks" placeholder="Daily cooking usage..." class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                            </div>
+                            <div class="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-[11px] flex items-center space-x-2">
+                                <i class="fa-solid fa-shield-halved"></i>
+                                <span>Poka-Yoke check ensures stock cannot go below zero.</span>
+                            </div>
+                            <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                <button type="button" @click="stockOutwardModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">Cancel</button>
+                                <button type="submit" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold">Issue Stock</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Stock Adjustment Modal -->
+                <div x-show="stockAdjustmentModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs" style="display: none;">
+                    <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white">Record Stock Adjustment</h3>
+                            <button @click="stockAdjustmentModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <form @submit.prevent="handleRecordStockAdjustment()" class="space-y-3 text-xs">
+                            <div>
+                                <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Select Item</label>
+                                <select x-model="newStockAdjustment.item_id" required class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                    <option value="">-- Choose Stock Item --</option>
+                                    <template x-for="item in inventoryItemsList" :key="item.id">
+                                        <option :value="item.id" x-text="item.name + ' (' + item.item_code + ') - Stock: ' + item.quantity_in_stock + ' ' + item.unit"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Adjustment Type</label>
+                                    <select x-model="newStockAdjustment.adjustment_type" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                        <option value="Damage">Damage</option>
+                                        <option value="Expiry">Expiry</option>
+                                        <option value="Wastage">Wastage</option>
+                                        <option value="Audit_Discrepancy">Audit Discrepancy</option>
+                                        <option value="Transfer">Transfer</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Qty Change (+/-)</label>
+                                    <input type="number" step="0.01" x-model="newStockAdjustment.quantity_change" required placeholder="-5 or +10" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Mandatory Audit Reason</label>
+                                <input type="text" x-model="newStockAdjustment.reason" required placeholder="Detailed reason for discrepancy / disposal..." class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                            </div>
+                            <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                <button type="button" @click="stockAdjustmentModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">Cancel</button>
+                                <button type="submit" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold">Apply Adjustment</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Create Supplier Modal -->
+                <div x-show="supplierModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs" style="display: none;">
+                    <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white">Register Approved Supplier</h3>
+                            <button @click="supplierModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <form @submit.prevent="handleCreateSupplier()" class="space-y-3 text-xs">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Supplier Name</label>
+                                    <input type="text" x-model="newSupplier.name" required placeholder="e.g. Metro Food Wholesale" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Supplier Code</label>
+                                    <input type="text" x-model="newSupplier.code" placeholder="e.g. SUP-MFW-01" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Contact Person</label>
+                                    <input type="text" x-model="newSupplier.contact_person" placeholder="Manager Name" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Phone</label>
+                                    <input type="text" x-model="newSupplier.phone" placeholder="+91 9876543210" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Email</label>
+                                    <input type="email" x-model="newSupplier.email" placeholder="vendor@example.com" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">GST / Tax ID</label>
+                                    <input type="text" x-model="newSupplier.tax_id" placeholder="GSTIN12345" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Category of Goods</label>
+                                <input type="text" x-model="newSupplier.category" placeholder="Food Grains, Vegetables, Dairy, etc." class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                            </div>
+                            <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                <button type="button" @click="supplierModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">Cancel</button>
+                                <button type="submit" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold">Save Supplier</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
                 <!-- 4. ARCHITECTURE & TELEMETRY SECTION -->
                 <section x-show="activeSection === 'architecture'" class="animate-fade-in space-y-6">
                     <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">

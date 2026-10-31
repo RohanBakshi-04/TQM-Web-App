@@ -484,6 +484,77 @@ document.addEventListener("alpine:init", () => {
             meal_type: "Breakfast"
         },
 
+        // Inventory & Stock Management State
+        inventorySubTab: "dashboard", // "dashboard" | "items" | "inward" | "outward" | "suppliers"
+        inventoryDashboardData: null,
+        inventoryCategoriesList: [],
+        suppliersList: [],
+        inventoryItemsList: [],
+        inventoryTransactionsList: [],
+        inventoryLoading: false,
+        inventoryFilterCategory: null,
+        inventoryFilterStatus: null,
+        inventorySearchTerm: "",
+        inventoryItemModalOpen: false,
+        stockInwardModalOpen: false,
+        stockOutwardModalOpen: false,
+        stockAdjustmentModalOpen: false,
+        supplierModalOpen: false,
+
+        newInventoryItem: {
+            item_code: "",
+            name: "",
+            category_id: 1,
+            unit: "kg",
+            quantity_in_stock: 0.0,
+            min_reorder_level: 10.0,
+            max_threshold: 100.0,
+            unit_price: 0.0,
+            supplier_id: null,
+            location: "Main Store Room",
+            expiry_date: "",
+            status: "Active"
+        },
+
+        newStockInward: {
+            item_id: null,
+            quantity: 1.0,
+            unit_price: 0.0,
+            supplier_id: null,
+            invoice_ref: "",
+            location: "Main Store Room",
+            remarks: "Routine stock procurement inward"
+        },
+
+        newStockOutward: {
+            item_id: null,
+            quantity: 1.0,
+            department: "Mess Kitchen",
+            issued_to: "Head Chef",
+            remarks: "Daily meal prep consumption"
+        },
+
+        newStockAdjustment: {
+            item_id: null,
+            adjustment_type: "Wastage",
+            quantity_change: -1.0,
+            reason: "Audit discrepancy adjustment",
+            from_location: "Main Store Room",
+            to_location: ""
+        },
+
+        newSupplier: {
+            name: "",
+            code: "",
+            contact_person: "",
+            phone: "",
+            email: "",
+            address: "",
+            tax_id: "",
+            category: "Food & Groceries",
+            is_active: true
+        },
+
         async init() {
             // Apply stored theme
             if (this.darkMode) {
@@ -2350,6 +2421,171 @@ document.addEventListener("alpine:init", () => {
                 await this.loadMealAttendance();
             } catch (err) {
                 this.showToast(`Correction failed: ${err.message}`, "error");
+            }
+        },
+
+        // ==================== INVENTORY & STOCK MANAGEMENT ====================
+        async loadInventoryDashboard() {
+            this.inventoryLoading = true;
+            try {
+                this.inventoryDashboardData = await window.API.getInventoryDashboard();
+            } catch (err) {
+                this.showToast(`Inventory dashboard error: ${err.message}`, "error");
+            } finally {
+                this.inventoryLoading = false;
+            }
+        },
+
+        async loadInventoryCategories() {
+            try {
+                this.inventoryCategoriesList = await window.API.getInventoryCategories();
+            } catch (err) {
+                this.showToast(`Failed to load categories: ${err.message}`, "error");
+            }
+        },
+
+        async loadSuppliers() {
+            try {
+                this.suppliersList = await window.API.getSuppliers();
+            } catch (err) {
+                this.showToast(`Failed to load suppliers: ${err.message}`, "error");
+            }
+        },
+
+        async handleCreateSupplier() {
+            try {
+                const payload = {
+                    name: this.newSupplier.name,
+                    code: this.newSupplier.code || null,
+                    contact_person: this.newSupplier.contact_person || null,
+                    phone: this.newSupplier.phone || null,
+                    email: this.newSupplier.email || null,
+                    address: this.newSupplier.address || null,
+                    tax_id: this.newSupplier.tax_id || null,
+                    category: this.newSupplier.category || null,
+                    is_active: !!this.newSupplier.is_active
+                };
+                await window.API.createSupplier(payload);
+                this.showToast("Supplier registered successfully!", "success");
+                this.supplierModalOpen = false;
+                await this.loadSuppliers();
+                await this.loadInventoryDashboard();
+            } catch (err) {
+                this.showToast(`Supplier creation failed: ${err.message}`, "error");
+            }
+        },
+
+        async loadInventoryItems() {
+            this.inventoryLoading = true;
+            try {
+                const params = {};
+                if (this.inventoryFilterCategory) params.category_id = this.inventoryFilterCategory;
+                if (this.inventoryFilterStatus) params.status = this.inventoryFilterStatus;
+                if (this.inventorySearchTerm) params.search = this.inventorySearchTerm;
+                this.inventoryItemsList = await window.API.getInventoryItems(params);
+            } catch (err) {
+                this.showToast(`Failed to load items: ${err.message}`, "error");
+            } finally {
+                this.inventoryLoading = false;
+            }
+        },
+
+        async handleCreateInventoryItem() {
+            try {
+                const payload = {
+                    item_code: this.newInventoryItem.item_code,
+                    name: this.newInventoryItem.name,
+                    category_id: parseInt(this.newInventoryItem.category_id),
+                    unit: this.newInventoryItem.unit,
+                    quantity_in_stock: parseFloat(this.newInventoryItem.quantity_in_stock || 0),
+                    min_reorder_level: parseFloat(this.newInventoryItem.min_reorder_level || 10),
+                    max_threshold: this.newInventoryItem.max_threshold ? parseFloat(this.newInventoryItem.max_threshold) : null,
+                    unit_price: parseFloat(this.newInventoryItem.unit_price || 0),
+                    supplier_id: this.newInventoryItem.supplier_id ? parseInt(this.newInventoryItem.supplier_id) : null,
+                    location: this.newInventoryItem.location || null,
+                    expiry_date: this.newInventoryItem.expiry_date || null,
+                    status: this.newInventoryItem.status || "Active"
+                };
+                await window.API.createInventoryItem(payload);
+                this.showToast("Inventory item created successfully!", "success");
+                this.inventoryItemModalOpen = false;
+                await this.loadInventoryItems();
+                await this.loadInventoryDashboard();
+            } catch (err) {
+                this.showToast(`Item creation failed: ${err.message}`, "error");
+            }
+        },
+
+        async loadInventoryTransactions() {
+            this.inventoryLoading = true;
+            try {
+                this.inventoryTransactionsList = await window.API.getInventoryTransactions();
+            } catch (err) {
+                this.showToast(`Failed to load transactions: ${err.message}`, "error");
+            } finally {
+                this.inventoryLoading = false;
+            }
+        },
+
+        async handleRecordStockInward() {
+            try {
+                const payload = {
+                    item_id: parseInt(this.newStockInward.item_id),
+                    quantity: parseFloat(this.newStockInward.quantity),
+                    unit_price: this.newStockInward.unit_price ? parseFloat(this.newStockInward.unit_price) : null,
+                    supplier_id: this.newStockInward.supplier_id ? parseInt(this.newStockInward.supplier_id) : null,
+                    invoice_ref: this.newStockInward.invoice_ref || null,
+                    location: this.newStockInward.location || null,
+                    remarks: this.newStockInward.remarks || "Procurement inward"
+                };
+                await window.API.recordStockInward(payload);
+                this.showToast("Stock inward recorded and inventory updated!", "success");
+                this.stockInwardModalOpen = false;
+                await this.loadInventoryItems();
+                await this.loadInventoryDashboard();
+                if (this.inventorySubTab === 'inward') await this.loadInventoryTransactions();
+            } catch (err) {
+                this.showToast(`Stock inward failed: ${err.message}`, "error");
+            }
+        },
+
+        async handleRecordStockOutward() {
+            try {
+                const payload = {
+                    item_id: parseInt(this.newStockOutward.item_id),
+                    quantity: parseFloat(this.newStockOutward.quantity),
+                    department: this.newStockOutward.department,
+                    issued_to: this.newStockOutward.issued_to || null,
+                    remarks: this.newStockOutward.remarks || "Department consumption"
+                };
+                await window.API.recordStockOutward(payload);
+                this.showToast("Stock outward recorded successfully!", "success");
+                this.stockOutwardModalOpen = false;
+                await this.loadInventoryItems();
+                await this.loadInventoryDashboard();
+                if (this.inventorySubTab === 'outward') await this.loadInventoryTransactions();
+            } catch (err) {
+                this.showToast(`Stock outward failed: ${err.message}`, "error");
+            }
+        },
+
+        async handleRecordStockAdjustment() {
+            try {
+                const payload = {
+                    item_id: parseInt(this.newStockAdjustment.item_id),
+                    adjustment_type: this.newStockAdjustment.adjustment_type,
+                    quantity_change: parseFloat(this.newStockAdjustment.quantity_change),
+                    reason: this.newStockAdjustment.reason,
+                    from_location: this.newStockAdjustment.from_location || null,
+                    to_location: this.newStockAdjustment.to_location || null
+                };
+                await window.API.recordStockAdjustment(payload);
+                this.showToast("Stock adjustment logged and inventory balance updated!", "success");
+                this.stockAdjustmentModalOpen = false;
+                await this.loadInventoryItems();
+                await this.loadInventoryDashboard();
+            } catch (err) {
+                this.showToast(`Adjustment failed: ${err.message}`, "error");
             }
         }
     }));

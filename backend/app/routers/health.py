@@ -17,12 +17,11 @@ router = APIRouter(prefix="/api", tags=["Health"])
 @router.get("/health")
 def health_check() -> Dict[str, Any]:
     """Verify backend services, SQLite connection, and Q05 response time compliance."""
-    t0 = time.perf_counter()
-
     db_status = "connected"
     sqlite_version = "unknown"
     journal_mode = "unknown"
 
+    t0 = time.perf_counter()
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
