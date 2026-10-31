@@ -811,6 +811,123 @@ const API = {
         });
         if (!response.ok) throw new Error("Failed to load resident students for marking.");
         return await response.json();
+    },
+
+    // ==================== LEAVE & OUTPASS MANAGEMENT ====================
+    async getLeaveApplications(filters = {}) {
+        const params = new URLSearchParams();
+        if (filters.status && filters.status !== 'all') params.append('status', filters.status);
+        if (filters.leave_type && filters.leave_type !== 'all') params.append('leave_type', filters.leave_type);
+        if (filters.hostel_id) params.append('hostel_id', filters.hostel_id);
+        if (filters.start_date) params.append('start_date', filters.start_date);
+        if (filters.end_date) params.append('end_date', filters.end_date);
+        if (filters.limit) params.append('limit', filters.limit);
+        if (filters.offset) params.append('offset', filters.offset);
+
+        const qs = params.toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/leave${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to load leave applications.");
+        return await response.json();
+    },
+
+    async submitLeaveApplication(data) {
+        const response = await fetch(`${this.baseUrl}/api/v1/leave`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to submit leave application.");
+        return res;
+    },
+
+    async getLeaveApplication(id) {
+        const response = await fetch(`${this.baseUrl}/api/v1/leave/${id}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to load leave application details.");
+        return await response.json();
+    },
+
+    async updateLeaveApplication(id, data) {
+        const response = await fetch(`${this.baseUrl}/api/v1/leave/${id}`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to update leave application.");
+        return res;
+    },
+
+    async approveLeaveApplication(id, remarks = "") {
+        const response = await fetch(`${this.baseUrl}/api/v1/leave/${id}/approve`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ remarks })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to approve leave request.");
+        return res;
+    },
+
+    async rejectLeaveApplication(id, reason) {
+        const response = await fetch(`${this.baseUrl}/api/v1/leave/${id}/reject`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ reason })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to reject leave request.");
+        return res;
+    },
+
+    async getOutpasses(filters = {}) {
+        const params = new URLSearchParams();
+        if (filters.status && filters.status !== 'all') params.append('status', filters.status);
+        if (filters.outpass_number) params.append('outpass_number', filters.outpass_number);
+        if (filters.limit) params.append('limit', filters.limit);
+        if (filters.offset) params.append('offset', filters.offset);
+
+        const qs = params.toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/outpasses${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to load outpasses.");
+        return await response.json();
+    },
+
+    async getOverdueOutpasses(hostelId = null) {
+        const qs = hostelId ? `?hostel_id=${hostelId}` : "";
+        const response = await fetch(`${this.baseUrl}/api/v1/outpasses/overdue${qs}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to load overdue outpasses.");
+        return await response.json();
+    },
+
+    async verifyOutpassExit(ref, remarks = "") {
+        const response = await fetch(`${this.baseUrl}/api/v1/outpasses/${ref}/verify-exit`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ remarks })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to verify gate exit.");
+        return res;
+    },
+
+    async verifyOutpassReturn(ref, remarks = "") {
+        const response = await fetch(`${this.baseUrl}/api/v1/outpasses/${ref}/verify-return`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ remarks })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to verify gate return.");
+        return res;
     }
 };
 

@@ -1124,6 +1124,15 @@
                         </button>
                     </template>
 
+                    <template x-if="isAuthenticated">
+                        <button @click="navigateTo('leaves')"
+                                :class="activeSection === 'leaves' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
+                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
+                            <i class="fa-solid fa-id-badge w-5 text-center text-sm"></i>
+                            <span x-show="!sidebarCollapsed" class="truncate">Leaves & Outpass</span>
+                        </button>
+                    </template>
+
                     <button @click="navigateTo('architecture')"
                             :class="activeSection === 'architecture' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
                             class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
@@ -2951,6 +2960,430 @@
                         <div class="flex items-center justify-end space-x-2 pt-2">
                             <button @click="attendanceCorrectionModal.open = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200">Cancel</button>
                             <button @click="submitAttendanceCorrection()" class="px-4 py-2 rounded-xl bg-brand-600 text-white text-xs font-bold hover:bg-brand-700 shadow-xs">Apply Correction</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LEAVE & OUTPASS MANAGEMENT SECTION -->
+                <section x-show="activeSection === 'leaves'" class="animate-fade-in space-y-6">
+                    <!-- Header & Sub-navigation -->
+                    <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div>
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center text-lg font-bold">
+                                    <i class="fa-solid fa-id-badge"></i>
+                                </div>
+                                <div>
+                                    <h2 class="text-xl font-bold text-slate-900 dark:text-white">Leave & Digital Gate Outpass</h2>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">Student outstation applications, warden authorizations, and security verification</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sub-tab switcher -->
+                        <div class="flex items-center bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl text-xs font-semibold overflow-x-auto">
+                            <button @click="leaveSubTab = 'my_leaves'; loadLeaveApplications()"
+                                    :class="leaveSubTab === 'my_leaves' ? 'bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-300 shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl transition whitespace-nowrap">
+                                <i class="fa-solid fa-list-check mr-1.5"></i>Applications
+                            </button>
+                            <button @click="leaveSubTab = 'apply'"
+                                    :class="leaveSubTab === 'apply' ? 'bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-300 shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl transition whitespace-nowrap">
+                                <i class="fa-solid fa-pen mr-1.5"></i>Apply for Leave
+                            </button>
+                            <button @click="leaveSubTab = 'outpasses'; loadOutpasses()"
+                                    :class="leaveSubTab === 'outpasses' ? 'bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-300 shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl transition whitespace-nowrap">
+                                <i class="fa-solid fa-qrcode mr-1.5"></i>Gate Outpasses
+                            </button>
+                            <button @click="leaveSubTab = 'overdue'; loadOverdueOutpasses()"
+                                    :class="leaveSubTab === 'overdue' ? 'bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-300 shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl transition whitespace-nowrap">
+                                <i class="fa-solid fa-triangle-exclamation mr-1.5 text-rose-500"></i>Overdue Curfews
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 1. MY APPLICATIONS VIEW -->
+                    <div x-show="leaveSubTab === 'my_leaves'" class="space-y-6">
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
+                            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div class="flex items-center space-x-3">
+                                    <select x-model="leaveFilterStatus" @change="loadLeaveApplications()"
+                                            class="text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none">
+                                        <option value="all">All Statuses</option>
+                                        <option value="Draft">Draft</option>
+                                        <option value="Submitted">Submitted</option>
+                                        <option value="Approved">Approved</option>
+                                        <option value="Rejected">Rejected</option>
+                                    </select>
+                                    <select x-model="leaveFilterType" @change="loadLeaveApplications()"
+                                            class="text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none">
+                                        <option value="all">All Leave Types</option>
+                                        <option value="Home Leave">Home Leave</option>
+                                        <option value="Personal Leave">Personal Leave</option>
+                                        <option value="Medical Leave">Medical Leave</option>
+                                        <option value="Emergency Leave">Emergency Leave</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                    <button @click="loadLeaveApplications()" class="px-3.5 py-2 rounded-xl bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-300 text-xs font-bold hover:bg-brand-100">
+                                        <i class="fa-solid fa-arrows-rotate mr-1"></i>Refresh
+                                    </button>
+                                </div>
+                                <button @click="leaveSubTab = 'apply'" class="px-4 py-2 rounded-xl bg-brand-600 text-white text-xs font-bold hover:bg-brand-700 shadow-xs">
+                                    <i class="fa-solid fa-plus mr-1"></i>New Application
+                                </button>
+                            </div>
+
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-slate-50 dark:bg-slate-800/50 text-slate-400 font-semibold uppercase text-[10px]">
+                                        <tr>
+                                            <th class="py-2.5 px-3">Student</th>
+                                            <th class="py-2.5 px-3">Type</th>
+                                            <th class="py-2.5 px-3">Departure</th>
+                                            <th class="py-2.5 px-3">Expected Return</th>
+                                            <th class="py-2.5 px-3">Destination</th>
+                                            <th class="py-2.5 px-3">Status</th>
+                                            <th class="py-2.5 px-3">Outpass Ref</th>
+                                            <th class="py-2.5 px-3">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                        <template x-if="leaveApplications.length === 0">
+                                            <tr>
+                                                <td colspan="8" class="py-6 text-center text-slate-400">No leave applications found.</td>
+                                            </tr>
+                                        </template>
+                                        <template x-for="item in leaveApplications" :key="item.id">
+                                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                                <td class="py-2.5 px-3 font-bold text-slate-900 dark:text-white" x-text="item.student_name"></td>
+                                                <td class="py-2.5 px-3 font-semibold text-slate-700 dark:text-slate-300" x-text="item.leave_type"></td>
+                                                <td class="py-2.5 px-3 font-mono text-slate-500" x-text="item.start_date"></td>
+                                                <td class="py-2.5 px-3 font-mono text-slate-500" x-text="item.end_date"></td>
+                                                <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300 truncate max-w-xs" x-text="item.destination"></td>
+                                                <td class="py-2.5 px-3">
+                                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
+                                                          :class="item.status === 'Approved' ? 'bg-emerald-100 text-emerald-800' : (item.status === 'Rejected' ? 'bg-rose-100 text-rose-800' : (item.status === 'Draft' ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-800'))"
+                                                          x-text="item.status"></span>
+                                                </td>
+                                                <td class="py-2.5 px-3 font-mono">
+                                                    <span x-show="item.outpass_number" class="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold" x-text="item.outpass_number"></span>
+                                                    <span x-show="!item.outpass_number" class="text-slate-400">-</span>
+                                                </td>
+                                                <td class="py-2.5 px-3">
+                                                    <div class="flex items-center space-x-1.5">
+                                                        <button @click="openLeaveDetails(item.id)"
+                                                                class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-xs font-semibold">
+                                                            View
+                                                        </button>
+                                                        <template x-if="item.status === 'Submitted' && ['super_admin', 'hostel_admin', 'warden', 'assistant_warden'].includes(currentUserRole)">
+                                                            <div class="flex items-center space-x-1">
+                                                                <button @click="handleApproveLeave(item.id)"
+                                                                        class="px-2 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold">
+                                                                    Approve
+                                                                </button>
+                                                                <button @click="openLeaveRejectModal(item.id)"
+                                                                        class="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-bold">
+                                                                    Reject
+                                                                </button>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. APPLY FOR LEAVE VIEW -->
+                    <div x-show="leaveSubTab === 'apply'" class="space-y-6">
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm max-w-2xl mx-auto space-y-4">
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white">Student Leave Application Form</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Leave Category</label>
+                                    <select x-model="newLeave.leave_type" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                                        <option value="Home Leave">Home Leave</option>
+                                        <option value="Personal Leave">Personal Leave</option>
+                                        <option value="Medical Leave">Medical Leave</option>
+                                        <option value="Emergency Leave">Emergency Leave</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Destination Location / Address</label>
+                                    <input type="text" x-model="newLeave.destination" placeholder="City or home address"
+                                           class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Departure Date</label>
+                                    <input type="date" x-model="newLeave.start_date" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2.5 focus:outline-none" />
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Expected Return Date</label>
+                                    <input type="date" x-model="newLeave.end_date" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2.5 focus:outline-none" />
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Departure Time</label>
+                                    <input type="time" x-model="newLeave.departure_time" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2.5 focus:outline-none" />
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Expected Return Time (Curfew)</label>
+                                    <input type="time" x-model="newLeave.expected_return_time" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2.5 focus:outline-none" />
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Emergency Contact Phone</label>
+                                    <input type="tel" x-model="newLeave.emergency_contact" placeholder="+91 9876543210"
+                                           class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Parent / Guardian Phone</label>
+                                    <input type="tel" x-model="newLeave.guardian_contact" placeholder="+91 9123456780"
+                                           class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Leave Reason & Justification</label>
+                                    <textarea x-model="newLeave.reason" rows="3" placeholder="Explain the specific purpose for leaving hostel premises..."
+                                              class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500"></textarea>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                <button @click="submitNewLeave(true)" class="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200">
+                                    Save as Draft
+                                </button>
+                                <button @click="submitNewLeave(false)" class="px-5 py-2.5 rounded-xl bg-brand-600 text-white text-xs font-bold hover:bg-brand-700 shadow-xs">
+                                    Submit for Warden Approval
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. GATE OUTPASSES VIEW -->
+                    <div x-show="leaveSubTab === 'outpasses'" class="space-y-6">
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
+                            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div class="flex items-center space-x-3">
+                                    <select x-model="outpassFilterStatus" @change="loadOutpasses()"
+                                            class="text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none">
+                                        <option value="all">All Gate States</option>
+                                        <option value="Issued">Issued (Not Exited)</option>
+                                        <option value="Departed">Departed (Off Campus)</option>
+                                        <option value="Returned">Returned (Inside)</option>
+                                    </select>
+                                    <button @click="loadOutpasses()" class="px-3.5 py-2 rounded-xl bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-300 text-xs font-bold hover:bg-brand-100">
+                                        <i class="fa-solid fa-arrows-rotate mr-1"></i>Refresh Outpasses
+                                    </button>
+                                </div>
+                                <span class="text-xs text-slate-400 font-semibold" x-text="'Active Passes: ' + outpassesList.length"></span>
+                            </div>
+
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-slate-50 dark:bg-slate-800/50 text-slate-400 font-semibold uppercase text-[10px]">
+                                        <tr>
+                                            <th class="py-2.5 px-3">Outpass No</th>
+                                            <th class="py-2.5 px-3">Student</th>
+                                            <th class="py-2.5 px-3">Hostel / Room</th>
+                                            <th class="py-2.5 px-3">Curfew Return</th>
+                                            <th class="py-2.5 px-3">Gate Status</th>
+                                            <th class="py-2.5 px-3">Actual Exit</th>
+                                            <th class="py-2.5 px-3">Actual Return</th>
+                                            <th class="py-2.5 px-3">Security Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                        <template x-if="outpassesList.length === 0">
+                                            <tr>
+                                                <td colspan="8" class="py-6 text-center text-slate-400">No active outpasses found.</td>
+                                            </tr>
+                                        </template>
+                                        <template x-for="op in outpassesList" :key="op.id">
+                                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                                <td class="py-2.5 px-3 font-mono font-bold text-brand-600 dark:text-brand-400" x-text="op.outpass_number"></td>
+                                                <td class="py-2.5 px-3 font-bold text-slate-900 dark:text-white" x-text="op.student_name"></td>
+                                                <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300" x-text="(op.hostel_name || '-') + ' / ' + (op.room_number || '-')"></td>
+                                                <td class="py-2.5 px-3 font-mono font-semibold" :class="op.is_overdue ? 'text-rose-600 font-black' : 'text-slate-500'" x-text="op.expected_return_time"></td>
+                                                <td class="py-2.5 px-3">
+                                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
+                                                          :class="op.status === 'Issued' ? 'bg-blue-100 text-blue-800' : (op.status === 'Departed' ? (op.is_overdue ? 'bg-rose-100 text-rose-800 animate-pulse' : 'bg-amber-100 text-amber-800') : 'bg-emerald-100 text-emerald-800')"
+                                                          x-text="op.is_overdue && op.status === 'Departed' ? 'OVERDUE' : op.status"></span>
+                                                </td>
+                                                <td class="py-2.5 px-3 font-mono text-slate-500" x-text="op.actual_exit_time || '-'"></td>
+                                                <td class="py-2.5 px-3 font-mono text-slate-500" x-text="op.actual_return_time || '-'"></td>
+                                                <td class="py-2.5 px-3">
+                                                    <div class="flex items-center space-x-1.5">
+                                                        <template x-if="op.status === 'Issued'">
+                                                            <button @click="handleVerifyGateExit(op.id)"
+                                                                    class="px-2.5 py-1 rounded-lg bg-amber-600 text-white hover:bg-amber-700 text-xs font-bold">
+                                                                <i class="fa-solid fa-arrow-right-from-bracket mr-1"></i>Verify Exit
+                                                            </button>
+                                                        </template>
+                                                        <template x-if="op.status === 'Departed'">
+                                                            <button @click="handleVerifyGateReturn(op.id)"
+                                                                    class="px-2.5 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold">
+                                                                <i class="fa-solid fa-arrow-right-to-bracket mr-1"></i>Verify Return
+                                                            </button>
+                                                        </template>
+                                                        <template x-if="op.status === 'Returned'">
+                                                            <span class="text-xs text-emerald-600 font-bold"><i class="fa-solid fa-circle-check mr-1"></i>Completed</span>
+                                                        </template>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4. OVERDUE CURFEW RETURNS VIEW -->
+                    <div x-show="leaveSubTab === 'overdue'" class="space-y-6">
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-rose-200 dark:border-rose-950 p-6 shadow-sm space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-10 h-10 rounded-2xl bg-rose-500/10 text-rose-600 flex items-center justify-center text-lg font-bold">
+                                        <i class="fa-solid fa-triangle-exclamation"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-base font-bold text-slate-900 dark:text-white">Active Curfew Violations & Overdue Returns</h3>
+                                        <p class="text-xs text-rose-600 dark:text-rose-400 font-medium">Students departed who have not reported back past their approved curfew deadline</p>
+                                    </div>
+                                </div>
+                                <button @click="loadOverdueOutpasses()" class="px-3.5 py-2 rounded-xl bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 text-xs font-bold hover:bg-rose-100">
+                                    <i class="fa-solid fa-arrows-rotate mr-1"></i>Scan Overdue
+                                </button>
+                            </div>
+
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-rose-50/50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-300 font-semibold uppercase text-[10px]">
+                                        <tr>
+                                            <th class="py-2.5 px-3">Outpass No</th>
+                                            <th class="py-2.5 px-3">Student Name</th>
+                                            <th class="py-2.5 px-3">Roll No</th>
+                                            <th class="py-2.5 px-3">Hostel / Room</th>
+                                            <th class="py-2.5 px-3">Curfew Return</th>
+                                            <th class="py-2.5 px-3">Emergency Phone</th>
+                                            <th class="py-2.5 px-3">Gate Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-rose-100 dark:divide-rose-950">
+                                        <template x-if="overdueOutpassesList.length === 0">
+                                            <tr>
+                                                <td colspan="7" class="py-6 text-center text-slate-400">All resident students have returned safely within designated curfew.</td>
+                                            </tr>
+                                        </template>
+                                        <template x-for="item in overdueOutpassesList" :key="item.id">
+                                            <tr class="hover:bg-rose-50/30 dark:hover:bg-rose-950/30">
+                                                <td class="py-2.5 px-3 font-mono font-black text-rose-600" x-text="item.outpass_number"></td>
+                                                <td class="py-2.5 px-3 font-bold text-slate-900 dark:text-white" x-text="item.student_name"></td>
+                                                <td class="py-2.5 px-3 font-mono text-slate-500" x-text="item.roll_no"></td>
+                                                <td class="py-2.5 px-3 text-slate-700 dark:text-slate-300" x-text="(item.hostel_name || '-') + ' / ' + (item.room_number || '-')"></td>
+                                                <td class="py-2.5 px-3 font-mono font-bold text-rose-600" x-text="item.expected_return_time"></td>
+                                                <td class="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-400" x-text="item.emergency_contact_phone || '-'"></td>
+                                                <td class="py-2.5 px-3">
+                                                    <button @click="handleVerifyGateReturn(item.id)"
+                                                            class="px-2.5 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold">
+                                                        Log Return Now
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- LEAVE APPLICATION DETAILS & OUTPASS MODAL -->
+                <div x-show="leaveDetailModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in" style="display: none;">
+                    <div @click.away="leaveDetailModalOpen = false" class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 shadow-2xl space-y-4">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <span class="px-2.5 py-1 rounded-full text-xs font-black uppercase"
+                                      :class="selectedLeave && selectedLeave.status === 'Approved' ? 'bg-emerald-100 text-emerald-800' : (selectedLeave && selectedLeave.status === 'Rejected' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800')"
+                                      x-text="selectedLeave ? selectedLeave.status : ''"></span>
+                                <h3 class="text-base font-bold text-slate-900 dark:text-white" x-text="selectedLeave ? selectedLeave.leave_type : 'Leave Details'"></h3>
+                            </div>
+                            <button @click="leaveDetailModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+
+                        <template x-if="selectedLeave">
+                            <div class="space-y-4 text-xs">
+                                <!-- Student Header -->
+                                <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
+                                    <div>
+                                        <div class="font-bold text-sm text-slate-900 dark:text-white" x-text="selectedLeave.student_name"></div>
+                                        <div class="text-slate-400 font-mono" x-text="selectedLeave.student_roll_no + ' · ' + (selectedLeave.hostel_name || '') + ' Room ' + (selectedLeave.room_number || '')"></div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-slate-400">Duration</div>
+                                        <div class="font-bold text-slate-800 dark:text-white font-mono" x-text="selectedLeave.start_date + ' to ' + selectedLeave.end_date"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Digital Outpass Badge -->
+                                <template x-if="selectedLeave.outpass">
+                                    <div class="p-4 rounded-2xl border-2 border-dashed border-indigo-200 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/30 space-y-2">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Official Digital Gate Pass</span>
+                                            <span class="px-2 py-0.5 rounded font-mono font-bold bg-indigo-100 text-indigo-800 text-[10px]" x-text="selectedLeave.outpass.status"></span>
+                                        </div>
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <div class="text-lg font-black font-mono text-indigo-950 dark:text-indigo-200" x-text="selectedLeave.outpass.outpass_number"></div>
+                                                <div class="text-[11px] text-slate-500">Departure Gate Verification Active</div>
+                                            </div>
+                                            <i class="fa-solid fa-qrcode text-3xl text-indigo-500"></i>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- Details -->
+                                <div class="grid grid-cols-2 gap-2 text-slate-600 dark:text-slate-400">
+                                    <div>Destination: <span class="font-bold text-slate-800 dark:text-white" x-text="selectedLeave.destination"></span></div>
+                                    <div>Emergency Contact: <span class="font-bold text-slate-800 dark:text-white font-mono" x-text="selectedLeave.emergency_contact"></span></div>
+                                    <div>Approved By: <span class="font-bold text-slate-800 dark:text-white" x-text="selectedLeave.approved_by_name || 'Pending Review'"></span></div>
+                                    <div x-show="selectedLeave.rejection_reason" class="col-span-2 text-rose-600 font-bold">
+                                        Rejection Reason: <span x-text="selectedLeave.rejection_reason"></span>
+                                    </div>
+                                </div>
+
+                                <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40">
+                                    <div class="text-slate-400 font-semibold mb-0.5">Application Reason</div>
+                                    <div class="text-slate-700 dark:text-slate-300" x-text="selectedLeave.reason"></div>
+                                </div>
+                            </div>
+                        </template>
+
+                        <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <button @click="leaveDetailModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200">Close</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LEAVE REJECTION REASON MODAL -->
+                <div x-show="leaveRejectModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in" style="display: none;">
+                    <div @click.away="leaveRejectModalOpen = false" class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 shadow-2xl space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white">Reject Leave Application</h3>
+                            <button @click="leaveRejectModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="space-y-3 text-xs">
+                            <p class="text-slate-500">Provide an explicit, auditable reason for rejecting this student leave request:</p>
+                            <textarea x-model="leaveRejectReason" rows="3" placeholder="Explain the institutional or administrative reason for denial..."
+                                      class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-rose-500"></textarea>
+                        </div>
+                        <div class="flex items-center justify-end space-x-2 pt-2">
+                            <button @click="leaveRejectModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200">Cancel</button>
+                            <button @click="submitLeaveReject()" class="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 shadow-xs">Confirm Rejection</button>
                         </div>
                     </div>
                 </div>

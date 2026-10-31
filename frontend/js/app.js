@@ -275,6 +275,35 @@ document.addEventListener("alpine:init", () => {
             reason: ""
         },
 
+        // Leave & Outpass State
+        leaveSubTab: "my_leaves", // "my_leaves" | "apply" | "approvals" | "outpasses" | "overdue"
+        leaveApplications: [],
+        leaveApplicationsTotal: 0,
+        selectedLeave: null,
+        leaveDetailModalOpen: false,
+        leaveFilterStatus: "all",
+        leaveFilterType: "all",
+        newLeave: {
+            leave_type: "Home Leave",
+            start_date: new Date().toISOString().split("T")[0],
+            end_date: new Date(Date.now() + 2 * 86400000).toISOString().split("T")[0],
+            departure_time: "08:00",
+            expected_return_time: "20:00",
+            reason: "",
+            destination: "",
+            emergency_contact: "",
+            guardian_contact: "",
+            document_url: "",
+            is_draft: false
+        },
+        leaveRejectModalOpen: false,
+        leaveRejectReason: "",
+        outpassesList: [],
+        outpassesTotal: 0,
+        outpassFilterStatus: "all",
+        overdueOutpassesList: [],
+        outpassVerifyRemarks: "",
+
         dashboardStats: {
             hostels: { total: 1, rooms: 3, beds: 6, occupied_beds: 2, available_beds: 4, occupancy_rate: 33.3 },
             students: { total: 3, active: 3 },
@@ -771,6 +800,10 @@ document.addEventListener("alpine:init", () => {
             } else if (section === 'attendance') {
                 this.loadAttendanceSummary();
                 this.loadStudentsForMarking();
+            } else if (section === 'leaves') {
+                this.loadLeaveApplications();
+                this.loadOutpasses();
+                this.loadOverdueOutpasses();
             }
             this.navigationLatencyMs = parseFloat((performance.now() - t0).toFixed(2));
         },
@@ -1292,6 +1325,156 @@ document.addEventListener("alpine:init", () => {
                 );
             } catch (err) {
                 this.showToast(`Failed to generate attendance report: ${err.message}`, "error");
+            }
+        },
+
+        // ==================== LEAVE & OUTPASS MODULE ====================
+        async loadLeaveApplications() {
+            try {
+                const filters = {
+                    status: this.leaveFilterStatus !== "all" ? this.leaveFilterStatus : null,
+                    leave_type: this.leaveFilterType !== "all" ? this.leaveFilterType : null,
+                    limit: 50,
+                    offset: 0
+                };
+                const res = await window.API.getLeaveApplications(filters);
+                this.leaveApplications = res.records || [];
+                this.leaveApplicationsTotal = res.total || 0;
+            } catch (err) {
+                console.error("Failed to load leave applications:", err);
+            }
+        },
+
+        async submitNewLeave(isDraft = false) {
+            const form = this.newLeave;
+            if (!form.reason || form.reason.trim().length < 5) {
+                this.showToast("Please provide a valid leave reason (min 5 characters).", "error");
+                return;
+            }
+            if (!form.destination || !form.destination.trim()) {
+                this.showToast("Please enter travel destination address.", "error");
+                return;
+            }
+            if (!form.emergency_contact || form.emergency_contact.trim().length < 7) {
+                this.showToast("Please provide emergency contact number.", "error");
+                return;
+            }
+            try {
+                form.is_draft = isDraft;
+                const res = await window.API.submitLeaveApplication(form);
+                this.showToast(isDraft ? "Leave saved as Draft" : "Leave application submitted to Warden", "success");
+                this.leaveSubTab = "my_leaves";
+                await this.loadLeaveApplications();
+            } catch (err) {
+                this.showToast(`Submission failed: ${err.message}`, "error");
+            }
+        },
+
+        async openLeaveDetails(leaveId) {
+            try {
+                this.selectedLeave = await window.API.getLeaveApplication(leaveId);
+                this.leaveDetailModalOpen = true;
+            } catch (err) {
+                this.showToast(`Failed to load details: ${err.message}`, "error");
+            }
+        },
+
+        async handleApproveLeave(leaveId) {
+            this.openConfirmModal(
+                "Approve Student Leave Request",
+                "Approving this request will automatically generate a verified digital gate outpass for campus departure. Proceed?",
+                async () => {
+                    try {
+                        const res = await window.API.approveLeaveApplication(leaveId, "Approved by Warden");
+                        this.showToast(`Leave approved! Outpass #${res.outpass ? res.outpass.outpass_number : ''} issued.`, "success");
+                        await this.loadLeaveApplications();
+                        await this.loadOutpasses();
+                        if (this.selectedLeave && this.selectedLeave.id === leaveId) {
+                            this.selectedLeave = res;
+                        }
+                    } catch (err) {
+                        this.showToast(`Approval failed: ${err.message}`, "error");
+                    }
+                },
+                "Approve & Issue Outpass",
+                "primary"
+            );
+        },
+
+        openLeaveRejectModal(leaveId) {
+            this.leaveRejectModalOpen = true;
+            this.leaveRejectReason = "";
+            if (this.selectedLeave && this.selectedLeave.id === leaveId) {
+                // Already selected
+            } else {
+                this.openLeaveDetails(leaveId);
+            }
+        },
+
+        async submitLeaveReject() {
+            if (!this.leaveRejectReason || this.leaveRejectReason.trim().length < 5) {
+                this.showToast("Mandatory justification reason required for rejection (min 5 characters).", "error");
+                return;
+            }
+            try {
+                const res = await window.API.rejectLeaveApplication(this.selectedLeave.id, this.leaveRejectReason.trim());
+                this.showToast(`Leave request #${res.id} has been rejected.`, "warning");
+                this.leaveRejectModalOpen = false;
+                await this.loadLeaveApplications();
+                if (this.selectedLeave) {
+                    this.selectedLeave = res;
+                }
+            } catch (err) {
+                this.showToast(`Rejection failed: ${err.message}`, "error");
+            }
+        },
+
+        async loadOutpasses() {
+            try {
+                const filters = {
+                    status: this.outpassFilterStatus !== "all" ? this.outpassFilterStatus : null,
+                    limit: 50,
+                    offset: 0
+                };
+                const res = await window.API.getOutpasses(filters);
+                this.outpassesList = res.records || [];
+                this.outpassesTotal = res.total || 0;
+            } catch (err) {
+                console.error("Failed to load outpasses:", err);
+            }
+        },
+
+        async loadOverdueOutpasses() {
+            try {
+                this.overdueOutpassesList = await window.API.getOverdueOutpasses();
+            } catch (err) {
+                console.error("Failed to load overdue outpasses:", err);
+            }
+        },
+
+        async handleVerifyGateExit(outpassRef) {
+            try {
+                const res = await window.API.verifyOutpassExit(outpassRef, this.outpassVerifyRemarks || "Verified gate exit");
+                this.showToast(`Gate departure verified for student: Outpass #${res.outpass ? res.outpass.outpass_number : outpassRef}`, "success");
+                await this.loadOutpasses();
+                await this.loadOverdueOutpasses();
+                this.outpassVerifyRemarks = "";
+                if (this.selectedLeave) this.selectedLeave = res;
+            } catch (err) {
+                this.showToast(`Exit verification failed: ${err.message}`, "error");
+            }
+        },
+
+        async handleVerifyGateReturn(outpassRef) {
+            try {
+                const res = await window.API.verifyOutpassReturn(outpassRef, this.outpassVerifyRemarks || "Verified gate return");
+                this.showToast(`Gate return verified! Welcome back.`, "success");
+                await this.loadOutpasses();
+                await this.loadOverdueOutpasses();
+                this.outpassVerifyRemarks = "";
+                if (this.selectedLeave) this.selectedLeave = res;
+            } catch (err) {
+                this.showToast(`Return verification failed: ${err.message}`, "error");
             }
         }
     }));
