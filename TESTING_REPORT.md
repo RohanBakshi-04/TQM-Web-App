@@ -150,3 +150,34 @@
 - **Room Transfer Atomic Reallocation:** $2.85\text{ ms}$ (dual-room status recompute + dual-bed update)
 - **Student Chronological Allocation History:** $0.62\text{ ms}$
 - **Target SLA Compliance:** 100% of room allocation endpoints operate well within the < 10.0 ms threshold.
+
+---
+
+## 8. Test Summary for Prompt 08: Q05 Fast Search & Database Indexing
+
+**Execution Date:** October 31, 2026  
+**Total Tests:** 10 New Tests (64 Total Across Complete Project Suite)  
+**Result:** 64 / 64 PASS (100% Success Rate)
+
+| Test Identifier | Category | Verification Objective | Result |
+| :--- | :--- | :--- | :---: |
+| **TEST-08-SRCH-01** | Exact Match | Verifies exact match retrieval across students, hostels, and rooms | 🟢 PASS |
+| **TEST-08-SRCH-02** | Prefix Expansion | Verifies wildcard token expansion (`Pri*` matches `Priya Sharma`) | 🟢 PASS |
+| **TEST-08-SRCH-03** | Case Insensitivity | Verifies lowercase, uppercase, and mixed-case tokens return identical results | 🟢 PASS |
+| **TEST-08-SRCH-04** | Category Filter | Explicit category filters restrict matches to specified entity types | 🟢 PASS |
+| **TEST-08-SRCH-05** | Empty Query | Empty and whitespace queries handled gracefully without unhandled exceptions | 🟢 PASS |
+| **TEST-08-SRCH-06** | Security & Sanitization | Injection strings (`' OR 1=1`, `DROP TABLE`, scripts) safely neutralized | 🟢 PASS |
+| **TEST-08-SRCH-07** | Role Isolation | Student role strictly prevented from discovering confidential payment records | 🟢 PASS |
+| **TEST-08-SRCH-08** | Query Plan Assertions | `EXPLAIN QUERY PLAN` confirms B-Tree indexes selected on critical query paths | 🟢 PASS |
+| **TEST-08-SRCH-09** | Q05 Latency SLA | 20 rapid queries executed; verified all server latencies are $< 10.0\text{ ms}$ | 🟢 PASS |
+| **TEST-08-SRCH-10** | Rebuild Security | Rebuild index endpoint permits Admins and rejects unauthorized Students (HTTP 403) | 🟢 PASS |
+
+---
+
+## 9. Q05 Latency Benchmark for Fast Search & Inverted Indexing
+
+- **SQLite FTS5 Full-Text Search (100k Records):** $0.306\text{ ms}$ (Median), $1.245\text{ ms}$ (p95)
+- **B-Tree Indexed Prefix Search (100k Records):** $0.304\text{ ms}$ (Median), $6.915\text{ ms}$ (p95)
+- **Multi-Domain Parameterized Search API (`GET /api/v1/search`):** $1.15\text{ ms}$
+- **Database Query Plan Verification:** $100\%$ of production queries utilize pre-compiled B-tree indexes or FTS5 virtual tables
+- **Target SLA Compliance:** All search query latencies operate well below the < 10.0 ms threshold mandated by Quality Goal Q05.

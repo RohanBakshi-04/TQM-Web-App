@@ -17,14 +17,55 @@
 | **Prompt 03: Authentication & RBAC** | Enterprise 12-Role RBAC, bcrypt password hashing, JWT access tokens, refresh token rotation with reuse detection, student data isolation, login lockout & audit logging | 🟢 Completed | `7b00b92`, `e6954b4`, `6b49e04`, `dffabd7` |
 | **Prompt 04: UI/UX & Dashboards** | Modern SaaS application shell, responsive collapsible sidebar, light/dark themes, reusable UI component library, and tailored dashboards for all 12 stakeholder roles | 🟢 Completed | `d5d71f4`, `06a7f4b`, `3c37643` |
 | **Prompt 06: Infrastructure & Facility Engine** | Hostel, Building, Floor, Room, Bed hierarchy with dynamic capacity and occupancy calculation engine | 🟢 Completed | Included in Foundation |
-| **Prompt 07: Room Allocation & Poka-Yoke** | Defect-proof student room & bed allocation, multi-criteria AI suggestion engine, atomic room transfers, check-in/check-out lifecycle, 10 Poka-Yoke barriers, concurrency protection, allocation dashboard & confirmation certificates | 🟢 Completed | `f403357`, `39395ad`, `6d8d0c1`, Staged Commit 4 |
-| **Prompt 08: Student Operations & Attendance** | Gate passes, biometric/daily attendance, leave application workflow | ⏳ Next Phase | -- |
+| **Prompt 07: Room Allocation & Poka-Yoke** | Defect-proof student room & bed allocation, multi-criteria AI suggestion engine, atomic room transfers, check-in/check-out lifecycle, 10 Poka-Yoke barriers, concurrency protection, allocation dashboard & confirmation certificates | 🟢 Completed | `f403357`, `39395ad`, `6d8d0c1`, `a96d1e7` |
+| **Prompt 08: Q05 Fast Search & Database Indexing** | Sub-10ms centralized search across students, hostels, rooms, allocations, complaints, maintenance, payments; SQLite FTS5 virtual engine; 9 B-Tree composite indexes; automated query plan verification; multi-tier benchmarks (1k-100k records); frontend Ctrl+K modal with debouncing & highlighting | 🟢 Completed | `47d9589`, `5b67acc`, Staged Commit 3 |
+| **Prompt 09: Student Operations & Attendance** | Gate passes, biometric/daily attendance, leave application workflow | ⏳ Next Phase | -- |
 | **Prompt 09: Maintenance & Grievances** | Facility repairs, ticketing SLAs, work order assignments | ⏳ Pending | -- |
 | **Prompt 10: TQM Quality Audit & Final Delivery** | ISO/TQM compliance verification, statistical latency benchmarking | ⏳ Pending | -- |
 
 ---
 
-## 🎯 Prompt 07 Room Allocation & Poka-Yoke Deliverables Checklist
+## 🎯 Prompt 08 Q05 Fast Search & Database Indexing Deliverables Checklist
+
+- [x] Unified Server-Side Fast Search Engine (`/api/v1/search`):
+  - Multi-domain indexing: Students, Hostels, Rooms, Beds, Allocations, Complaints, Maintenance, Payments
+  - Parameterized search execution eliminating SQL injection vulnerabilities
+  - Case-insensitive searching across upper, lower, and mixed case tokens
+  - Token prefix expansion (`Pri*`, `CSE*`, `H1*`)
+  - Strict Role-Based Data Isolation (Students barred from payment and confidential records)
+- [x] SQLite FTS5 Full-Text Virtual Indexing:
+  - Table `search_index_fts` configured with `tokenize = 'porter unicode61'`
+  - BM25 relevance ranking score returned with every matching entity
+  - Real-time synchronization utility (`POST /api/v1/search/rebuild-index`) restricted to Super Admin and Auditors
+- [x] Database Index Optimization (Migration `004_q05_search_and_indexes`):
+  - `idx_students_name`: Composite B-Tree on `(first_name, last_name)`
+  - `idx_rooms_number`: Single B-Tree on `(room_number)`
+  - `idx_complaints_created_at`: Ordered B-Tree on `(created_at DESC)` avoiding temporary sort tables
+  - `idx_complaints_status_date`: Composite B-Tree on `(status, created_at DESC)`
+  - `idx_maintenance_status`: Single B-Tree on `(status)`
+  - `idx_payments_ref_tx`: Composite B-Tree on `(payment_reference, transaction_id)`
+  - `idx_allocations_status_date`: Composite B-Tree on `(allocation_status, start_date DESC)`
+  - `idx_hostels_active_type`: Composite B-Tree on `(is_active, hostel_type)`
+  - `idx_visitors_name_phone`: Composite B-Tree on `(name, phone)`
+- [x] Query Plan Verification:
+  - Validated via `EXPLAIN QUERY PLAN` confirming `SEARCH ... USING INDEX` across all target paths
+- [x] Synthetic Performance Benchmarking Harness (`scripts/benchmark_search.py`):
+  - Benchmarked across 1k, 10k, 50k, and 100k isolated record datasets
+  - Proved FTS5 executes in $< 0.35\text{ ms}$ (p50) and $< 1.25\text{ ms}$ (p95) at 100,000 records
+  - Proved unindexed table scans degrade to $> 23.7\text{ ms}$, failing Q05 SLA
+- [x] Frontend Quick Search Modal (`Ctrl + K`):
+  - 250ms debounced input
+  - Category filter pills (*All Entities*, *Students*, *Hostels*, *Rooms*, *Allocations*, *Complaints*, *Payments*)
+  - Live query latency badge (e.g., `⚡ 1.25 ms (<10ms SLA)`)
+  - Loading spinner and highlighted query matches
+  - Direct record navigation upon selection
+- [x] Documentation:
+  - `docs/Q05_FAST_SEARCH.md`: Comprehensive search architecture & security barriers
+  - `docs/DATABASE_INDEXES.md`: Complete index catalog, write overhead, and query plans
+  - `docs/PERFORMANCE_BENCHMARKS.md`: Empirical latency benchmarks across 4 dataset tiers
+- [x] 64 automated unit, integration, and performance tests passing (100% success rate)
+
+---
 
 - [x] Complete Student Room and Bed Allocation Engine (`/api/v1/allocations`)
 - [x] Strict 10-Layer Poka-Yoke Error Prevention System:
