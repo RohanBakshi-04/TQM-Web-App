@@ -140,6 +140,45 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
             applied_now.append("003_poka_yoke_allocation_tables")
             logger.info("Migration 003_poka_yoke_allocation_tables applied successfully.")
 
+        # Migration 004: Q05 Fast Search & Database Indexes Optimization
+        if "004_q05_search_and_indexes" not in applied:
+            logger.info("Applying Migration 004_q05_search_and_indexes (B-Tree composite indexes & FTS5 search engine)...")
+            cursor = conn.cursor()
+
+            # 1. High-Performance B-Tree Composite and Single-Column Indexes
+            b_tree_indexes = [
+                "CREATE INDEX IF NOT EXISTS idx_students_name ON students(first_name, last_name);",
+                "CREATE INDEX IF NOT EXISTS idx_rooms_number ON rooms(room_number);",
+                "CREATE INDEX IF NOT EXISTS idx_complaints_created_at ON complaints(created_at DESC);",
+                "CREATE INDEX IF NOT EXISTS idx_complaints_status_date ON complaints(status, created_at DESC);",
+                "CREATE INDEX IF NOT EXISTS idx_maintenance_status ON maintenance_tasks(status);",
+                "CREATE INDEX IF NOT EXISTS idx_payments_ref_tx ON payments(payment_reference, transaction_id);",
+                "CREATE INDEX IF NOT EXISTS idx_allocations_status_date ON room_allocations(allocation_status, start_date DESC);",
+                "CREATE INDEX IF NOT EXISTS idx_hostels_active_type ON hostels(is_active, hostel_type);",
+                "CREATE INDEX IF NOT EXISTS idx_visitors_name_phone ON visitors(name, phone);"
+            ]
+            for idx_sql in b_tree_indexes:
+                cursor.execute(idx_sql)
+
+            # 2. SQLite FTS5 Full-Text Virtual Table
+            cursor.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS search_index_fts USING fts5(
+                    entity_type UNINDEXED,
+                    entity_id UNINDEXED,
+                    title,
+                    subtitle,
+                    content,
+                    tags,
+                    hostel_id UNINDEXED,
+                    tokenize = 'porter unicode61'
+                );
+            """)
+
+            conn.commit()
+            record_migration(conn, "004_q05_search_and_indexes", "B-Tree Indexes & SQLite FTS5 Full-Text Acceleration")
+            applied_now.append("004_q05_search_and_indexes")
+            logger.info("Migration 004_q05_search_and_indexes applied successfully.")
+
         return applied_now
     finally:
         if should_close:
