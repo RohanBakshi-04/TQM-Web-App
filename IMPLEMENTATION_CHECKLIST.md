@@ -392,3 +392,66 @@
 ### 6. Infrastructure & Testing
 - [x] Migration `007_fee_and_financial_enhancements` with 13 composite B-Tree indexes
 - [x] Total 105 automated tests passing across entire project (100% success rate)
+
+---
+
+## Prompt 13: Mess & Inventory Management
+
+### 1. Mess Menu Management
+- [x] Create and manage daily and weekly menus across 4 meal categories: Breakfast, Lunch, Evening Snacks, Dinner
+- [x] Add multiple food items per meal with portion sizes and descriptions
+- [x] Configure meal timings and dietary tags (Vegetarian, Non-Veg, Vegan, Jain, Gluten-Free)
+- [x] Menu lifecycle workflow: Draft, Published, and Cancelled
+- [x] Audited menu modification and cancellation with mandatory justification
+- [x] Poka-Yoke duplicate menu prevention enforcing `UNIQUE(hostel_id, date, meal_type)`
+- [x] Role-based access control: Only Mess Manager, Super Admin, Hostel Admin, and Warden can modify menus
+
+### 2. Mess Subscription Management
+- [x] Multiple subscription plan tiers: Monthly, Semester, and Custom date-range
+- [x] Dietary preferences: Standard, Vegetarian, Non-Vegetarian, Special Dietary
+- [x] Unique subscription codes `SUB-YYYYMM-XXXX`
+- [x] Poka-Yoke overlapping active subscription prevention for the same student
+- [x] Lifecycle statuses: Active, Suspended, Expired, Cancelled
+- [x] Student self-service subscription view and cancellation with data isolation barrier
+
+### 3. Meal Attendance & Verification
+- [x] Daily meal attendance recording across all 4 meal sessions
+- [x] Fast verification workflows: Manual entry desk and fast QR barcode verification (`/api/v1/mess/attendance/verify-qr`)
+- [x] Active subscription verification prior to meal entry confirmation
+- [x] Poka-Yoke double-punching prevention: Disallows duplicate attendance for the same student, date, and meal type
+- [x] Attendance correction mechanism with mandatory reason and immutable audit log entry
+- [x] Real-time mess dashboard metrics: Active subscriptions, today's meal counts, consumption by meal, and expiring subscriptions
+
+### 4. Inventory Catalog & Item Management
+- [x] Institutional category hierarchy: Provisions, Vegetables & Fruits, Dairy, Cleaning & Housekeeping, Electrical, Plumbing, Linen & Bedding, Office Supplies
+- [x] Item catalog tracking: item_code, name, category, unit, quantity_in_stock, min_reorder_level, max_threshold, unit_price, supplier, location, expiry_date, status
+- [x] Real-time total inventory valuation computation (`quantity_in_stock * unit_price`)
+- [x] Automated low-stock detection (`quantity_in_stock <= min_reorder_level`)
+- [x] Automated upcoming expiry detection (`expiry_date <= 30 days`)
+
+### 5. Stock Transactions & Poka-Yoke Controls
+- [x] Stock Inward (Receipt): Records quantity, supplier, invoice reference, purchase date, unit price, and total value with atomic stock addition
+- [x] Stock Outward (Issue): Records quantity, department destination, purpose, and issuer with atomic stock deduction
+- [x] **Poka-Yoke Zero-Negative Inventory:** Strictly rejects stock issues exceeding current available stock with HTTP 400 Bad Request
+- [x] Immutable transaction audit history in `inventory_transactions`
+
+### 6. Stock Adjustments & Approvals
+- [x] Audited stock adjustments for Damaged, Expired, Wastage, or Discrepancy
+- [x] Multi-stage approval workflow (`Pending_Approval` -> `Approved` / `Rejected`)
+- [x] Authorized supervisor approval requirement for inventory write-offs
+- [x] Stock Transfers: Multi-hostel inventory rebalancing with source and target location tracking
+
+### 7. Supplier Management
+- [x] Complete supplier directory CRUD: Name, contact person, phone, email, address, goods category, active status
+- [x] Active status toggling and supplier-item association
+
+### 8. Mess & Inventory Reports & RFC 4180 Streaming CSV Export
+- [x] Meal consumption report with hostel, date range, and meal type breakdown
+- [x] Inventory stock summary valuation report with low-stock and expiry filtering
+- [x] Stock movement report with inward/outward/adjustment transaction tracking
+- [x] Streaming RFC 4180 compliant CSV export generator with high-efficiency memory streaming
+
+### 9. Database & Infrastructure
+- [x] Migration `008_mess_and_inventory_enhancements` with 15 composite B-Tree indexes
+- [x] In-memory cache integration with tag invalidation (`mess`, `inventory`)
+- [x] Total 118 automated tests passing across entire project (100% success rate)

@@ -192,3 +192,36 @@ def get_mess_dashboard(
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     return MessService.get_mess_dashboard(hostel_id, current_user)
+
+
+# ==========================================
+# 5. MESS REPORTS & CSV EXPORT
+# ==========================================
+
+@mess_router.get("/reports/consumption", summary="Meal consumption report")
+def get_meal_consumption_report(
+    start_date: Optional[str] = Query(None, description="Start date YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="End date YYYY-MM-DD"),
+    hostel_id: Optional[int] = Query(None, description="Hostel filter"),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    from backend.app.services.mess_inventory_report_service import MessInventoryReportService
+    return MessInventoryReportService.get_meal_consumption_report(start_date, end_date, hostel_id)
+
+
+@mess_router.get("/reports/consumption/export", summary="Export meal consumption report as RFC 4180 CSV")
+def export_meal_consumption_csv(
+    start_date: Optional[str] = Query(None, description="Start date YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="End date YYYY-MM-DD"),
+    hostel_id: Optional[int] = Query(None, description="Hostel filter"),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    from fastapi.responses import StreamingResponse
+    from backend.app.services.mess_inventory_report_service import MessInventoryReportService
+
+    generator = MessInventoryReportService.stream_meal_consumption_csv(start_date, end_date, hostel_id)
+    return StreamingResponse(
+        generator,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=meal_consumption_report.csv"}
+    )

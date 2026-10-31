@@ -168,3 +168,61 @@ def list_transactions(
 @inventory_router.get("/dashboard", response_model=InventoryDashboardResponse, summary="Inventory telemetry and dashboard metrics")
 def get_inventory_dashboard(current_user: Dict[str, Any] = Depends(get_current_user)):
     return InventoryService.get_dashboard()
+
+
+# ==========================================
+# 6. INVENTORY REPORTS & CSV EXPORT
+# ==========================================
+
+@inventory_router.get("/reports/summary", summary="Inventory stock summary valuation report")
+def get_stock_summary_report(
+    category_id: Optional[int] = Query(None, description="Category filter"),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    from backend.app.services.mess_inventory_report_service import MessInventoryReportService
+    return MessInventoryReportService.get_stock_summary_report(category_id)
+
+
+@inventory_router.get("/reports/summary/export", summary="Export stock summary report as RFC 4180 CSV")
+def export_stock_summary_csv(
+    category_id: Optional[int] = Query(None, description="Category filter"),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    from fastapi.responses import StreamingResponse
+    from backend.app.services.mess_inventory_report_service import MessInventoryReportService
+
+    generator = MessInventoryReportService.stream_stock_summary_csv(category_id)
+    return StreamingResponse(
+        generator,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=inventory_stock_summary.csv"}
+    )
+
+
+@inventory_router.get("/reports/movement", summary="Inventory stock transactions movement report")
+def get_stock_movement_report(
+    transaction_type: Optional[str] = Query(None, description="Transaction type filter"),
+    start_date: Optional[str] = Query(None, description="Start date YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="End date YYYY-MM-DD"),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    from backend.app.services.mess_inventory_report_service import MessInventoryReportService
+    return MessInventoryReportService.get_stock_movement_report(transaction_type, start_date, end_date)
+
+
+@inventory_router.get("/reports/movement/export", summary="Export stock transactions report as RFC 4180 CSV")
+def export_stock_movement_csv(
+    transaction_type: Optional[str] = Query(None, description="Transaction type filter"),
+    start_date: Optional[str] = Query(None, description="Start date YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="End date YYYY-MM-DD"),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    from fastapi.responses import StreamingResponse
+    from backend.app.services.mess_inventory_report_service import MessInventoryReportService
+
+    generator = MessInventoryReportService.stream_stock_movement_csv(transaction_type, start_date, end_date)
+    return StreamingResponse(
+        generator,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=inventory_movement_report.csv"}
+    )

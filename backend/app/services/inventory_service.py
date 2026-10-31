@@ -4,6 +4,7 @@ Course: BBAT104 Fundamentals of TQM
 Quality Goal: Q05 - Response Time < 10ms SLA
 """
 
+import uuid
 import logging
 from datetime import datetime, date, timedelta
 from typing import List, Optional, Dict, Any
@@ -15,8 +16,7 @@ from backend.app.models.inventory_dto import (
     InventoryCategoryCreate, InventoryCategoryResponse,
     InventoryItemCreate, InventoryItemUpdate, InventoryItemResponse,
     StockInwardCreate, StockOutwardCreate, StockAdjustmentCreate,
-    StockAdjustmentReview, StockTransactionResponse,
-    InventoryDashboardResponse
+    StockTransactionResponse, InventoryDashboardResponse
 )
 
 logger = logging.getLogger("hms_app")
@@ -56,7 +56,7 @@ class InventoryService:
             cursor.execute(
                 "INSERT INTO inventory_categories (name, code, description, is_active) "
                 "VALUES (?, ?, ?, ?)",
-                (payload.name, payload.code, payload.description, 1 if payload.is_active else 0)
+                (payload.name, payload.code, payload.description or "", 1 if payload.is_active else 0)
             )
             cat_id = cursor.lastrowid
             conn.commit()
@@ -99,11 +99,11 @@ class InventoryService:
             cursor = conn.cursor()
             now = datetime.now().isoformat()
             cursor.execute(
-                "INSERT INTO suppliers (name, code, contact_person, phone, email, address, tax_id, category, is_active, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO suppliers (name, contact_person, phone, email, address, category, is_active, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    payload.name, payload.code, payload.contact_person, payload.phone,
-                    payload.email, payload.address, payload.tax_id, payload.category,
+                    payload.name, payload.contact_person or "", payload.phone or "",
+                    payload.email or "", payload.address or "", payload.category or "General",
                     1 if payload.is_active else 0, now, now
                 )
             )
@@ -114,19 +114,17 @@ class InventoryService:
                 action="CREATE_SUPPLIER",
                 entity_name="suppliers",
                 entity_id=supplier_id,
-                details=f"Created supplier {payload.name} (Code: {payload.code or 'N/A'})"
+                details=f"Created supplier {payload.name}"
             )
             conn.commit()
 
             return SupplierResponse(
                 id=supplier_id,
                 name=payload.name,
-                code=payload.code,
                 contact_person=payload.contact_person,
                 phone=payload.phone,
                 email=payload.email,
                 address=payload.address,
-                tax_id=payload.tax_id,
                 category=payload.category,
                 is_active=payload.is_active,
                 created_at=now,
@@ -142,7 +140,7 @@ class InventoryService:
             if not current:
                 raise HTTPException(status_code=404, detail="Supplier not found.")
 
-            update_data = payload.dict(exclude_unset=True)
+            update_data = payload.model_dump(exclude_unset=True) if hasattr(payload, "model_dump") else payload.dict(exclude_unset=True)
             if not update_data:
                 return SupplierResponse(**dict(current))
 
@@ -306,16 +304,17 @@ class InventoryService:
             cursor.execute(
                 """
                 INSERT INTO inventory_items (
-                    item_code, name, category_id, unit, quantity_in_stock,
-                    min_reorder_level, max_threshold, unit_price, supplier_id,
-                    location, expiry_date, status, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    item_code, name, category_id, supplier_id, description, unit, quantity_in_stock,
+                    min_reorder_level, max_stock_threshold, unit_price, storage_location,
+                    expiry_date, status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    payload.item_code, payload.name, payload.category_id, payload.unit,
-                    payload.quantity_in_stock, payload.min_reorder_level, payload.max_threshold,
-                    payload.unit_price, payload.supplier_id, payload.location,
-                    payload.expiry_date, payload.status, now, now
+                    payload.item_code, payload.name, payload.category_id, payload.supplier_id,
+                    payload.description or "", payload.unit, payload.quantity_in_stock,
+                    payload.min_reorder_level, payload.max_stock_threshold, payload.unit_price,
+                    payload.storage_location or "Main Store", payload.expiry_date,
+                    payload.status, now, now
                 )
             )
             item_id = cursor.lastrowid
@@ -339,7 +338,7 @@ class InventoryService:
             if not cursor.fetchone():
                 raise HTTPException(status_code=404, detail="Inventory item not found.")
 
-            update_data = payload.dict(exclude_unset=True)
+            update_data = payload.model_dump(exclude_unset=True) if hasattr(payload, "model_dump") else payload.dict(exclude_unset=True)
             if not update_data:
                 return InventoryService.get_item(item_id)
 
@@ -406,19 +405,20 @@ class InventoryService:
             )
 
             # 2. Record transaction
+            ref = "TX-IN-" + uuid.uuid4().hex[:8].upper()
             cursor.execute(
                 """
                 INSERT INTO inventory_transactions (
-                    item_id, transaction_type, quantity, unit_price, total_amount,
-                    supplier_id, invoice_ref, to_location, approval_status,
-                    approved_by, approved_at, created_by, created_at, remarks
-                ) VALUES (?, 'Inward', ?, ?, ?, ?, ?, ?, 'Approved', ?, ?, ?, ?, ?)
+                    transaction_reference, item_id, transaction_type, quantity, unit_price, total_amount,
+                    supplier_id, invoice_reference, target_location, approval_status,
+                    approved_by, performed_by, created_at, notes
+                ) VALUES (?, ?, 'Stock_In', ?, ?, ?, ?, ?, ?, 'Approved', ?, ?, ?, ?)
                 """,
                 (
-                    payload.item_id, payload.quantity, effective_unit_price, total_amt,
-                    payload.supplier_id or item["supplier_id"], payload.invoice_ref,
-                    payload.location or item["location"], user_id, now, user_id, now,
-                    payload.remarks or "Routine stock procurement receipt"
+                    ref, payload.item_id, payload.quantity, effective_unit_price, total_amt,
+                    payload.supplier_id or item["supplier_id"], payload.invoice_reference or "",
+                    payload.storage_location or item["storage_location"], user_id, user_id, now,
+                    payload.remarks or "Stock procurement receipt"
                 )
             )
             tx_id = cursor.lastrowid
@@ -484,18 +484,20 @@ class InventoryService:
             )
 
             # 2. Record transaction
+            ref = "TX-OUT-" + uuid.uuid4().hex[:8].upper()
+            dept = payload.department_destination or payload.department or "Mess Kitchen"
             cursor.execute(
                 """
                 INSERT INTO inventory_transactions (
-                    item_id, transaction_type, quantity, unit_price, total_amount,
-                    department, issued_to, approval_status, approved_by, approved_at,
-                    created_by, created_at, remarks
-                ) VALUES (?, 'Outward', ?, ?, ?, ?, ?, 'Approved', ?, ?, ?, ?, ?)
+                    transaction_reference, item_id, transaction_type, quantity, unit_price, total_amount,
+                    department_destination, purpose, approval_status, approved_by,
+                    performed_by, created_at, notes
+                ) VALUES (?, ?, 'Stock_Out', ?, ?, ?, ?, ?, 'Approved', ?, ?, ?, ?)
                 """,
                 (
-                    payload.item_id, payload.quantity, unit_price, total_amt,
-                    payload.department, payload.issued_to, user_id, now, user_id, now,
-                    payload.remarks or f"Issued to {payload.department}"
+                    ref, payload.item_id, payload.quantity, unit_price, total_amt,
+                    dept, payload.purpose or f"Issued to {dept}", user_id, user_id, now,
+                    payload.remarks or f"Issued to {dept}"
                 )
             )
             tx_id = cursor.lastrowid
@@ -505,7 +507,7 @@ class InventoryService:
                 action="STOCK_OUTWARD",
                 entity_name="inventory_transactions",
                 entity_id=tx_id,
-                details=f"Issued {payload.quantity} {item['unit']} of {item['name']} to {payload.department}"
+                details=f"Issued {payload.quantity} {item['unit']} of {item['name']} to {dept}"
             )
             conn.commit()
 
@@ -521,7 +523,16 @@ class InventoryService:
                 raise HTTPException(status_code=404, detail="Inventory item not found.")
 
             current_qty = float(item["quantity_in_stock"] or 0.0)
-            new_qty = current_qty + payload.quantity_change
+            
+            # Determine quantity change
+            if payload.quantity_change is not None:
+                qty_change = payload.quantity_change
+            elif payload.quantity is not None:
+                qty_change = -abs(payload.quantity)
+            else:
+                qty_change = 0.0
+
+            new_qty = current_qty + qty_change
 
             # Prevent negative inventory from adjustment
             if new_qty < 0:
@@ -532,7 +543,8 @@ class InventoryService:
 
             now = datetime.now().isoformat()
             unit_price = float(item["unit_price"] or 0.0)
-            total_amt = round(abs(payload.quantity_change) * unit_price, 2)
+            pos_qty = abs(qty_change)
+            total_amt = round(pos_qty * unit_price, 2)
 
             min_reorder = float(item["min_reorder_level"] or 0.0)
             new_status = "Active"
@@ -552,19 +564,30 @@ class InventoryService:
                 (new_qty, new_status, now, payload.item_id)
             )
 
+            ref = "TX-ADJ-" + uuid.uuid4().hex[:8].upper()
+            adj_type = "Adjustment"
+            if payload.adjustment_type in ['Damaged', 'Damage']:
+                adj_type = "Damaged"
+            elif payload.adjustment_type == 'Wastage':
+                adj_type = "Wastage"
+            elif payload.adjustment_type == 'Expired':
+                adj_type = "Expired"
+            elif payload.adjustment_type == 'Transfer':
+                adj_type = "Transfer"
+
+            reason = payload.adjustment_reason or payload.reason or "Stock level adjustment"
             cursor.execute(
                 """
                 INSERT INTO inventory_transactions (
-                    item_id, transaction_type, quantity, unit_price, total_amount,
-                    from_location, to_location, adjustment_reason, approval_status,
-                    approved_by, approved_at, created_by, created_at, remarks
-                ) VALUES (?, 'Adjustment', ?, ?, ?, ?, ?, ?, 'Approved', ?, ?, ?, ?, ?)
+                    transaction_reference, item_id, transaction_type, quantity, unit_price, total_amount,
+                    source_location, target_location, adjustment_reason, approval_status,
+                    approved_by, performed_by, created_at, notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Approved', ?, ?, ?, ?)
                 """,
                 (
-                    payload.item_id, payload.quantity_change, unit_price, total_amt,
-                    payload.from_location or item["location"], payload.to_location,
-                    f"[{payload.adjustment_type}] {payload.reason}", user_id, now, user_id, now,
-                    payload.reason
+                    ref, payload.item_id, adj_type, pos_qty, unit_price, total_amt,
+                    payload.from_location or item["storage_location"], payload.to_location or "",
+                    reason, user_id, user_id, now, reason
                 )
             )
             tx_id = cursor.lastrowid
@@ -574,7 +597,7 @@ class InventoryService:
                 action="STOCK_ADJUSTMENT",
                 entity_name="inventory_transactions",
                 entity_id=tx_id,
-                details=f"Stock adjustment {payload.quantity_change:+} {item['unit']} for {item['name']} ({payload.adjustment_type})"
+                details=f"Stock adjustment {qty_change:+} {item['unit']} for {item['name']} ({adj_type})"
             )
             conn.commit()
 
@@ -590,13 +613,11 @@ class InventoryService:
                        i.item_code,
                        i.name AS item_name,
                        s.name AS supplier_name,
-                       u1.full_name AS approved_by_name,
-                       u2.full_name AS created_by_name
+                       (u.first_name || ' ' || u.last_name) AS approved_by_name
                 FROM inventory_transactions t
                 JOIN inventory_items i ON t.item_id = i.id
                 LEFT JOIN suppliers s ON t.supplier_id = s.id
-                LEFT JOIN users u1 ON t.approved_by = u1.id
-                LEFT JOIN users u2 ON t.created_by = u2.id
+                LEFT JOIN users u ON t.approved_by = u.id
                 WHERE t.id = ?
                 """,
                 (tx_id,)
@@ -619,13 +640,11 @@ class InventoryService:
                        i.item_code,
                        i.name AS item_name,
                        s.name AS supplier_name,
-                       u1.full_name AS approved_by_name,
-                       u2.full_name AS created_by_name
+                       (u.first_name || ' ' || u.last_name) AS approved_by_name
                 FROM inventory_transactions t
                 JOIN inventory_items i ON t.item_id = i.id
                 LEFT JOIN suppliers s ON t.supplier_id = s.id
-                LEFT JOIN users u1 ON t.approved_by = u1.id
-                LEFT JOIN users u2 ON t.created_by = u2.id
+                LEFT JOIN users u ON t.approved_by = u.id
                 WHERE 1=1
             """
             params: List[Any] = []

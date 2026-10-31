@@ -134,3 +134,45 @@ All notable changes to this project are documented in this file, adhering to Sem
 - **Financial Reports & CSV Export:** Collections, Dues, Overdue Aging (4 brackets), and Refunds reports with instant streaming CSV export.
 - **Database Migration 007:** Non-destructive enhancement for `fee_structures`, `invoices`, `payments`, `refunds`, and 13 composite B-Tree indexes.
 - **Testing Suite:** 10 new tests in `backend/tests/test_fee_and_finance.py`, expanding the complete application suite to 105 tests (100% pass rate).
+
+---
+
+## [0.9.0] - 2026-10-31 (Prompt 13: Mess & Inventory Management)
+
+### Added
+- **Mess Menu System:**
+  - Daily and weekly menus across 4 meal categories: Breakfast, Lunch, Evening Snacks, Dinner.
+  - Multi-item scheduling with portion sizes, nutritional notes, and meal timings.
+  - Draft, Published, and Cancelled lifecycle with audited cancellation reason.
+  - Poka-Yoke duplicate menu prevention enforcing `UNIQUE(hostel_id, date, meal_type)`.
+- **Mess Subscriptions:**
+  - Monthly, Semester, and Custom date-range subscription tiers with dietary preferences (Veg, Non-Veg, Special).
+  - Unique subscription reference `SUB-YYYYMM-XXXX`.
+  - Poka-Yoke overlapping active subscription prevention for the same student.
+  - Student self-service subscription views and cancellations with RBAC data isolation.
+- **Meal Attendance Verification:**
+  - Rapid meal attendance logging with active subscription verification.
+  - Fast QR code verification workflow (`/api/v1/mess/attendance/verify-qr`) and manual desk punch.
+  - Poka-Yoke duplicate attendance prevention blocking double-punching in the same meal session.
+  - Audited attendance corrections with mandatory justification and audit log tracking.
+  - Real-time mess dashboard KPI aggregation.
+- **Inventory & Stock Management:**
+  - Institutional item catalog tracking stock on hand, min reorder levels, max thresholds, and valuations.
+  - Real-time low-stock alerts and 30-day upcoming expiry alerts.
+  - Stock Inward (Receipt): Inward transaction with supplier, invoice ref, unit price, and atomic stock increment.
+  - Stock Outward (Issue): Outward transaction with department, purpose, and atomic stock decrement.
+  - **Poka-Yoke Zero-Negative Inventory:** Outward requests exceeding available stock are strictly rejected with HTTP 400 Bad Request.
+  - Stock Adjustments: Audited adjustments (Damaged, Expired, Wastage, Discrepancy) with supervisor approval workflow (`Pending_Approval` -> `Approved` / `Rejected`).
+  - Stock Transfers: Multi-hostel inventory rebalancing with source and target location tracking.
+- **Supplier Directory:**
+  - Complete supplier CRUD: Name, contact person, phone, email, address, goods category, active status.
+- **Mess & Inventory Reports & CSV Export:**
+  - Meal consumption report with hostel, date range, and meal type breakdown.
+  - Stock summary valuation report and stock movement audit report.
+  - Streaming RFC 4180 compliant CSV export generator.
+- **Database Schema Migration 008:**
+  - Non-destructive enhancement of `mess_menus`, `mess_subscriptions`, `meal_attendance`, `inventory_items`, `inventory_transactions`, `suppliers`.
+  - 15 composite B-Tree indexes for sub-10ms Q05 SLA query execution.
+- **Testing Suite:**
+  - 13 comprehensive unit and integration tests in `backend/tests/test_mess_and_inventory.py`.
+  - Expanded total test suite to 118 tests (100% pass rate).

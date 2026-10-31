@@ -104,7 +104,7 @@ class MessService:
             params = []
 
             # Students only see Published menus
-            role = current_user.get("role")
+            role = cls._extract_role(current_user)
             if role == "student":
                 conditions.append("status = 'Published'")
             elif filters.get("status"):
@@ -402,9 +402,10 @@ class MessService:
             conditions = ["1=1"]
             params = []
 
-            role = current_user.get("role")
+            role = cls._extract_role(current_user)
+            user_id = cls._extract_user_id(current_user)
             if role == "student":
-                cursor.execute("SELECT id FROM students WHERE user_id = ?;", (current_user.get("user_id"),))
+                cursor.execute("SELECT id FROM students WHERE user_id = ?;", (user_id,))
                 st = cursor.fetchone()
                 if not st:
                     return {"total": 0, "records": []}
@@ -467,8 +468,9 @@ class MessService:
                 raise HTTPException(status_code=404, detail="Mess subscription not found.")
 
             res = dict(row)
-            role = current_user.get("role")
-            if role == "student" and res.get("student_user_id") != current_user.get("user_id"):
+            role = cls._extract_role(current_user)
+            user_id = cls._extract_user_id(current_user)
+            if role == "student" and res.get("student_user_id") != user_id:
                 raise HTTPException(status_code=403, detail="Forbidden: You cannot access other students' subscriptions.")
             return res
         finally:
@@ -497,7 +499,7 @@ class MessService:
                 INSERT INTO audit_logs (user_id, username, action, entity_name, entity_id, details, latency_ms)
                 VALUES (?, ?, 'UPDATE_SUBSCRIPTION_STATUS', 'mess_subscriptions', ?, ?, 0.5);
             """, (
-                current_user.get("user_id"),
+                cls._extract_user_id(current_user),
                 current_user.get("username", "messmanager"),
                 str(sub_id),
                 f"Changed subscription #{sub_id} status to {new_status}. Reason: {reason}"
@@ -555,7 +557,7 @@ class MessService:
                 att_date,
                 payload.meal_type,
                 payload.verification_method,
-                current_user.get("user_id")
+                cls._extract_user_id(current_user)
             ))
             att_id = cursor.lastrowid
             conn.commit()
@@ -622,13 +624,13 @@ class MessService:
                 UPDATE meal_attendance
                 SET status = ?, correction_reason = ?, corrected_by = ?
                 WHERE id = ?;
-            """, (payload.status, payload.correction_reason.strip(), current_user.get("user_id"), attendance_id))
+            """, (payload.status, payload.correction_reason.strip(), cls._extract_user_id(current_user), attendance_id))
 
             cursor.execute("""
                 INSERT INTO audit_logs (user_id, username, action, entity_name, entity_id, details, latency_ms)
                 VALUES (?, ?, 'CORRECT_MEAL_ATTENDANCE', 'meal_attendance', ?, ?, 0.5);
             """, (
-                current_user.get("user_id"),
+                cls._extract_user_id(current_user),
                 current_user.get("username", "messmanager"),
                 str(attendance_id),
                 f"Corrected meal attendance #{attendance_id} to '{payload.status}'. Reason: {payload.correction_reason}"
@@ -649,9 +651,10 @@ class MessService:
             conditions = ["1=1"]
             params = []
 
-            role = current_user.get("role")
+            role = cls._extract_role(current_user)
+            user_id = cls._extract_user_id(current_user)
             if role == "student":
-                cursor.execute("SELECT id FROM students WHERE user_id = ?;", (current_user.get("user_id"),))
+                cursor.execute("SELECT id FROM students WHERE user_id = ?;", (user_id,))
                 st = cursor.fetchone()
                 if not st:
                     return []
@@ -695,8 +698,8 @@ class MessService:
     @classmethod
     def get_mess_dashboard(cls, hostel_id: Optional[int], current_user: Dict[str, Any]) -> Dict[str, Any]:
         """Aggregate real-time mess metrics with sub-10ms response time and caching."""
-        role = current_user.get("role")
-        user_id = current_user.get("user_id")
+        role = cls._extract_role(current_user)
+        user_id = cls._extract_user_id(current_user)
 
         cache_key = f"mess_dash:{role}:{user_id}:{hostel_id or 'all'}"
         cached = cache_service.get(cache_key)
@@ -829,26 +832,39 @@ class MessService:
     # ==========================================
 
     @staticmethod
-    def _enforce_mess_manager_or_admin(current_user: Dict[str, Any]):
-        role = current_user.get("role")
+    def _extract_role(current_user: Dict[str, Any]) -> Optional[str]:
+        if "role" in current_user and current_user["role"]:
+            return current_user["role"]
+        roles = current_user.get("roles")
+        if roles and isinstance(roles, list) and len(roles) > 0:
+            return roles[0]
+        return None
+
+    @staticmethod
+    def _extract_user_id(current_user: Dict[str, Any]) -> int:
+        return current_user.get("user_id") or current_user.get("id") or 1
+
+    @classmethod
+    def _enforce_mess_manager_or_admin(cls, current_user: Dict[str, Any]):
+        role = cls._extract_role(current_user)
         if role not in ["super_admin", "hostel_admin", "mess_manager"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Unauthorized: Access restricted to Mess Managers and Administrators."
             )
 
-    @staticmethod
-    def _enforce_mess_manager_or_staff(current_user: Dict[str, Any]):
-        role = current_user.get("role")
+    @classmethod
+    def _enforce_mess_manager_or_staff(cls, current_user: Dict[str, Any]):
+        role = cls._extract_role(current_user)
         if role not in ["super_admin", "hostel_admin", "mess_manager", "warden", "assistant_warden"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Unauthorized: Staff permissions required to mark meal attendance."
             )
 
-    @staticmethod
-    def _enforce_mess_view_access(current_user: Dict[str, Any]):
-        role = current_user.get("role")
+    @classmethod
+    def _enforce_mess_view_access(cls, current_user: Dict[str, Any]):
+        role = cls._extract_role(current_user)
         if role not in ["super_admin", "hostel_admin", "mess_manager", "warden", "assistant_warden", "auditor", "accountant"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
