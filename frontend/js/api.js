@@ -173,14 +173,71 @@ const API = {
         return await response.json();
     },
 
+    _pendingRequests: new Map(),
+
     /**
-     * Fetch live dashboard aggregation metrics.
+     * Deduplicate identical in-flight GET requests to prevent redundant network traffic.
      */
-    async getDashboardStats() {
-        const response = await fetch(`${this.baseUrl}/api/v1/dashboard/stats`, {
+    async deduplicatedFetch(url, options = {}) {
+        const method = (options.method || "GET").toUpperCase();
+        if (method !== "GET") {
+            return fetch(url, options);
+        }
+        if (this._pendingRequests.has(url)) {
+            return this._pendingRequests.get(url).then(res => res.clone());
+        }
+        const promise = fetch(url, options).finally(() => {
+            this._pendingRequests.delete(url);
+        });
+        this._pendingRequests.set(url, promise);
+        return promise.then(res => res.clone());
+    },
+
+    /**
+     * Fetch live or cached dashboard aggregation metrics with Q05 sub-10ms acceleration.
+     */
+    async getDashboardStats(hostelId = null, bypassCache = false) {
+        const params = new URLSearchParams();
+        if (hostelId) params.append("hostel_id", hostelId);
+        if (bypassCache) params.append("bypass_cache", "true");
+        const qs = params.toString();
+        const url = `${this.baseUrl}/api/v1/metrics/dashboard${qs ? '?' + qs : ''}`;
+
+        try {
+            const response = await this.deduplicatedFetch(url, {
+                headers: this.getHeaders()
+            });
+            if (response.ok) return await response.json();
+        } catch (e) {
+            // Fallback to legacy endpoint if metrics router unavailable
+        }
+
+        const legacyResp = await fetch(`${this.baseUrl}/api/v1/dashboard/stats`, {
+            headers: this.getHeaders()
+        });
+        if (!legacyResp.ok) return null;
+        return await legacyResp.json();
+    },
+
+    /**
+     * Retrieve cache operational statistics.
+     */
+    async getCacheStats() {
+        const response = await fetch(`${this.baseUrl}/api/v1/metrics/cache/stats`, {
             headers: this.getHeaders()
         });
         if (!response.ok) return null;
+        return await response.json();
+    },
+
+    /**
+     * Flush in-memory cache.
+     */
+    async clearCache() {
+        const response = await fetch(`${this.baseUrl}/api/v1/metrics/cache/clear`, {
+            method: "POST",
+            headers: this.getHeaders()
+        });
         return await response.json();
     },
 

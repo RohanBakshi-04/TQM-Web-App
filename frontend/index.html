@@ -541,7 +541,7 @@
                         Application
                     </div>
 
-                    <button @click="activeSection = 'welcome'; mobileMenuOpen = false;"
+                    <button @click="navigateTo('welcome')"
                             :class="activeSection === 'welcome' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
                             class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
                         <i class="fa-solid fa-compass w-5 text-center text-sm"></i>
@@ -549,7 +549,7 @@
                     </button>
 
                     <template x-if="!isAuthenticated">
-                        <button @click="activeSection = 'login'; mobileMenuOpen = false;"
+                        <button @click="navigateTo('login')"
                                 :class="activeSection === 'login' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
                                 class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
                             <i class="fa-solid fa-right-to-bracket w-5 text-center text-sm"></i>
@@ -558,7 +558,7 @@
                     </template>
 
                     <template x-if="isAuthenticated">
-                        <button @click="activeSection = 'dashboard'; mobileMenuOpen = false;"
+                        <button @click="navigateTo('dashboard')"
                                 :class="activeSection === 'dashboard' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
                                 class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
                             <i class="fa-solid fa-gauge-high w-5 text-center text-sm"></i>
@@ -567,7 +567,7 @@
                     </template>
 
                     <template x-if="isAuthenticated">
-                        <button @click="activeSection = 'allocations'; mobileMenuOpen = false; loadAllocations(); loadAvailableBeds(); loadTransfers();"
+                        <button @click="navigateTo('allocations')"
                                 :class="activeSection === 'allocations' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
                                 class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
                             <i class="fa-solid fa-bed w-5 text-center text-sm"></i>
@@ -575,7 +575,7 @@
                         </button>
                     </template>
 
-                    <button @click="activeSection = 'architecture'; mobileMenuOpen = false;"
+                    <button @click="navigateTo('architecture')"
                             :class="activeSection === 'architecture' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
                             class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
                         <i class="fa-solid fa-microchip w-5 text-center text-sm"></i>

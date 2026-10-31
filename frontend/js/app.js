@@ -22,6 +22,7 @@ document.addEventListener("alpine:init", () => {
         searchResults: [],
         searchLoading: false,
         searchResultsLatency: null,
+        navigationLatencyMs: 0.0,
 
         // Reusable Modal & Confirmation Dialog State
         modal: {
@@ -648,15 +649,33 @@ document.addEventListener("alpine:init", () => {
             return text.replace(pattern, '<mark class="bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 font-bold px-0.5 rounded">$1</mark>');
         },
 
+        navigateTo(section) {
+            if (this.activeSection === section) return;
+            const t0 = performance.now();
+            this.activeSection = section;
+            this.mobileMenuOpen = false;
+
+            // Preserve view-specific state; avoid redundant network requests if already populated
+            if (section === 'dashboard' && !this.dashboardStats) {
+                this.loadDashboardStats();
+            } else if (section === 'allocations' && (!this.allocations || !this.allocations.length)) {
+                this.loadAllocations();
+                this.loadAvailableBeds();
+                this.loadTransfers();
+            }
+            this.navigationLatencyMs = parseFloat((performance.now() - t0).toFixed(2));
+        },
+
         selectSearchResult(item) {
             this.searchModalOpen = false;
             if (item.category === 'allocations') {
-                this.currentModule = 'allocations';
-                this.loadAllocations();
+                this.navigateTo('allocations');
             } else if (item.category === 'hostels' || item.category === 'rooms') {
-                this.currentModule = 'hostels';
+                this.navigateTo('dashboard');
+                this.switchRoleDashboard('hostel_admin');
             } else if (item.category === 'students') {
-                this.currentModule = 'students';
+                this.navigateTo('dashboard');
+                this.switchRoleDashboard('super_admin');
             } else {
                 this.showToast(`Selected ${item.category}: ${item.title}`, "info");
             }
