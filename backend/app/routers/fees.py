@@ -9,8 +9,13 @@ from backend.app.models.finance_dto import (
     BulkInvoiceCreate,
     InvoiceDiscountApply,
     InvoiceCancelRequest,
+    PaymentRecordCreate,
+    PaymentReverseRequest,
+    RefundRequestCreate,
+    RefundReviewAction,
 )
 from backend.app.services.fee_service import FeeService
+from backend.app.services.payment_service import PaymentService
 
 fees_router = APIRouter(prefix="/api/v1/fees", tags=["Fee & Financial Management"])
 
@@ -155,3 +160,151 @@ def get_invoice_receipt(
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     return FeeService.generate_invoice_receipt(id, current_user)
+
+
+# ==========================================
+# 3. PAYMENT ENDPOINTS
+# ==========================================
+
+@fees_router.get("/payments", summary="List payment transactions with filters")
+def list_payments(
+    student_id: Optional[int] = Query(None),
+    invoice_id: Optional[int] = Query(None),
+    payment_method: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    payment_reference: Optional[str] = Query(None),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    filters = {
+        "student_id": student_id,
+        "invoice_id": invoice_id,
+        "payment_method": payment_method,
+        "status": status,
+        "payment_reference": payment_reference,
+        "start_date": start_date,
+        "end_date": end_date,
+        "limit": limit,
+        "offset": offset
+    }
+    return PaymentService.get_payments(filters, current_user)
+
+
+@fees_router.post("/payments", status_code=status.HTTP_201_CREATED, summary="Record student payment against invoice")
+def record_payment(
+    payload: PaymentRecordCreate,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    return PaymentService.record_payment(payload, current_user)
+
+
+@fees_router.get("/payments/{id}", summary="Get payment transaction details")
+def get_payment(
+    id: int,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    return PaymentService.get_payment(id, current_user)
+
+
+@fees_router.get("/payments/student/{student_id}", summary="Get payments by student ID")
+def get_student_payments(
+    student_id: int,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    filters = {"student_id": student_id, "limit": limit, "offset": offset}
+    return PaymentService.get_payments(filters, current_user)
+
+
+@fees_router.post("/payments/{id}/verify", summary="Verify and confirm payment record")
+def verify_payment(
+    id: int,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    # Fetch details confirming verification
+    return PaymentService.get_payment(id, current_user)
+
+
+@fees_router.post("/payments/{id}/reverse", summary="Audited payment reversal")
+def reverse_payment(
+    id: int,
+    payload: PaymentReverseRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    return PaymentService.reverse_payment(id, payload, current_user)
+
+
+@fees_router.get("/payments/{id}/receipt", summary="Get official payment confirmation receipt")
+def get_payment_receipt(
+    id: int,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    return PaymentService.generate_payment_receipt(id, current_user)
+
+
+# ==========================================
+# 4. REFUND ENDPOINTS
+# ==========================================
+
+@fees_router.get("/refunds", summary="List refund requests")
+def list_refunds(
+    status: Optional[str] = Query(None),
+    payment_id: Optional[int] = Query(None),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    filters = {"status": status, "payment_id": payment_id, "limit": limit, "offset": offset}
+    return PaymentService.get_refunds(filters, current_user)
+
+
+@fees_router.post("/refunds", status_code=status.HTTP_201_CREATED, summary="Create a refund request")
+def request_refund(
+    payload: RefundRequestCreate,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    return PaymentService.request_refund(payload, current_user)
+
+
+@fees_router.get("/refunds/{id}", summary="Get refund details by ID")
+def get_refund(
+    id: int,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    return PaymentService.get_refund(id, current_user)
+
+
+@fees_router.post("/refunds/{id}/approve", summary="Approve refund request")
+def approve_refund(
+    id: int,
+    payload: Optional[RefundReviewAction] = None,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    review = payload or RefundReviewAction(action="Approve")
+    review.action = "Approve"
+    return PaymentService.review_refund(id, review, current_user)
+
+
+@fees_router.post("/refunds/{id}/reject", summary="Reject refund request with reason")
+def reject_refund(
+    id: int,
+    payload: RefundReviewAction,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    payload.action = "Reject"
+    return PaymentService.review_refund(id, payload, current_user)
+
+
+@fees_router.post("/refunds/{id}/process", summary="Process approved refund and adjust ledger")
+def process_refund(
+    id: int,
+    payload: Optional[RefundReviewAction] = None,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    review = payload or RefundReviewAction(action="Process")
+    review.action = "Process"
+    return PaymentService.review_refund(id, review, current_user)

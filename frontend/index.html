@@ -3694,6 +3694,16 @@
                                     class="px-3.5 py-1.5 rounded-xl transition whitespace-nowrap">
                                 <i class="fa-solid fa-receipt mr-1.5"></i>Invoices & Dues
                             </button>
+                            <button @click="feeSubTab = 'payments'; loadPaymentsList()"
+                                    :class="feeSubTab === 'payments' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-300 shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl transition whitespace-nowrap">
+                                <i class="fa-solid fa-money-bill-wave mr-1.5"></i>Payments
+                            </button>
+                            <button @click="feeSubTab = 'refunds'; loadRefundsList()"
+                                    :class="feeSubTab === 'refunds' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-300 shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl transition whitespace-nowrap">
+                                <i class="fa-solid fa-rotate-left mr-1.5"></i>Refunds
+                            </button>
                             <button @click="feeSubTab = 'structures'; loadFeeStructures()"
                                     :class="feeSubTab === 'structures' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-300 shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'"
                                     class="px-3.5 py-1.5 rounded-xl transition whitespace-nowrap">
@@ -3783,6 +3793,11 @@
                                                 </td>
                                                 <td class="py-2.5 px-3 text-center">
                                                     <div class="flex items-center justify-center space-x-1">
+                                                        <template x-if="inv.outstanding_balance > 0 && inv.status !== 'Cancelled'">
+                                                            <button @click="openRecordPaymentModal(inv)" title="Record Payment" class="p-1 text-slate-400 hover:text-emerald-600 transition">
+                                                                <i class="fa-solid fa-credit-card"></i>
+                                                            </button>
+                                                        </template>
                                                         <button @click="viewInvoiceReceipt(inv.id)" title="View Demand Receipt" class="p-1 text-slate-400 hover:text-emerald-600 transition">
                                                             <i class="fa-solid fa-file-invoice"></i>
                                                         </button>
@@ -3806,7 +3821,169 @@
                         </div>
                     </div>
 
-                    <!-- 2. FEE STRUCTURES VIEW -->
+                    <!-- 2. PAYMENTS VIEW -->
+                    <div x-show="feeSubTab === 'payments'" class="space-y-6">
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
+                            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div class="flex items-center space-x-3">
+                                    <input type="text" x-model="paymentSearch" @input.debounce.300ms="loadPaymentsList()" placeholder="Search payment ref..."
+                                           class="text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none" />
+                                    <select x-model="paymentMethodFilter" @change="loadPaymentsList()"
+                                            class="text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none">
+                                        <option value="all">All Methods</option>
+                                        <option value="UPI">UPI</option>
+                                        <option value="Cash">Cash</option>
+                                        <option value="Bank_Transfer">Bank Transfer</option>
+                                        <option value="Card">Debit/Credit Card</option>
+                                        <option value="Cheque">Cheque</option>
+                                    </select>
+                                    <button @click="loadPaymentsList()" class="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200">
+                                        <i class="fa-solid fa-arrows-rotate mr-1"></i>Refresh
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Payments Table -->
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="text-[11px] uppercase font-bold text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                                        <tr>
+                                            <th class="py-3 px-3">Reference #</th>
+                                            <th class="py-3 px-3">Invoice #</th>
+                                            <th class="py-3 px-3">Student</th>
+                                            <th class="py-3 px-3">Date</th>
+                                            <th class="py-3 px-3">Method</th>
+                                            <th class="py-3 px-3 text-right">Amount</th>
+                                            <th class="py-3 px-3">Status</th>
+                                            <th class="py-3 px-3 text-center">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                        <template x-if="paymentsList.length === 0">
+                                            <tr>
+                                                <td colspan="8" class="py-6 text-center text-slate-400">No payment transactions recorded.</td>
+                                            </tr>
+                                        </template>
+                                        <template x-for="p in paymentsList" :key="p.id">
+                                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                                <td class="py-2.5 px-3 font-mono font-bold text-emerald-600 dark:text-emerald-400" x-text="p.payment_reference"></td>
+                                                <td class="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-400" x-text="p.invoice_number"></td>
+                                                <td class="py-2.5 px-3">
+                                                    <div class="font-bold text-slate-800 dark:text-white" x-text="p.student_name"></div>
+                                                    <div class="text-[10px] text-slate-400 font-mono" x-text="'Roll: ' + p.student_roll_no"></div>
+                                                </td>
+                                                <td class="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-400" x-text="p.payment_date"></td>
+                                                <td class="py-2.5 px-3 text-slate-700 dark:text-slate-300 font-semibold" x-text="p.payment_method"></td>
+                                                <td class="py-2.5 px-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400" x-text="'₹' + (p.amount).toFixed(2)"></td>
+                                                <td class="py-2.5 px-3">
+                                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
+                                                          :class="{
+                                                              'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300': p.status === 'Completed',
+                                                              'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300': p.status === 'Pending',
+                                                              'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300': p.status === 'Reversed' || p.status === 'Failed',
+                                                              'bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300': p.status === 'Refunded'
+                                                          }"
+                                                          x-text="p.status"></span>
+                                                </td>
+                                                <td class="py-2.5 px-3 text-center">
+                                                    <div class="flex items-center justify-center space-x-1">
+                                                        <button @click="viewPaymentReceipt(p.id)" title="View Receipt" class="p-1 text-slate-400 hover:text-emerald-600 transition">
+                                                            <i class="fa-solid fa-receipt"></i>
+                                                        </button>
+                                                        <template x-if="p.status === 'Completed'">
+                                                            <button @click="openRequestRefundModal(p)" title="Request Refund" class="p-1 text-slate-400 hover:text-purple-600 transition">
+                                                                <i class="fa-solid fa-rotate-left"></i>
+                                                            </button>
+                                                        </template>
+                                                        <template x-if="p.status === 'Completed'">
+                                                            <button @click="openReversePaymentModal(p)" title="Audited Reversal" class="p-1 text-slate-400 hover:text-rose-600 transition">
+                                                                <i class="fa-solid fa-arrow-rotate-left"></i>
+                                                            </button>
+                                                        </template>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. REFUNDS VIEW -->
+                    <div x-show="feeSubTab === 'refunds'" class="space-y-6">
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-base font-bold text-slate-900 dark:text-white">Fee Refund Requests</h3>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">Audited refund claims and adjustment lifecycle.</p>
+                                </div>
+                                <button @click="loadRefundsList()" class="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200">
+                                    <i class="fa-solid fa-arrows-rotate mr-1"></i>Refresh
+                                </button>
+                            </div>
+
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="text-[11px] uppercase font-bold text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                                        <tr>
+                                            <th class="py-3 px-3">Refund Ref #</th>
+                                            <th class="py-3 px-3">Payment Ref</th>
+                                            <th class="py-3 px-3">Student</th>
+                                            <th class="py-3 px-3 text-right">Amount</th>
+                                            <th class="py-3 px-3">Reason</th>
+                                            <th class="py-3 px-3">Status</th>
+                                            <th class="py-3 px-3 text-center">Review Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                        <template x-if="refundsList.length === 0">
+                                            <tr>
+                                                <td colspan="7" class="py-6 text-center text-slate-400">No refund requests recorded.</td>
+                                            </tr>
+                                        </template>
+                                        <template x-for="r in refundsList" :key="r.id">
+                                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                                <td class="py-2.5 px-3 font-mono font-bold text-purple-600 dark:text-purple-400" x-text="r.refund_reference"></td>
+                                                <td class="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-400" x-text="r.payment_reference"></td>
+                                                <td class="py-2.5 px-3">
+                                                    <div class="font-bold text-slate-800 dark:text-white" x-text="r.student_name"></div>
+                                                    <div class="text-[10px] text-slate-400 font-mono" x-text="'Roll: ' + r.student_roll_no"></div>
+                                                </td>
+                                                <td class="py-2.5 px-3 text-right font-mono font-bold text-rose-600" x-text="'₹' + (r.amount).toFixed(2)"></td>
+                                                <td class="py-2.5 px-3 text-slate-600 dark:text-slate-400 max-w-xs truncate" x-text="r.reason"></td>
+                                                <td class="py-2.5 px-3">
+                                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
+                                                          :class="{
+                                                              'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300': r.status === 'Requested' || r.status === 'Under_Review',
+                                                              'bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-300': r.status === 'Approved',
+                                                              'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300': r.status === 'Processed',
+                                                              'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300': r.status === 'Rejected'
+                                                          }"
+                                                          x-text="r.status"></span>
+                                                </td>
+                                                <td class="py-2.5 px-3 text-center">
+                                                    <div class="flex items-center justify-center space-x-1">
+                                                        <template x-if="r.status === 'Requested' || r.status === 'Under_Review'">
+                                                            <div class="flex items-center space-x-1">
+                                                                <button @click="handleReviewRefund(r.id, 'Approve')" title="Approve Refund" class="px-2 py-1 rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 text-[10px] font-bold">Approve</button>
+                                                                <button @click="handleReviewRefund(r.id, 'Reject')" title="Reject Refund" class="px-2 py-1 rounded bg-rose-50 text-rose-600 hover:bg-rose-100 text-[10px] font-bold">Reject</button>
+                                                            </div>
+                                                        </template>
+                                                        <template x-if="r.status === 'Approved'">
+                                                            <button @click="handleReviewRefund(r.id, 'Process')" title="Process Refund" class="px-2 py-1 rounded bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-[10px] font-bold">Process Payout</button>
+                                                        </template>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4. FEE STRUCTURES VIEW -->
                     <div x-show="feeSubTab === 'structures'" class="space-y-6">
                         <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
                             <div class="flex items-center justify-between">
@@ -4188,6 +4365,153 @@
                         <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                             <button @click="cancelInvoiceModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold">Back</button>
                             <button @click="handleCancelInvoice()" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold">Confirm Cancellation</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 7. RECORD PAYMENT MODAL -->
+                <div x-show="recordPaymentModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in" style="display: none;">
+                    <div @click.away="recordPaymentModalOpen = false" class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 shadow-2xl space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                <i class="fa-solid fa-credit-card text-emerald-500"></i>Record Student Payment
+                            </h3>
+                            <button @click="recordPaymentModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="space-y-3 text-xs">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Invoice ID *</label>
+                                    <input type="number" x-model="newPayment.invoice_id" readonly
+                                           class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white font-mono font-bold" />
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Payment Method *</label>
+                                    <select x-model="newPayment.payment_method" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none">
+                                        <option value="UPI">UPI Payment</option>
+                                        <option value="Cash">Cash at Counter</option>
+                                        <option value="Bank_Transfer">Bank Wire / NEFT</option>
+                                        <option value="Card">Debit / Credit Card</option>
+                                        <option value="Cheque">Bank Cheque</option>
+                                        <option value="Demand_Draft">Demand Draft</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Amount to Pay (₹) *</label>
+                                <input type="number" step="0.01" x-model="newPayment.amount" placeholder="Enter amount"
+                                       class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white font-mono font-bold text-sm" />
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Transaction Reference / UTR #</label>
+                                <input type="text" x-model="newPayment.transaction_id" placeholder="e.g. UPI-9876543210 or Bank Tx Ref"
+                                       class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white font-mono" />
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Notes / Remarks</label>
+                                <input type="text" x-model="newPayment.notes" placeholder="Optional notes"
+                                       class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white" />
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                            <button @click="recordPaymentModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold">Cancel</button>
+                            <button @click="handleRecordPayment()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold">Confirm & Pay</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 8. REVERSE PAYMENT MODAL -->
+                <div x-show="reversePaymentModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in" style="display: none;">
+                    <div @click.away="reversePaymentModalOpen = false" class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-sm w-full p-6 shadow-2xl space-y-4">
+                        <h3 class="text-base font-bold text-rose-600 flex items-center gap-2">
+                            <i class="fa-solid fa-arrow-rotate-left"></i>Audited Payment Reversal
+                        </h3>
+                        <p class="text-xs text-slate-500">Reversing a payment deducts the amount from the invoice and restores its unpaid balance.</p>
+                        <div class="space-y-3 text-xs">
+                            <div>
+                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Mandatory Reversal Reason *</label>
+                                <textarea x-model="reversePaymentForm.reason" rows="2" placeholder="e.g. Bank chargeback or bounced cheque confirmation..."
+                                          class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white"></textarea>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <button @click="reversePaymentModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold">Cancel</button>
+                            <button @click="handleReversePayment()" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold">Reverse Payment</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 9. REQUEST REFUND MODAL -->
+                <div x-show="requestRefundModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in" style="display: none;">
+                    <div @click.away="requestRefundModalOpen = false" class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-sm w-full p-6 shadow-2xl space-y-4">
+                        <h3 class="text-base font-bold text-purple-600 flex items-center gap-2">
+                            <i class="fa-solid fa-rotate-left"></i>Request Fee Refund
+                        </h3>
+                        <div class="space-y-3 text-xs">
+                            <div>
+                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Refund Amount (₹) *</label>
+                                <input type="number" step="0.01" x-model="newRefund.amount" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white font-mono font-bold" />
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Refund Method</label>
+                                <select x-model="newRefund.refund_method" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:outline-none">
+                                    <option value="Bank_Transfer">Direct Bank Transfer</option>
+                                    <option value="UPI">UPI Transfer</option>
+                                    <option value="Cash">Cash Refund</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Reason for Refund *</label>
+                                <textarea x-model="newRefund.reason" rows="2" placeholder="e.g. Caution deposit return upon semester completion..."
+                                          class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white"></textarea>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <button @click="requestRefundModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold">Cancel</button>
+                            <button @click="handleRequestRefund()" class="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold">Submit Request</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 10. PAYMENT RECEIPT MODAL -->
+                <div x-show="paymentReceiptModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in" style="display: none;">
+                    <div @click.away="paymentReceiptModalOpen = false" class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 shadow-2xl space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                            <div class="flex items-center space-x-3">
+                                <i class="fa-solid fa-circle-check text-emerald-500 text-2xl"></i>
+                                <div>
+                                    <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Payment Receipt</h3>
+                                    <div class="text-[10px] text-slate-400">University Hostel Management Board</div>
+                                </div>
+                            </div>
+                            <button @click="paymentReceiptModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+
+                        <template x-if="activePaymentReceipt">
+                            <div class="space-y-4 text-xs">
+                                <div class="bg-emerald-50 dark:bg-emerald-950/50 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-900/50 text-center">
+                                    <div class="text-xs text-emerald-700 dark:text-emerald-300 font-semibold">Amount Paid</div>
+                                    <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono mt-1" x-text="'₹' + (activePaymentReceipt.amount).toFixed(2)"></div>
+                                    <div class="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono mt-0.5" x-text="activePaymentReceipt.payment_reference"></div>
+                                </div>
+
+                                <div class="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
+                                    <div class="flex justify-between"><span class="text-slate-400">Student Name:</span> <span class="font-bold text-slate-800 dark:text-white" x-text="activePaymentReceipt.student_name"></span></div>
+                                    <div class="flex justify-between"><span class="text-slate-400">Roll No:</span> <span class="font-mono font-semibold" x-text="activePaymentReceipt.student_roll_no"></span></div>
+                                    <div class="flex justify-between"><span class="text-slate-400">Invoice Ref:</span> <span class="font-mono" x-text="activePaymentReceipt.invoice_number"></span></div>
+                                    <div class="flex justify-between"><span class="text-slate-400">Payment Method:</span> <span class="font-semibold" x-text="activePaymentReceipt.payment_method"></span></div>
+                                    <div class="flex justify-between"><span class="text-slate-400">Date & Time:</span> <span class="font-mono" x-text="activePaymentReceipt.payment_date"></span></div>
+                                    <div class="flex justify-between"><span class="text-slate-400">Transaction ID:</span> <span class="font-mono text-[11px]" x-text="activePaymentReceipt.transaction_id || 'N/A'"></span></div>
+                                    <div class="flex justify-between"><span class="text-slate-400">Status:</span> <span class="font-bold uppercase text-emerald-600" x-text="activePaymentReceipt.status"></span></div>
+                                </div>
+                            </div>
+                        </template>
+
+                        <div class="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+                            <button onclick="window.print()" class="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200">
+                                <i class="fa-solid fa-print mr-1"></i>Print
+                            </button>
+                            <button @click="paymentReceiptModalOpen = false" class="px-4 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold">Done</button>
                         </div>
                     </div>
                 </div>

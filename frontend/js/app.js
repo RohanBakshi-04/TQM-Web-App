@@ -345,6 +345,36 @@ document.addEventListener("alpine:init", () => {
         activeReceipt: null,
         discountForm: { invoice_id: null, amount: "", reason: "" },
         cancelForm: { invoice_id: null, reason: "" },
+
+        // Payments & Refunds State
+        paymentsList: [],
+        paymentsTotal: 0,
+        paymentSearch: "",
+        paymentMethodFilter: "all",
+        refundsList: [],
+        refundsTotal: 0,
+        recordPaymentModalOpen: false,
+        reversePaymentModalOpen: false,
+        requestRefundModalOpen: false,
+        paymentReceiptModalOpen: false,
+        activePaymentReceipt: null,
+        newPayment: {
+            invoice_id: null,
+            amount: "",
+            payment_method: "UPI",
+            transaction_id: "",
+            notes: ""
+        },
+        reversePaymentForm: {
+            payment_id: null,
+            reason: ""
+        },
+        newRefund: {
+            payment_id: null,
+            amount: "",
+            reason: "",
+            refund_method: "Bank_Transfer"
+        },
         newFeeStructure: {
             name: "",
             fee_category: "Hostel Accommodation Fee",
@@ -1858,6 +1888,140 @@ document.addEventListener("alpine:init", () => {
                 this.receiptModalOpen = true;
             } catch (err) {
                 this.showToast(`Failed to load receipt: ${err.message}`, "error");
+            }
+        },
+
+        async loadPaymentsList() {
+            try {
+                const params = {};
+                if (this.paymentMethodFilter && this.paymentMethodFilter !== 'all') {
+                    params.payment_method = this.paymentMethodFilter;
+                }
+                if (this.paymentSearch && this.paymentSearch.trim()) {
+                    params.payment_reference = this.paymentSearch.trim();
+                }
+                const res = await window.API.getPayments(params);
+                this.paymentsList = res.records || [];
+                this.paymentsTotal = res.total || 0;
+            } catch (err) {
+                console.error("Failed to load payments:", err);
+            }
+        },
+
+        async loadRefundsList() {
+            try {
+                const res = await window.API.getRefunds();
+                this.refundsList = res.records || [];
+                this.refundsTotal = res.total || 0;
+            } catch (err) {
+                console.error("Failed to load refunds:", err);
+            }
+        },
+
+        openRecordPaymentModal(inv) {
+            const balance = inv ? inv.outstanding_balance : 0;
+            this.newPayment = {
+                invoice_id: inv ? inv.id : null,
+                amount: balance > 0 ? balance : "",
+                payment_method: "UPI",
+                transaction_id: "",
+                notes: `Payment for ${inv ? inv.invoice_number : ''}`
+            };
+            this.recordPaymentModalOpen = true;
+        },
+
+        async handleRecordPayment() {
+            try {
+                const payload = {
+                    invoice_id: parseInt(this.newPayment.invoice_id),
+                    amount: parseFloat(this.newPayment.amount),
+                    payment_method: this.newPayment.payment_method,
+                    transaction_id: this.newPayment.transaction_id,
+                    notes: this.newPayment.notes
+                };
+                const res = await window.API.recordPayment(payload);
+                this.showToast(`Payment ${res.payment_reference} of ₹${res.amount} recorded successfully!`, "success");
+                this.recordPaymentModalOpen = false;
+                await this.loadInvoicesList();
+                await this.loadPaymentsList();
+            } catch (err) {
+                this.showToast(`Payment error: ${err.message}`, "error");
+            }
+        },
+
+        openReversePaymentModal(pay) {
+            this.reversePaymentForm = {
+                payment_id: pay.id,
+                reason: ""
+            };
+            this.reversePaymentModalOpen = true;
+        },
+
+        async handleReversePayment() {
+            try {
+                const res = await window.API.reversePayment(
+                    this.reversePaymentForm.payment_id,
+                    this.reversePaymentForm.reason
+                );
+                this.showToast(res.message, "success");
+                this.reversePaymentModalOpen = false;
+                await this.loadPaymentsList();
+                await this.loadInvoicesList();
+            } catch (err) {
+                this.showToast(`Reversal error: ${err.message}`, "error");
+            }
+        },
+
+        async viewPaymentReceipt(id) {
+            try {
+                this.activePaymentReceipt = await window.API.getPayment(id);
+                this.paymentReceiptModalOpen = true;
+            } catch (err) {
+                this.showToast(`Failed to load payment receipt: ${err.message}`, "error");
+            }
+        },
+
+        openRequestRefundModal(pay) {
+            this.newRefund = {
+                payment_id: pay.id,
+                amount: pay.amount,
+                reason: "",
+                refund_method: "Bank_Transfer"
+            };
+            this.requestRefundModalOpen = true;
+        },
+
+        async handleRequestRefund() {
+            try {
+                const payload = {
+                    payment_id: parseInt(this.newRefund.payment_id),
+                    amount: parseFloat(this.newRefund.amount),
+                    reason: this.newRefund.reason,
+                    refund_method: this.newRefund.refund_method
+                };
+                const res = await window.API.requestRefund(payload);
+                this.showToast(`Refund request #${res.refund_reference} submitted successfully!`, "success");
+                this.requestRefundModalOpen = false;
+                await this.loadRefundsList();
+            } catch (err) {
+                this.showToast(`Refund error: ${err.message}`, "error");
+            }
+        },
+
+        async handleReviewRefund(id, action) {
+            try {
+                let reason = "";
+                if (action === "Reject") {
+                    reason = prompt("Please enter mandatory rejection reason:");
+                    if (!reason || !reason.strip()) return;
+                }
+                const res = await window.API.reviewRefund(id, action, reason);
+                this.showToast(`Refund #${id} ${action.toLowerCase()}ed successfully.`, "success");
+                await this.loadRefundsList();
+                await this.loadPaymentsList();
+                await this.loadInvoicesList();
+            } catch (err) {
+                this.showToast(`Action error: ${err.message}`, "error");
             }
         }
     }));
