@@ -93,4 +93,13 @@ def on_startup():
     """Initialize database and verify configuration on application startup."""
     logger.info(f"Starting {settings.app_name} in {settings.app_env} mode...")
     initialize_database()
+    try:
+        from backend.app.database.connection import get_db_connection
+        from backend.app.services.dashboard_service import DashboardService
+        conn = get_db_connection()
+        DashboardService.get_dashboard_metrics(conn, user_roles=["super_admin"])
+        conn.close()
+        logger.info("Pre-warmed in-memory dashboard cache successfully.")
+    except Exception as e:
+        logger.warning(f"Dashboard cache pre-warm skipped: {e}")
     logger.info("Application startup sequence completed successfully.")

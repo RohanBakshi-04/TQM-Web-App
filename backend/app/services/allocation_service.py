@@ -16,6 +16,7 @@ from backend.app.models.allocation_dto import (
     TransferRequestCreate,
     TransferReview,
 )
+from backend.app.services.cache_invalidation import CacheInvalidator
 from backend.app.utils.logger import logger
 
 
@@ -204,6 +205,8 @@ class AllocationService:
             ))
 
             conn.commit()
+            h_id = bed_info["hostel_id"] if "hostel_id" in bed_info.keys() else None
+            CacheInvalidator.on_allocation_mutation(hostel_id=h_id)
             logger.info(f"Poka-Yoke Allocation Created: Student {student['student_id']} -> Bed {bed_info['bed_number']} (Allocation #{allocation_id})")
 
         except sqlite3.IntegrityError as err:
@@ -581,6 +584,7 @@ class AllocationService:
         """, (user_id or 1, str(allocation_id), f"Student checked in on {actual_date}"))
 
         conn.commit()
+        CacheInvalidator.on_allocation_mutation()
         return AllocationService.get_allocation_by_id(conn, allocation_id)
 
     @staticmethod
@@ -649,6 +653,7 @@ class AllocationService:
             ))
 
             conn.commit()
+            CacheInvalidator.on_allocation_mutation()
             logger.info(f"Poka-Yoke Check-Out: Allocation #{allocation_id} Vacated. Bed #{alloc['bed_id']} Released to Available.")
 
         except Exception as e:
@@ -844,6 +849,7 @@ class AllocationService:
             ))
 
             conn.commit()
+            CacheInvalidator.on_allocation_mutation()
             logger.info(f"Poka-Yoke Atomic Transfer Completed: Allocation #{old_allocation['id']} -> Allocation #{new_allocation_id}")
 
         except Exception as e:

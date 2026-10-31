@@ -8,6 +8,7 @@ import sqlite3
 from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
 from backend.app.models.hostel_dto import BuildingCreate, BuildingUpdate, HostelCreate, HostelUpdate
+from backend.app.services.cache_invalidation import CacheInvalidator
 
 
 class HostelService:
@@ -212,6 +213,7 @@ class HostelService:
         ))
         conn.commit()
         new_id = cursor.lastrowid
+        CacheInvalidator.on_hostel_infrastructure_mutation(hostel_id=new_id)
         return HostelService.get_hostel_by_id(conn, new_id)
 
     @staticmethod
@@ -281,6 +283,7 @@ class HostelService:
 
         cursor.execute(f"UPDATE hostels SET {', '.join(updates)} WHERE id = ?;", params)
         conn.commit()
+        CacheInvalidator.on_hostel_infrastructure_mutation(hostel_id=hostel_id)
         return HostelService.get_hostel_by_id(conn, hostel_id)
 
     @staticmethod
@@ -306,6 +309,7 @@ class HostelService:
 
         cursor.execute("UPDATE hostels SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;", (is_active, hostel_id))
         conn.commit()
+        CacheInvalidator.on_hostel_infrastructure_mutation(hostel_id=hostel_id)
         return {"id": hostel_id, "is_active": is_active, "message": f"Hostel status updated to {'active' if is_active == 1 else 'inactive'}."}
 
     # ==================== BUILDINGS ====================
@@ -399,6 +403,7 @@ class HostelService:
         ))
         conn.commit()
         new_id = cursor.lastrowid
+        CacheInvalidator.on_hostel_infrastructure_mutation(hostel_id=hostel_id)
         return HostelService.get_building_by_id(conn, new_id)
 
     @staticmethod
@@ -524,6 +529,7 @@ class HostelService:
         params.append(building_id)
         cursor.execute(f"UPDATE buildings SET {', '.join(updates)} WHERE id = ?;", params)
         conn.commit()
+        CacheInvalidator.on_hostel_infrastructure_mutation()
         return HostelService.get_building_by_id(conn, building_id)
 
     @staticmethod
