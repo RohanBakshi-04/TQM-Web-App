@@ -2945,6 +2945,196 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- 5. FINANCIAL REPORTS & ANALYTICS VIEW -->
+                    <div x-show="feeSubTab === 'reports'" class="space-y-6">
+                        <!-- KPI Metric Cards -->
+                        <template x-if="financialDashboard">
+                            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xs">
+                                    <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Invoiced</div>
+                                    <div class="text-xl font-extrabold text-slate-900 dark:text-white mt-1 font-mono" x-text="'₹' + (financialDashboard.total_invoiced || financialDashboard.total_billed || 0).toLocaleString('en-IN')"></div>
+                                    <div class="text-[10px] text-slate-500 mt-1" x-text="(financialDashboard.invoices_count || 0) + ' active invoices'"></div>
+                                </div>
+                                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xs">
+                                    <div class="text-[11px] font-bold text-emerald-500 uppercase tracking-wider">Total Collected</div>
+                                    <div class="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1 font-mono" x-text="'₹' + (financialDashboard.total_collected || financialDashboard.total_paid || 0).toLocaleString('en-IN')"></div>
+                                    <div class="text-[10px] text-slate-500 mt-1" x-text="(financialDashboard.payments_count || 0) + ' transactions'"></div>
+                                </div>
+                                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xs">
+                                    <div class="text-[11px] font-bold text-amber-500 uppercase tracking-wider">Outstanding Dues</div>
+                                    <div class="text-xl font-extrabold text-amber-600 dark:text-amber-400 mt-1 font-mono" x-text="'₹' + (financialDashboard.outstanding_dues || 0).toLocaleString('en-IN')"></div>
+                                    <div class="text-[10px] text-slate-500 mt-1" x-text="(financialDashboard.unpaid_invoices_count || 0) + ' unpaid / partial'"></div>
+                                </div>
+                                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xs">
+                                    <div class="text-[11px] font-bold text-rose-500 uppercase tracking-wider">Overdue Dues</div>
+                                    <div class="text-xl font-extrabold text-rose-600 dark:text-rose-400 mt-1 font-mono" x-text="'₹' + (financialDashboard.overdue_total || financialDashboard.overdue_amount || 0).toLocaleString('en-IN')"></div>
+                                    <div class="text-[10px] text-rose-500 mt-1 font-semibold" x-text="(financialDashboard.overdue_invoices_count || 0) + ' past due'"></div>
+                                </div>
+                                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xs">
+                                    <div class="text-[11px] font-bold text-indigo-500 uppercase tracking-wider">Collection Rate</div>
+                                    <div class="text-xl font-extrabold text-indigo-600 dark:text-indigo-400 mt-1 font-mono" x-text="(financialDashboard.collection_rate || 0) + '%'"></div>
+                                    <div class="text-[10px] text-slate-500 mt-1" x-text="'₹' + (financialDashboard.total_refunded || 0) + ' refunded'"></div>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- Report Control Center -->
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
+                            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+                                <div class="flex items-center space-x-2 overflow-x-auto">
+                                    <button @click="loadFinancialReport('collections')"
+                                            :class="financialReportType === 'collections' ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'"
+                                            class="px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap">
+                                        <i class="fa-solid fa-money-bill-wave mr-1"></i>Collections Report
+                                    </button>
+                                    <button @click="loadFinancialReport('dues')"
+                                            :class="financialReportType === 'dues' ? 'bg-amber-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'"
+                                            class="px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap">
+                                        <i class="fa-solid fa-clock mr-1"></i>Outstanding Dues
+                                    </button>
+                                    <button @click="loadFinancialReport('overdue')"
+                                            :class="financialReportType === 'overdue' ? 'bg-rose-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'"
+                                            class="px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap">
+                                        <i class="fa-solid fa-triangle-exclamation mr-1"></i>Overdue Aging
+                                    </button>
+                                    <button @click="loadFinancialReport('refunds')"
+                                            :class="financialReportType === 'refunds' ? 'bg-purple-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'"
+                                            class="px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap">
+                                        <i class="fa-solid fa-rotate-left mr-1"></i>Refunds Audit
+                                    </button>
+                                </div>
+                                <button @click="handleExportFinancialCsv()" class="px-4 py-2 rounded-xl bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center space-x-2 shadow-sm self-start md:self-auto">
+                                    <i class="fa-solid fa-file-csv text-emerald-400"></i>
+                                    <span>Export CSV (Q05 Fast)</span>
+                                </button>
+                            </div>
+
+                            <!-- Filter Toolbar -->
+                            <div class="grid grid-cols-2 md:grid-cols-5 gap-3 pt-1">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Start Date</label>
+                                    <input type="date" x-model="financialReportFilters.start_date" @change="loadFinancialReport()"
+                                           class="w-full text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">End Date</label>
+                                    <input type="date" x-model="financialReportFilters.end_date" @change="loadFinancialReport()"
+                                           class="w-full text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white" />
+                                </div>
+                                <template x-if="financialReportType === 'collections'">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Payment Method</label>
+                                        <select x-model="financialReportFilters.payment_method" @change="loadFinancialReport()"
+                                                class="w-full text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white">
+                                            <option value="all">All Methods</option>
+                                            <option value="UPI">UPI</option>
+                                            <option value="Credit_Card">Credit Card</option>
+                                            <option value="Debit_Card">Debit Card</option>
+                                            <option value="Net_Banking">Net Banking</option>
+                                            <option value="Cash">Cash</option>
+                                            <option value="Demand_Draft">Demand Draft</option>
+                                        </select>
+                                    </div>
+                                </template>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Hostel</label>
+                                    <select x-model="financialReportFilters.hostel_id" @change="loadFinancialReport()"
+                                            class="w-full text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white">
+                                        <option value="all">All Hostels</option>
+                                        <template x-for="h in hostels" :key="h.id">
+                                            <option :value="h.id" x-text="h.name"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                                <div class="flex items-end">
+                                    <button @click="loadFinancialReport()" class="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center justify-center space-x-1.5 shadow-sm">
+                                        <i class="fa-solid fa-filter"></i>
+                                        <span>Apply Filters</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Overdue Aging Summary Cards (Shown only on overdue report) -->
+                            <template x-if="financialReportType === 'overdue' && financialReportData && financialReportData.aging_summary">
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+                                    <div class="p-3 bg-amber-50 dark:bg-amber-950/40 rounded-2xl border border-amber-200 dark:border-amber-800">
+                                        <div class="text-[10px] font-bold text-amber-700 dark:text-amber-300">1 - 30 DAYS</div>
+                                        <div class="text-sm font-bold text-amber-900 dark:text-amber-100 font-mono" x-text="'₹' + financialReportData.aging_summary['1_to_30_days'].total_amount.toLocaleString('en-IN')"></div>
+                                        <div class="text-[10px] text-slate-500" x-text="financialReportData.aging_summary['1_to_30_days'].count + ' invoices'"></div>
+                                    </div>
+                                    <div class="p-3 bg-orange-50 dark:bg-orange-950/40 rounded-2xl border border-orange-200 dark:border-orange-800">
+                                        <div class="text-[10px] font-bold text-orange-700 dark:text-orange-300">31 - 60 DAYS</div>
+                                        <div class="text-sm font-bold text-orange-900 dark:text-orange-100 font-mono" x-text="'₹' + financialReportData.aging_summary['31_to_60_days'].total_amount.toLocaleString('en-IN')"></div>
+                                        <div class="text-[10px] text-slate-500" x-text="financialReportData.aging_summary['31_to_60_days'].count + ' invoices'"></div>
+                                    </div>
+                                    <div class="p-3 bg-rose-50 dark:bg-rose-950/40 rounded-2xl border border-rose-200 dark:border-rose-800">
+                                        <div class="text-[10px] font-bold text-rose-700 dark:text-rose-300">61 - 90 DAYS</div>
+                                        <div class="text-sm font-bold text-rose-900 dark:text-rose-100 font-mono" x-text="'₹' + financialReportData.aging_summary['61_to_90_days'].total_amount.toLocaleString('en-IN')"></div>
+                                        <div class="text-[10px] text-slate-500" x-text="financialReportData.aging_summary['61_to_90_days'].count + ' invoices'"></div>
+                                    </div>
+                                    <div class="p-3 bg-red-100 dark:bg-red-950/60 rounded-2xl border border-red-300 dark:border-red-800">
+                                        <div class="text-[10px] font-bold text-red-700 dark:text-red-300">> 90 DAYS (CRITICAL)</div>
+                                        <div class="text-sm font-bold text-red-950 dark:text-red-100 font-mono" x-text="'₹' + financialReportData.aging_summary['over_90_days'].total_amount.toLocaleString('en-IN')"></div>
+                                        <div class="text-[10px] text-slate-500" x-text="financialReportData.aging_summary['over_90_days'].count + ' invoices'"></div>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- Report Results Table -->
+                            <div class="overflow-x-auto pt-2">
+                                <template x-if="financialReportLoading">
+                                    <div class="py-8 text-center text-xs text-slate-400">
+                                        <i class="fa-solid fa-spinner fa-spin mr-2"></i>Generating high-speed financial report...
+                                    </div>
+                                </template>
+
+                                <template x-if="!financialReportLoading && financialReportData && financialReportData.records && financialReportData.records.length > 0">
+                                    <table class="w-full text-left text-xs">
+                                        <thead class="text-[11px] uppercase font-bold text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                                            <tr>
+                                                <th class="pb-2 px-3">Reference / Number</th>
+                                                <th class="pb-2 px-3">Student Details</th>
+                                                <th class="pb-2 px-3">Category / Date</th>
+                                                <th class="pb-2 px-3 text-right">Amount</th>
+                                                <th class="pb-2 px-3">Status</th>
+                                                <th class="pb-2 px-3">Additional Info</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                            <template x-for="r in financialReportData.records" :key="r.id">
+                                                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                                                    <td class="py-2.5 px-3 font-mono font-bold text-slate-900 dark:text-white" x-text="r.payment_reference || r.invoice_number || r.refund_reference"></td>
+                                                    <td class="py-2.5 px-3">
+                                                        <div class="font-bold text-slate-900 dark:text-white" x-text="r.student_name"></div>
+                                                        <div class="text-[10px] text-slate-400 font-mono" x-text="r.enrollment_number"></div>
+                                                    </td>
+                                                    <td class="py-2.5 px-3 text-slate-600 dark:text-slate-400">
+                                                        <div x-text="r.fee_name || r.fee_category || r.payment_method || r.reason"></div>
+                                                        <div class="text-[10px] text-slate-400" x-text="r.payment_date || r.due_date || r.created_at"></div>
+                                                    </td>
+                                                    <td class="py-2.5 px-3 text-right font-mono font-bold text-slate-900 dark:text-white" x-text="'₹' + (r.amount || r.outstanding_balance || r.net_payable || 0).toFixed(2)"></td>
+                                                    <td class="py-2.5 px-3">
+                                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" x-text="r.status"></span>
+                                                    </td>
+                                                    <td class="py-2.5 px-3 text-slate-500 text-[11px]">
+                                                        <span x-text="r.days_overdue !== undefined ? (r.days_overdue + ' days overdue') : (r.hostel_name ? (r.hostel_name + ' / Room ' + r.room_number) : (r.recorded_by_username || r.transaction_id || '-'))"></span>
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </template>
+
+                                <template x-if="!financialReportLoading && (!financialReportData || !financialReportData.records || financialReportData.records.length === 0)">
+                                    <div class="py-12 text-center text-xs text-slate-400">
+                                        <i class="fa-solid fa-chart-line text-2xl mb-2 text-slate-300 dark:text-slate-700 block"></i>
+                                        No financial records found matching the specified report filters.
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
                 </section>
 
                 <!-- ATTENDANCE CORRECTION MODAL -->
@@ -3708,6 +3898,11 @@
                                     :class="feeSubTab === 'structures' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-300 shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'"
                                     class="px-3.5 py-1.5 rounded-xl transition whitespace-nowrap">
                                 <i class="fa-solid fa-tags mr-1.5"></i>Fee Structures
+                            </button>
+                            <button @click="feeSubTab = 'reports'; loadFinancialDashboard(); loadFinancialReport()"
+                                    :class="feeSubTab === 'reports' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-300 shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl transition whitespace-nowrap">
+                                <i class="fa-solid fa-chart-pie mr-1.5"></i>Reports & Analytics
                             </button>
                         </div>
                     </div>

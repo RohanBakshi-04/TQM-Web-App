@@ -54,7 +54,7 @@ class PaymentService:
             if payment_amount > current_outstanding:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Payment amount ₹{payment_amount:.2f} exceeds outstanding balance of ₹{current_outstanding:.2f}."
+                    detail=f"Payment amount INR {payment_amount:.2f} exceeds outstanding balance of INR {current_outstanding:.2f}."
                 )
 
             # 2. Poka-Yoke: Check duplicate transaction_id if provided
@@ -123,7 +123,7 @@ class PaymentService:
                 """, (
                     inv["student_user_id"],
                     "Payment Recorded Successfully",
-                    f"Payment of ₹{payment_amount:.2f} ({payment_ref}) for Invoice {inv['invoice_number']} has been confirmed. Balance: ₹{new_balance:.2f}."
+                    f"Payment of INR {payment_amount:.2f} ({payment_ref}) for Invoice {inv['invoice_number']} has been confirmed. Balance: INR {new_balance:.2f}."
                 ))
 
             # 7. Audit log
@@ -134,12 +134,12 @@ class PaymentService:
                 current_user.get("user_id"),
                 current_user.get("username", "accountant"),
                 str(payment_id),
-                f"Recorded payment {payment_ref} (₹{payment_amount:.2f} via {payload.payment_method}) against Invoice #{payload.invoice_id}"
+                f"Recorded payment {payment_ref} (INR {payment_amount:.2f} via {payload.payment_method}) against Invoice #{payload.invoice_id}"
             ))
 
             conn.commit()
             cache_service.invalidate_by_tag("finance")
-            logger.info(f"Payment {payment_ref} recorded: ₹{payment_amount} for Invoice #{payload.invoice_id}")
+            logger.info(f"Payment {payment_ref} recorded: INR {payment_amount} for Invoice #{payload.invoice_id}")
 
             return cls.get_payment(payment_id, current_user)
         finally:
@@ -333,7 +333,7 @@ class PaymentService:
                 current_user.get("user_id"),
                 current_user.get("username", "accountant"),
                 str(payment_id),
-                f"Reversed payment #{payment_id} (₹{pay['amount']:.2f}). Reason: {payload.reversal_reason}"
+                f"Reversed payment #{payment_id} (INR {pay['amount']:.2f}). Reason: {payload.reversal_reason}"
             ))
 
             conn.commit()
@@ -403,7 +403,7 @@ class PaymentService:
             if req_amount > max_refundable:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Requested refund ₹{req_amount:.2f} exceeds max refundable balance of ₹{max_refundable:.2f}."
+                    detail=f"Requested refund INR {req_amount:.2f} exceeds max refundable balance of INR {max_refundable:.2f}."
                 )
 
             # 3. Generate unique refund reference: REF-YYYYMM-XXXX
@@ -442,7 +442,7 @@ class PaymentService:
                 current_user.get("user_id"),
                 current_user.get("username", "user"),
                 str(refund_id),
-                f"Requested refund of ₹{req_amount:.2f} against Payment #{payload.payment_id}. Reason: {payload.reason}"
+                f"Requested refund of INR {req_amount:.2f} against Payment #{payload.payment_id}. Reason: {payload.reason}"
             ))
 
             conn.commit()
@@ -533,7 +533,7 @@ class PaymentService:
                 """, (
                     ref["student_user_id"],
                     f"Refund Status Updated: {action}",
-                    f"Refund request #{ref['refund_reference']} for ₹{ref['amount']:.2f} has been {action.lower()}ed."
+                    f"Refund request #{ref['refund_reference']} for INR {ref['amount']:.2f} has been {action.lower()}ed."
                 ))
 
             # Audit log

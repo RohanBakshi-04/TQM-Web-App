@@ -408,6 +408,19 @@ document.addEventListener("alpine:init", () => {
             remarks: "Semester bulk billing"
         },
 
+        // Financial Dashboard & Reports State
+        financialDashboard: null,
+        financialReportType: "collections",
+        financialReportFilters: {
+            start_date: "",
+            end_date: "",
+            payment_method: "",
+            hostel_id: "",
+            status: ""
+        },
+        financialReportData: null,
+        financialReportLoading: false,
+
         dashboardStats: {
             hostels: { total: 1, rooms: 3, beds: 6, occupied_beds: 2, available_beds: 4, occupancy_rate: 33.3 },
             students: { total: 3, active: 3 },
@@ -2022,6 +2035,60 @@ document.addEventListener("alpine:init", () => {
                 await this.loadInvoicesList();
             } catch (err) {
                 this.showToast(`Action error: ${err.message}`, "error");
+            }
+        },
+
+        // ==================== FINANCIAL DASHBOARD & REPORTS ====================
+        async loadFinancialDashboard(hostelId = null) {
+            try {
+                this.financialDashboard = await window.API.getFinancialDashboard(hostelId);
+            } catch (err) {
+                console.error("Failed to load financial dashboard:", err);
+            }
+        },
+
+        async loadFinancialReport(type = null) {
+            if (type) this.financialReportType = type;
+            this.financialReportLoading = true;
+            try {
+                const params = {};
+                if (this.financialReportFilters.start_date) params.start_date = this.financialReportFilters.start_date;
+                if (this.financialReportFilters.end_date) params.end_date = this.financialReportFilters.end_date;
+                if (this.financialReportFilters.payment_method && this.financialReportFilters.payment_method !== 'all') {
+                    params.payment_method = this.financialReportFilters.payment_method;
+                }
+                if (this.financialReportFilters.hostel_id && this.financialReportFilters.hostel_id !== 'all') {
+                    params.hostel_id = parseInt(this.financialReportFilters.hostel_id);
+                }
+                if (this.financialReportFilters.status && this.financialReportFilters.status !== 'all') {
+                    params.status = this.financialReportFilters.status;
+                }
+                this.financialReportData = await window.API.getFinancialReports(this.financialReportType, params);
+            } catch (err) {
+                this.showToast(`Report error: ${err.message}`, "error");
+            } finally {
+                this.financialReportLoading = false;
+            }
+        },
+
+        async handleExportFinancialCsv() {
+            try {
+                const params = {};
+                if (this.financialReportFilters.start_date) params.start_date = this.financialReportFilters.start_date;
+                if (this.financialReportFilters.end_date) params.end_date = this.financialReportFilters.end_date;
+                if (this.financialReportFilters.payment_method && this.financialReportFilters.payment_method !== 'all') {
+                    params.payment_method = this.financialReportFilters.payment_method;
+                }
+                if (this.financialReportFilters.hostel_id && this.financialReportFilters.hostel_id !== 'all') {
+                    params.hostel_id = parseInt(this.financialReportFilters.hostel_id);
+                }
+                if (this.financialReportFilters.status && this.financialReportFilters.status !== 'all') {
+                    params.status = this.financialReportFilters.status;
+                }
+                await window.API.exportFinancialCsv(this.financialReportType, params);
+                this.showToast("Financial CSV report downloaded successfully!", "success");
+            } catch (err) {
+                this.showToast(`CSV export failed: ${err.message}`, "error");
             }
         }
     }));

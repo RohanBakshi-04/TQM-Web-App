@@ -72,7 +72,7 @@ class FeeService:
                 current_user.get("user_id"),
                 current_user.get("username", "accountant"),
                 str(fs_id),
-                f"Created {payload.fee_category}: {payload.name} (₹{payload.amount:.2f})"
+                f"Created {payload.fee_category}: {payload.name} (INR {payload.amount:.2f})"
             ))
 
             conn.commit()
@@ -353,7 +353,7 @@ class FeeService:
                 """, (
                     student["user_id"],
                     "New Invoice Generated",
-                    f"Invoice {invoice_number} for ₹{total_amount:.2f} has been issued. Due date: {payload.due_date}."
+                    f"Invoice {invoice_number} for INR {total_amount:.2f} has been issued. Due date: {payload.due_date}."
                 ))
 
             # Audit log
@@ -364,7 +364,7 @@ class FeeService:
                 current_user.get("user_id"),
                 current_user.get("username", "accountant"),
                 str(invoice_id),
-                f"Generated invoice {invoice_number} for Student #{payload.student_id} (Total: ₹{total_amount:.2f})"
+                f"Generated invoice {invoice_number} for Student #{payload.student_id} (Total: INR {total_amount:.2f})"
             ))
 
             conn.commit()
@@ -397,7 +397,7 @@ class FeeService:
             if payload.hostel_id:
                 where_clauses.append("bld.hostel_id = ?")
                 params.append(payload.hostel_id)
-            if payload.academic_year:
+            if payload.academic_year and payload.academic_year != "All":
                 where_clauses.append("s.academic_year = ?")
                 params.append(payload.academic_year)
             if payload.room_type and payload.room_type != "All":
@@ -477,7 +477,7 @@ class FeeService:
                     """, (
                         st["user_id"],
                         "Hostel Fee Invoice Issued",
-                        f"Invoice {inv_num} for ₹{amount:.2f} has been generated. Due date: {payload.due_date}."
+                        f"Invoice {inv_num} for INR {amount:.2f} has been generated. Due date: {payload.due_date}."
                     ))
 
                 created_count += 1
@@ -528,7 +528,7 @@ class FeeService:
             if discount > net_payable:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Discount of ₹{discount:.2f} exceeds outstanding balance of ₹{net_payable:.2f}."
+                    detail=f"Discount of INR {discount:.2f} exceeds outstanding balance of INR {net_payable:.2f}."
                 )
 
             # Update discount
@@ -550,7 +550,7 @@ class FeeService:
                 current_user.get("user_id"),
                 current_user.get("username", "accountant"),
                 str(invoice_id),
-                f"Applied discount of ₹{discount:.2f} to Invoice #{invoice_id}. Reason: {payload.discount_reason}"
+                f"Applied discount of INR {discount:.2f} to Invoice #{invoice_id}. Reason: {payload.discount_reason}"
             ))
 
             conn.commit()
@@ -769,6 +769,7 @@ class FeeService:
 
             # Balance
             total_due = round(res["total_amount"] + res["fine_amount"] - res["discount_amount"], 2)
+            res["net_payable"] = total_due
             balance = round(total_due - res["paid_amount"], 2)
             res["outstanding_balance"] = max(0.0, balance)
             res["is_overdue"] = (res["status"] not in ["Paid", "Cancelled"]) and (res["due_date"] < date.today().isoformat())

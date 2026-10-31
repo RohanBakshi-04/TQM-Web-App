@@ -343,3 +343,52 @@
 - [x] Migration `006_attendance_leave_visitor_enhancements` adding `attendance_corrections` and `outpasses`
 - [x] B-Tree composite indexes for attendance, leaves, outpasses, and visitor logs
 - [x] Total 95 tests passing across complete application test suite (100% success rate)
+
+
+---
+
+## Prompt 12: Fee & Financial Management
+
+### 1. Fee Structure Management
+- [x] Fee structures configuration (CRUD) with institutional categories
+- [x] Configurations by hostel, room type, academic year, semester, frequency, and mandatory flag
+- [x] Late payment fine configuration
+- [x] Poka-Yoke duplicate fee structure prevention
+- [x] Immutability preservation: Soft-deactivation when invoices reference structure
+
+### 2. Invoice Generation & Billing
+- [x] Single student invoice generation with unique format `INV-YYYYMM-XXXX`
+- [x] Itemized fee breakdown in `invoice_items`
+- [x] Bulk invoice generation for eligible hostel residents
+- [x] Poka-Yoke duplicate billing prevention (skips existing resident invoices)
+- [x] Concession/discount approvals with balance recalculation
+- [x] Poka-Yoke excess discount rejection
+- [x] Invoice cancellation with mandatory justification
+- [x] Poka-Yoke payment block: Invoices with recorded payments cannot be cancelled
+- [x] Official cryptographic invoice demand notice generation
+
+### 3. Payment Processing & Audited Reversals
+- [x] Full and partial student payments against invoices
+- [x] Unique payment reference `PAY-YYYYMM-XXXX` and receipt number `RCP-YYYYMM-XXXX`
+- [x] Automatic invoice balance and status transitions (`Partially_Paid`, `Paid`)
+- [x] Poka-Yoke duplicate transaction reference and duplicate transaction ID prevention
+- [x] Audited payment reversals restoring invoice balance with audit logging
+- [x] Downloadable official payment receipts
+
+### 4. Refund Management
+- [x] Four-stage refund workflow (`Requested` -> `Under_Review` -> `Approved` / `Rejected` -> `Processed`)
+- [x] Unique refund reference `REF-YYYYMM-XXXX`
+- [x] Poka-Yoke refund limit validation: Cannot exceed payment amount minus prior refunds
+- [x] Review actions: Approval, rejection with mandatory reason, processing with transaction references
+
+### 5. Financial Dashboard & Reports
+- [x] Executive financial dashboard metrics with Q05 caching and tag invalidation
+- [x] Collections Report with payment method and date range filters
+- [x] Dues Report with student details and room locations
+- [x] Overdue Report with 4 aging analysis brackets (1-30d, 31-60d, 61-90d, 90+d)
+- [x] Streaming RFC 4180 CSV export generator
+- [x] Role-based financial data isolation (Auditor read-only, Student self-access, Staff forbidden)
+
+### 6. Infrastructure & Testing
+- [x] Migration `007_fee_and_financial_enhancements` with 13 composite B-Tree indexes
+- [x] Total 105 automated tests passing across entire project (100% success rate)

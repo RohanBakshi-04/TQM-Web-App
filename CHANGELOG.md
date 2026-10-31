@@ -119,3 +119,18 @@ All notable changes to this project are documented in this file, adhering to Sem
 - **Testing Suite:**
   - Added 11 tests in `backend/tests/test_attendance_leave_visitors.py`.
   - Expanded total test suite to 95 tests (100% passing).
+
+
+---
+
+## [0.8.0] - 2026-10-31 (Prompt 12: Fee & Financial Management)
+
+### Added
+- **Fee Structure Engine:** Complete CRUD with institutional categories, room types, academic years, semesters, payment frequencies, and soft-deactivation.
+- **Invoicing System:** Single and bulk invoice generation (`INV-YYYYMM-XXXX`), breakdown items, concession/discount approvals, and audited cancellation.
+- **Payment Processing:** Full and partial payments (`PAY-YYYYMM-XXXX`), balance updates, duplicate checks, cryptographic receipts (`RCP-YYYYMM-XXXX`), and audited reversals.
+- **Refund Lifecycle:** Four-stage refund management (`Requested` -> `Under_Review` -> `Approved` / `Rejected` -> `Processed`) with refundable balance capping.
+- **Executive Financial Dashboard:** Sub-10ms cached analytics (total invoiced, collected, dues, overdue, collection rate %, monthly collections, payment methods breakdown).
+- **Financial Reports & CSV Export:** Collections, Dues, Overdue Aging (4 brackets), and Refunds reports with instant streaming CSV export.
+- **Database Migration 007:** Non-destructive enhancement for `fee_structures`, `invoices`, `payments`, `refunds`, and 13 composite B-Tree indexes.
+- **Testing Suite:** 10 new tests in `backend/tests/test_fee_and_finance.py`, expanding the complete application suite to 105 tests (100% pass rate).

@@ -22,7 +22,8 @@
 | **Prompt 09: Q05 Cached Dashboard & Quick Navigation** | Thread-safe in-memory cache engine with TTL, dependency tag invalidation (students, hostels, rooms, allocations, complaints, finance), sub-0.05ms warm response time, role-based multi-tenant hostel isolation, SPA persistent shell, client-side request deduplication | 🟢 Completed | `1690967`, `26b5821` |
 | **Prompt 10: Complaint and Maintenance Management** | Student complaint submission across 10 categories & 4 severities, automated SLA escalation tracking, maintenance work orders with parts & cost tracking, supervisor verification, and feedback loop | 🟢 Completed | `3137962`, `a4087e6`, `90263f3` |
 | **Prompt 11: Attendance, Leave & Visitor Management** | Daily attendance tracking with duplicate prevention, biometric corrections with audit reason, repeat absentee detection; leave applications with automated digital gate outpasses (OP-YYYYMM-XXXX), gate exit/return verification, overdue tracking; visitor registration with active visit limits, digital visitor passes (VP-YYYYMM-XXXX), gate check-in/out, and ID privacy masking | 🟢 Completed | `407949a`, `9f14e48`, `a26ea17`, Staged Commit 4 |
-| **Prompt 12: Mess, Dining and Meal Operations** | Mess menu management, dietary subscriptions, dining attendance, and inventory integration | ⏳ Next Phase | -- |
+| **Prompt 12: Fee & Financial Management** | Fee structures, student invoicing (single & bulk INV-YYYYMM-XXXX), concessions, payments (PAY-YYYYMM-XXXX), official receipts (RCP-YYYYMM-XXXX), reversals, refunds (REF-YYYYMM-XXXX), Q05 executive financial dashboard, collections, dues, overdue aging reports, and streaming CSV export | 🟢 Completed | `5ff017e`, `4449577`, Commit 3 |
+| **Prompt 13: Mess, Dining and Meal Operations** | Mess menu management, dietary subscriptions, dining attendance, and inventory integration | ⏳ Next Phase | -- |
 
 ---
 
@@ -196,3 +197,47 @@
   12. `auditor`: TQM audit log trail, financial consistency review, Q05 Response Time SLA performance telemetry
 - [x] Backend Aggregation API: Implemented `GET /api/v1/dashboard/stats` querying live SQLite tables
 - [x] 38 automated unit, integration, and API tests passing (100% success rate)
+
+
+---
+
+## 🎯 Prompt 12 Fee & Financial Management Deliverables Checklist
+
+- [x] **Fee Structure Management (`backend/app/services/fee_service.py` & `/api/v1/fees/structures`):**
+  - Full CRUD operations with institutional categories (Hostel Accommodation, Room, Mess, Security Deposit, Electricity, Maintenance, Admission, Late Fine, Other).
+  - Validation: Prevents duplicate configuration by (name, academic_year, hostel_id, room_type, semester).
+  - Soft-deactivation preservation: Fee structures with historical invoice references are deactivated rather than deleted to ensure financial immutability.
+- [x] **Student Invoicing Engine (`FeeService` & `/api/v1/fees/invoices`):**
+  - Individual invoice generation with unique format `INV-YYYYMM-XXXX`.
+  - Net payable and balance tracking: `net_payable = round(total_amount + fine_amount - discount_amount, 2)` and `outstanding_balance = max(0.0, round(net_payable - paid_amount, 2))`.
+  - Bulk invoice generation across eligible hostel residents with automated duplicate invoice skipping.
+  - Concession/discount approvals with balance recalculation, audited rationale, and excess discount prevention.
+  - Audited invoice cancellation: unpaid invoices cancelled with mandatory justification; invoices with recorded payments blocked from cancellation.
+  - Official cryptographic downloadable demand notices/invoices (`/api/v1/fees/invoices/{id}/receipt`).
+- [x] **Payment Processing & Audited Reversals (`PaymentService` & `/api/v1/fees/payments`):**
+  - Full and partial payment recording with auto status transitions (`Issued` -> `Partially_Paid` -> `Paid`).
+  - Unique transaction references `PAY-YYYYMM-XXXX` and digital receipts `RCP-YYYYMM-XXXX`.
+  - Poka-Yoke duplicate transaction reference and duplicate transaction ID prevention.
+  - Audited payment reversals restoring invoice outstanding balance with audit log trail.
+  - Downloadable official payment receipts.
+- [x] **Refund Management (`PaymentService` & `/api/v1/fees/refunds`):**
+  - Four-stage lifecycle (`Requested` -> `Under_Review` -> `Approved` / `Rejected` -> `Processed`).
+  - Validation: Refund requests strictly capped to payment amount minus previous non-rejected refunds.
+  - Review workflows: Approval, rejection with mandatory reason, processing with transaction references.
+- [x] **Financial Dashboard & Reporting (`FinancialReportService` & `/api/v1/fees/reports`):**
+  - High-speed executive dashboard: Total invoiced, total collected, outstanding dues, overdue total, collection rate %, monthly collections, payment methods breakdown.
+  - Sub-10ms Q05 cached aggregates with tag-based invalidation (`finance`).
+  - Collections Report with date range, hostel, and payment method filters.
+  - Dues Report with student contact details, room info, and min-amount filters.
+  - Overdue Report with 4 aging brackets (1-30d, 31-60d, 61-90d, 90+d).
+  - Streaming RFC 4180 CSV export generator for collections, dues, overdue, and refunds.
+- [x] **Alpine.js Reactive User Interface:**
+  - 5 subtabs: Invoices & Dues, Payments, Refunds, Fee Structures, Reports & Analytics.
+  - Interactive modals: New Fee Structure, Single Invoice, Bulk Invoicing, Record Payment, Reverse Payment, Request Refund, Concession Discount, Cancel Invoice, Official Receipts.
+  - Executive KPI summary cards with one-click Q05 CSV download.
+- [x] **Database Schema Migration 007 (`007_fee_and_financial_enhancements`):**
+  - Non-destructive schema enhancement for `fee_structures`, `invoices`, `payments`, `refunds`.
+  - 13 composite B-Tree indexes for sub-10ms queries.
+- [x] **Automated Testing Suite:**
+  - 10 comprehensive unit and integration tests in `backend/tests/test_fee_and_finance.py`.
+  - Total 105 tests passing across entire application test suite (100% success rate).

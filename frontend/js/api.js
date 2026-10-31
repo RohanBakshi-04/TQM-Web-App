@@ -1247,6 +1247,25 @@ const API = {
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to generate financial report.");
         return await response.json();
+    },
+
+    async exportFinancialCsv(reportType, params = {}) {
+        const allParams = { report_type: reportType, ...params };
+        const qs = new URLSearchParams(allParams).toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/fees/reports/export?${qs}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to export financial CSV.");
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `finance_${reportType}_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+        return true;
     }
 };
 

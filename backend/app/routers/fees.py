@@ -1,5 +1,5 @@
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, status, Response
 
 from backend.app.services.auth_dependencies import get_current_user
 from backend.app.models.finance_dto import (
@@ -16,6 +16,7 @@ from backend.app.models.finance_dto import (
 )
 from backend.app.services.fee_service import FeeService
 from backend.app.services.payment_service import PaymentService
+from backend.app.services.financial_report_service import FinancialReportService
 
 fees_router = APIRouter(prefix="/api/v1/fees", tags=["Fee & Financial Management"])
 
@@ -308,3 +309,97 @@ def process_refund(
     review = payload or RefundReviewAction(action="Process")
     review.action = "Process"
     return PaymentService.review_refund(id, review, current_user)
+
+
+# ==========================================
+# 5. FINANCIAL DASHBOARD & REPORTS ENDPOINTS
+# ==========================================
+
+@fees_router.get("/dashboard", summary="Financial dashboard analytics and metrics")
+def get_financial_dashboard(
+    hostel_id: Optional[int] = Query(None, description="Optional hostel ID filter"),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    return FinancialReportService.get_financial_dashboard(hostel_id, current_user)
+
+
+@fees_router.get("/reports/collections", summary="Collections report with filters")
+def get_collections_report(
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    payment_method: Optional[str] = Query(None, description="Payment method"),
+    hostel_id: Optional[int] = Query(None, description="Hostel filter"),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    filters = {
+        "start_date": start_date,
+        "end_date": end_date,
+        "payment_method": payment_method,
+        "hostel_id": hostel_id
+    }
+    return FinancialReportService.get_collections_report(filters, current_user)
+
+
+@fees_router.get("/reports/dues", summary="Outstanding dues report")
+def get_dues_report(
+    status: Optional[str] = Query(None, description="Invoice status filter"),
+    hostel_id: Optional[int] = Query(None, description="Hostel filter"),
+    min_amount: Optional[float] = Query(None, description="Minimum due amount"),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    filters = {
+        "status": status,
+        "hostel_id": hostel_id,
+        "min_amount": min_amount
+    }
+    return FinancialReportService.get_dues_report(filters, current_user)
+
+
+@fees_router.get("/reports/overdue", summary="Overdue invoices report with aging buckets")
+def get_overdue_report(
+    hostel_id: Optional[int] = Query(None, description="Hostel filter"),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    filters = {"hostel_id": hostel_id}
+    return FinancialReportService.get_overdue_report(filters, current_user)
+
+
+@fees_router.get("/reports/refunds", summary="Refunds audit report")
+def get_refunds_report(
+    status: Optional[str] = Query(None, description="Refund status"),
+    start_date: Optional[str] = Query(None, description="Start date"),
+    end_date: Optional[str] = Query(None, description="End date"),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    filters = {
+        "status": status,
+        "start_date": start_date,
+        "end_date": end_date
+    }
+    return FinancialReportService.get_refunds_report(filters, current_user)
+
+
+@fees_router.get("/reports/export", summary="Export financial report to CSV")
+def export_financial_report_csv(
+    report_type: str = Query(..., description="Report type: collections, dues, overdue, refunds"),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    payment_method: Optional[str] = Query(None),
+    hostel_id: Optional[int] = Query(None),
+    status: Optional[str] = Query(None),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    filters = {
+        "start_date": start_date,
+        "end_date": end_date,
+        "payment_method": payment_method,
+        "hostel_id": hostel_id,
+        "status": status
+    }
+    csv_data = FinancialReportService.export_csv(report_type, filters, current_user)
+    filename = f"finance_{report_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
