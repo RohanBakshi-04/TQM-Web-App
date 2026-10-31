@@ -20,7 +20,7 @@ from backend.app.routers.allocations import (
     transfers_router,
 )
 from backend.app.routers.auth import router as auth_router
-from backend.app.routers.dashboard import router as dashboard_router
+from backend.app.routers.dashboard import metrics_router, router as dashboard_router
 from backend.app.routers.health import router as health_router
 from backend.app.routers.hostels import building_router, router as hostels_router
 from backend.app.routers.search import router as search_router
@@ -59,6 +59,7 @@ async def add_latency_header(request: Request, call_next):
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(dashboard_router)
+app.include_router(metrics_router)
 app.include_router(hostels_router)
 app.include_router(building_router)
 app.include_router(allocations_router)
