@@ -1266,6 +1266,130 @@ const API = {
         window.URL.revokeObjectURL(url);
         a.remove();
         return true;
+    },
+
+    // ==================== MESS MANAGEMENT API ====================
+    async getMessMenus(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/mess/menus${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load mess menus.");
+        return await response.json();
+    },
+
+    async createMessMenu(payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/mess/menus`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to create mess menu.");
+        return res;
+    },
+
+    async updateMessMenu(id, payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/mess/menus/${id}`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to update mess menu.");
+        return res;
+    },
+
+    async deleteMessMenu(id) {
+        const response = await fetch(`${this.baseUrl}/api/v1/mess/menus/${id}`, {
+            method: "DELETE",
+            headers: this.getHeaders()
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to delete mess menu.");
+        return res;
+    },
+
+    async getMessSubscriptions(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/mess/subscriptions${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load mess subscriptions.");
+        return await response.json();
+    },
+
+    async createMessSubscription(payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/mess/subscriptions`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to create mess subscription.");
+        return res;
+    },
+
+    async updateMessSubscriptionStatus(id, action, reason = "") {
+        const qs = new URLSearchParams({ reason }).toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/mess/subscriptions/${id}/${action}?${qs}`, {
+            method: "POST",
+            headers: this.getHeaders()
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || `Failed to ${action} subscription.`);
+        return res;
+    },
+
+    async getMealAttendance(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/mess/attendance${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load meal attendance.");
+        return await response.json();
+    },
+
+    async recordMealAttendance(payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/mess/attendance`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to record meal attendance.");
+        return res;
+    },
+
+    async verifyMealAttendanceQR(payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/mess/attendance/qr-verify`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "QR verification failed.");
+        return res;
+    },
+
+    async correctMealAttendance(id, payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/mess/attendance/${id}`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to correct attendance.");
+        return res;
+    },
+
+    async getMessDashboard(hostelId = null) {
+        const qs = hostelId ? `?hostel_id=${hostelId}` : "";
+        const response = await fetch(`${this.baseUrl}/api/v1/mess/dashboard${qs}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load mess dashboard.");
+        return await response.json();
     }
 };
 

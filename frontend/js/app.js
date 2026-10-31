@@ -430,6 +430,60 @@ document.addEventListener("alpine:init", () => {
             recent_activity: []
         },
 
+        // Mess Management State
+        messSubTab: "dashboard", // "dashboard" | "menus" | "subscriptions" | "attendance"
+        messDashboardData: null,
+        messMenusList: [],
+        messSubscriptionsList: [],
+        mealAttendanceList: [],
+        messLoading: false,
+        messFilterHostelId: null,
+        messFilterDate: new Date().toISOString().split("T")[0],
+        messFilterMealType: "Breakfast",
+        messMenuModalOpen: false,
+        messSubscriptionModalOpen: false,
+        mealAttendanceModalOpen: false,
+        qrAttendanceModalOpen: false,
+
+        newMessMenu: {
+            hostel_id: 1,
+            meal_date: new Date().toISOString().split("T")[0],
+            meal_type: "Breakfast",
+            title: "",
+            description: "",
+            items: "",
+            start_time: "07:30",
+            end_time: "09:30",
+            is_published: true,
+            audit_reason: "Standard daily meal menu"
+        },
+
+        newMessSubscription: {
+            student_id: null,
+            plan_type: "Monthly",
+            start_date: new Date().toISOString().split("T")[0],
+            end_date: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
+            dietary_preference: "Vegetarian",
+            monthly_rate: 3500.0,
+            auto_generate_invoice: true
+        },
+
+        newMealAttendance: {
+            student_id: null,
+            hostel_id: 1,
+            meal_date: new Date().toISOString().split("T")[0],
+            meal_type: "Breakfast",
+            verification_method: "Manual",
+            remarks: "Verified by mess staff"
+        },
+
+        qrMealAttendance: {
+            qr_token: "",
+            hostel_id: 1,
+            meal_date: new Date().toISOString().split("T")[0],
+            meal_type: "Breakfast"
+        },
+
         async init() {
             // Apply stored theme
             if (this.darkMode) {
@@ -512,6 +566,20 @@ document.addEventListener("alpine:init", () => {
                 const currentPreset = this.rolePresets.find(p => p.role === this.activeRoleView);
                 crumbs.push({ label: "Stakeholder Portal", section: "dashboard" });
                 crumbs.push({ label: currentPreset ? currentPreset.label : "Dashboard", section: "dashboard" });
+            } else if (this.activeSection === "allocations") {
+                crumbs.push({ label: "Room Allocations", section: "allocations" });
+            } else if (this.activeSection === "attendance") {
+                crumbs.push({ label: "Attendance Management", section: "attendance" });
+            } else if (this.activeSection === "leaves") {
+                crumbs.push({ label: "Leaves & Outpass", section: "leaves" });
+            } else if (this.activeSection === "visitors") {
+                crumbs.push({ label: "Visitor Management", section: "visitors" });
+            } else if (this.activeSection === "finance") {
+                crumbs.push({ label: "Fee & Financials", section: "finance" });
+            } else if (this.activeSection === "mess") {
+                crumbs.push({ label: "Mess & Dining", section: "mess" });
+            } else if (this.activeSection === "inventory") {
+                crumbs.push({ label: "Inventory & Stock", section: "inventory" });
             }
             return crumbs;
         },
@@ -927,6 +995,14 @@ document.addEventListener("alpine:init", () => {
             } else if (section === 'finance') {
                 this.loadFeeStructures();
                 this.loadInvoicesList();
+            } else if (section === 'mess') {
+                this.loadMessDashboard();
+                this.loadMessMenus();
+                this.loadMessSubscriptions();
+            } else if (section === 'inventory') {
+                this.loadInventoryDashboard();
+                this.loadInventoryItems();
+                this.loadSuppliers();
             }
             this.navigationLatencyMs = parseFloat((performance.now() - t0).toFixed(2));
         },
@@ -2089,6 +2165,191 @@ document.addEventListener("alpine:init", () => {
                 this.showToast("Financial CSV report downloaded successfully!", "success");
             } catch (err) {
                 this.showToast(`CSV export failed: ${err.message}`, "error");
+            }
+        },
+
+        // ==================== MESS & DINING MANAGEMENT ====================
+        async loadMessDashboard(hostelId = null) {
+            this.messLoading = true;
+            try {
+                this.messDashboardData = await window.API.getMessDashboard(hostelId);
+            } catch (err) {
+                this.showToast(`Mess dashboard error: ${err.message}`, "error");
+            } finally {
+                this.messLoading = false;
+            }
+        },
+
+        async loadMessMenus() {
+            this.messLoading = true;
+            try {
+                const params = {};
+                if (this.messFilterHostelId) params.hostel_id = this.messFilterHostelId;
+                if (this.messFilterDate) params.start_date = this.messFilterDate;
+                this.messMenusList = await window.API.getMessMenus(params);
+            } catch (err) {
+                this.showToast(`Failed to load menus: ${err.message}`, "error");
+            } finally {
+                this.messLoading = false;
+            }
+        },
+
+        async handleCreateMessMenu() {
+            try {
+                const payload = {
+                    hostel_id: parseInt(this.newMessMenu.hostel_id),
+                    meal_date: this.newMessMenu.meal_date,
+                    meal_type: this.newMessMenu.meal_type,
+                    title: this.newMessMenu.title,
+                    description: this.newMessMenu.description,
+                    items: this.newMessMenu.items ? this.newMessMenu.items.split(",").map(i => i.trim()).filter(Boolean) : [],
+                    start_time: this.newMessMenu.start_time,
+                    end_time: this.newMessMenu.end_time,
+                    is_published: this.newMessMenu.is_published,
+                    audit_reason: this.newMessMenu.audit_reason || "Scheduled daily menu creation"
+                };
+                await window.API.createMessMenu(payload);
+                this.showToast("Mess menu created successfully!", "success");
+                this.messMenuModalOpen = false;
+                await this.loadMessMenus();
+                await this.loadMessDashboard();
+            } catch (err) {
+                this.showToast(`Menu creation failed: ${err.message}`, "error");
+            }
+        },
+
+        async handlePublishMessMenu(menuId) {
+            try {
+                await window.API.updateMessMenu(menuId, { is_published: true, audit_reason: "Manual publish action" });
+                this.showToast("Menu published successfully!", "success");
+                await this.loadMessMenus();
+            } catch (err) {
+                this.showToast(`Publish failed: ${err.message}`, "error");
+            }
+        },
+
+        async handleCancelMessMenu(menuId) {
+            const reason = prompt("Enter audit cancellation reason:", "Administrative adjustment");
+            if (!reason) return;
+            try {
+                await window.API.updateMessMenu(menuId, { status: "Cancelled", audit_reason: reason });
+                this.showToast("Menu cancelled.", "info");
+                await this.loadMessMenus();
+            } catch (err) {
+                this.showToast(`Cancel failed: ${err.message}`, "error");
+            }
+        },
+
+        async loadMessSubscriptions() {
+            this.messLoading = true;
+            try {
+                const params = {};
+                this.messSubscriptionsList = await window.API.getMessSubscriptions(params);
+            } catch (err) {
+                this.showToast(`Failed to load subscriptions: ${err.message}`, "error");
+            } finally {
+                this.messLoading = false;
+            }
+        },
+
+        async handleCreateMessSubscription() {
+            try {
+                const payload = {
+                    student_id: parseInt(this.newMessSubscription.student_id),
+                    plan_type: this.newMessSubscription.plan_type,
+                    start_date: this.newMessSubscription.start_date,
+                    end_date: this.newMessSubscription.end_date,
+                    dietary_preference: this.newMessSubscription.dietary_preference,
+                    monthly_rate: parseFloat(this.newMessSubscription.monthly_rate),
+                    auto_generate_invoice: !!this.newMessSubscription.auto_generate_invoice
+                };
+                await window.API.createMessSubscription(payload);
+                this.showToast("Mess subscription created successfully!", "success");
+                this.messSubscriptionModalOpen = false;
+                await this.loadMessSubscriptions();
+                await this.loadMessDashboard();
+            } catch (err) {
+                this.showToast(`Subscription creation failed: ${err.message}`, "error");
+            }
+        },
+
+        async handleUpdateMessSubscriptionStatus(id, action) {
+            const reason = prompt(`Enter audit reason to ${action} subscription:`, `Routine ${action} request`);
+            if (!reason) return;
+            try {
+                await window.API.updateMessSubscriptionStatus(id, action, reason);
+                this.showToast(`Subscription status updated: ${action}`, "success");
+                await this.loadMessSubscriptions();
+                await this.loadMessDashboard();
+            } catch (err) {
+                this.showToast(`Action failed: ${err.message}`, "error");
+            }
+        },
+
+        async loadMealAttendance() {
+            this.messLoading = true;
+            try {
+                const params = {
+                    meal_date: this.messFilterDate,
+                    meal_type: this.messFilterMealType
+                };
+                if (this.messFilterHostelId) params.hostel_id = this.messFilterHostelId;
+                this.mealAttendanceList = await window.API.getMealAttendance(params);
+            } catch (err) {
+                this.showToast(`Failed to load attendance: ${err.message}`, "error");
+            } finally {
+                this.messLoading = false;
+            }
+        },
+
+        async handleRecordMealAttendance() {
+            try {
+                const payload = {
+                    student_id: parseInt(this.newMealAttendance.student_id),
+                    hostel_id: parseInt(this.newMealAttendance.hostel_id),
+                    meal_date: this.newMealAttendance.meal_date,
+                    meal_type: this.newMealAttendance.meal_type,
+                    verification_method: this.newMealAttendance.verification_method,
+                    remarks: this.newMealAttendance.remarks
+                };
+                await window.API.recordMealAttendance(payload);
+                this.showToast("Meal attendance recorded successfully!", "success");
+                this.mealAttendanceModalOpen = false;
+                await this.loadMealAttendance();
+                await this.loadMessDashboard();
+            } catch (err) {
+                this.showToast(`Attendance recording failed: ${err.message}`, "error");
+            }
+        },
+
+        async handleVerifyQRMealAttendance() {
+            try {
+                const payload = {
+                    qr_token: this.qrMealAttendance.qr_token,
+                    hostel_id: parseInt(this.qrMealAttendance.hostel_id),
+                    meal_type: this.qrMealAttendance.meal_type,
+                    meal_date: this.qrMealAttendance.meal_date
+                };
+                const res = await window.API.verifyQRMealAttendance(payload);
+                this.showToast(`Meal verified: ${res.student_name} (${res.student_uid})!`, "success");
+                this.qrAttendanceModalOpen = false;
+                this.qrMealAttendance.qr_token = "";
+                await this.loadMealAttendance();
+                await this.loadMessDashboard();
+            } catch (err) {
+                this.showToast(`QR verification failed: ${err.message}`, "error");
+            }
+        },
+
+        async handleCorrectMealAttendance(id, newStatus) {
+            const reason = prompt("Enter audit correction reason:", "Accidental scan correction");
+            if (!reason) return;
+            try {
+                await window.API.correctMealAttendance(id, { status: newStatus, reason: reason });
+                this.showToast("Attendance record corrected.", "info");
+                await this.loadMealAttendance();
+            } catch (err) {
+                this.showToast(`Correction failed: ${err.message}`, "error");
             }
         }
     }));

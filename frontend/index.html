@@ -1151,6 +1151,24 @@
                         </button>
                     </template>
 
+                    <template x-if="isAuthenticated">
+                        <button @click="navigateTo('mess')"
+                                :class="activeSection === 'mess' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
+                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
+                            <i class="fa-solid fa-utensils w-5 text-center text-sm"></i>
+                            <span x-show="!sidebarCollapsed" class="truncate">Mess & Dining</span>
+                        </button>
+                    </template>
+
+                    <template x-if="isAuthenticated">
+                        <button @click="navigateTo('inventory')"
+                                :class="activeSection === 'inventory' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
+                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
+                            <i class="fa-solid fa-boxes-stacked w-5 text-center text-sm"></i>
+                            <span x-show="!sidebarCollapsed" class="truncate">Inventory & Stock</span>
+                        </button>
+                    </template>
+
                     <button @click="navigateTo('architecture')"
                             :class="activeSection === 'architecture' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
                             class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
@@ -4708,6 +4726,490 @@
                             </button>
                             <button @click="paymentReceiptModalOpen = false" class="px-4 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold">Done</button>
                         </div>
+                    </div>
+                </div>
+
+
+                <!-- 3. MESS & DINING SECTION -->
+                <section x-show="activeSection === 'mess'" class="animate-fade-in space-y-6">
+                    <!-- Header & Sub-navigation -->
+                    <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div>
+                            <div class="flex items-center space-x-2.5">
+                                <div class="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center text-lg">
+                                    <i class="fa-solid fa-utensils"></i>
+                                </div>
+                                <div>
+                                    <h2 class="text-xl font-black text-slate-900 dark:text-white tracking-tight">Mess & Dining Operations</h2>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Daily menus, subscriptions, QR meal verification & consumption telemetry</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sub-tab Pills -->
+                        <div class="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+                            <button @click="messSubTab = 'dashboard'; loadMessDashboard()"
+                                    :class="messSubTab === 'dashboard' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl text-xs transition flex items-center space-x-1.5">
+                                <i class="fa-solid fa-chart-pie"></i>
+                                <span>Overview</span>
+                            </button>
+                            <button @click="messSubTab = 'menus'; loadMessMenus()"
+                                    :class="messSubTab === 'menus' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl text-xs transition flex items-center space-x-1.5">
+                                <i class="fa-solid fa-calendar-days"></i>
+                                <span>Menus</span>
+                            </button>
+                            <button @click="messSubTab = 'subscriptions'; loadMessSubscriptions()"
+                                    :class="messSubTab === 'subscriptions' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl text-xs transition flex items-center space-x-1.5">
+                                <i class="fa-solid fa-id-card"></i>
+                                <span>Subscriptions</span>
+                            </button>
+                            <button @click="messSubTab = 'attendance'; loadMealAttendance()"
+                                    :class="messSubTab === 'attendance' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                                    class="px-3.5 py-1.5 rounded-xl text-xs transition flex items-center space-x-1.5">
+                                <i class="fa-solid fa-qrcode"></i>
+                                <span>Meal Attendance</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 1. MESS DASHBOARD OVERVIEW -->
+                    <div x-show="messSubTab === 'dashboard'" class="space-y-6">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                                <div class="flex items-center justify-between text-slate-400 text-xs font-bold uppercase">
+                                    <span>Active Subscriptions</span>
+                                    <i class="fa-solid fa-users-viewfinder text-amber-500"></i>
+                                </div>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-2" x-text="messDashboardData ? messDashboardData.active_subscriptions : '--'"></div>
+                                <div class="text-[11px] text-slate-500 mt-1">Registered hostel boarders</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                                <div class="flex items-center justify-between text-slate-400 text-xs font-bold uppercase">
+                                    <span>Today Meals Served</span>
+                                    <i class="fa-solid fa-bowl-food text-emerald-500"></i>
+                                </div>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-2" x-text="messDashboardData ? messDashboardData.today_attendance_count : '--'"></div>
+                                <div class="text-[11px] text-emerald-600 font-medium mt-1">Across all 4 meal sessions</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                                <div class="flex items-center justify-between text-slate-400 text-xs font-bold uppercase">
+                                    <span>Unique Diners</span>
+                                    <i class="fa-solid fa-user-check text-blue-500"></i>
+                                </div>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-2" x-text="messDashboardData ? messDashboardData.unique_diners_today : '--'"></div>
+                                <div class="text-[11px] text-slate-500 mt-1">Distinct students fed today</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                                <div class="flex items-center justify-between text-slate-400 text-xs font-bold uppercase">
+                                    <span>Expiring Subscriptions</span>
+                                    <i class="fa-solid fa-clock-rotate-left text-rose-500"></i>
+                                </div>
+                                <div class="text-2xl font-black text-rose-600 mt-2" x-text="messDashboardData ? messDashboardData.expiring_subscriptions_count : '--'"></div>
+                                <div class="text-[11px] text-rose-500 font-medium mt-1">Expiring within 7 days</div>
+                            </div>
+                        </div>
+
+                        <!-- Meal Breakdown Cards -->
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                                    <i class="fa-solid fa-list-check text-amber-500"></i>
+                                    <span>Today's Meal Session Attendance Breakdown</span>
+                                </h3>
+                                <button @click="loadMessDashboard()" class="text-xs text-brand-600 hover:text-brand-700 font-medium">
+                                    <i class="fa-solid fa-arrows-rotate mr-1"></i>Refresh
+                                </button>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <template x-for="meal in ['Breakfast', 'Lunch', 'Evening Snacks', 'Dinner']" :key="meal">
+                                    <div class="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
+                                        <div class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide" x-text="meal"></div>
+                                        <div class="text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="messDashboardData && messDashboardData.meals_served_breakdown ? (messDashboardData.meals_served_breakdown[meal] || 0) : 0"></div>
+                                        <div class="text-[11px] text-slate-400 mt-0.5">Boarders scanned</div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. MESS MENUS SUB-TAB -->
+                    <div x-show="messSubTab === 'menus'" class="space-y-4">
+                        <div class="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                            <div class="flex flex-wrap items-center gap-3">
+                                <input type="date" x-model="messFilterDate" @change="loadMessMenus()" class="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold">
+                                <button @click="loadMessMenus()" class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-200">
+                                    <i class="fa-solid fa-filter mr-1.5"></i>Filter Menus
+                                </button>
+                            </div>
+                            <button @click="messMenuModalOpen = true" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition flex items-center space-x-1.5 shadow-sm">
+                                <i class="fa-solid fa-plus"></i>
+                                <span>Create Menu</span>
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <template x-for="menu in messMenusList" :key="menu.id">
+                                <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-3 flex flex-col justify-between">
+                                    <div class="space-y-2">
+                                        <div class="flex items-center justify-between">
+                                            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider"
+                                                  :class="menu.meal_type === 'Breakfast' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400' :
+                                                          menu.meal_type === 'Lunch' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400' :
+                                                          menu.meal_type === 'Evening Snacks' ? 'bg-orange-100 text-orange-700 dark:bg-orange-950/60 dark:text-orange-400' :
+                                                          'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400'"
+                                                  x-text="menu.meal_type"></span>
+                                            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase"
+                                                  :class="menu.status === 'Published' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400' : 'bg-slate-100 text-slate-600'"
+                                                  x-text="menu.status"></span>
+                                        </div>
+                                        <h4 class="text-sm font-bold text-slate-900 dark:text-white" x-text="menu.title"></h4>
+                                        <p class="text-xs text-slate-500 line-clamp-2" x-text="menu.description || 'Nutritious chef special menu'"></p>
+
+                                        <div class="flex flex-wrap gap-1 pt-1">
+                                            <template x-for="item in (menu.items || [])" :key="item">
+                                                <span class="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-medium" x-text="item"></span>
+                                            </template>
+                                        </div>
+                                    </div>
+
+                                    <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                                        <div class="text-slate-400 text-[11px]">
+                                            <i class="fa-solid fa-clock mr-1"></i><span x-text="menu.start_time + ' - ' + menu.end_time"></span>
+                                        </div>
+                                        <div class="flex items-center space-x-1">
+                                            <button x-show="!menu.is_published && menu.status !== 'Cancelled'" @click="handlePublishMessMenu(menu.id)" class="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 text-xs" title="Publish">
+                                                <i class="fa-solid fa-check"></i>
+                                            </button>
+                                            <button x-show="menu.status !== 'Cancelled'" @click="handleCancelMessMenu(menu.id)" class="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 text-xs" title="Cancel">
+                                                <i class="fa-solid fa-ban"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- 3. MESS SUBSCRIPTIONS SUB-TAB -->
+                    <div x-show="messSubTab === 'subscriptions'" class="space-y-4">
+                        <div class="flex items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                            <div class="text-xs font-bold text-slate-500 dark:text-slate-400">Active Boarder Meal Subscriptions</div>
+                            <button @click="messSubscriptionModalOpen = true" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition flex items-center space-x-1.5 shadow-sm">
+                                <i class="fa-solid fa-plus"></i>
+                                <span>New Subscription</span>
+                            </button>
+                        </div>
+
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs text-slate-600 dark:text-slate-400">
+                                    <thead class="bg-slate-50 dark:bg-slate-800/50 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                                        <tr>
+                                            <th class="py-3.5 px-4">Student</th>
+                                            <th class="py-3.5 px-4">Room / Bed</th>
+                                            <th class="py-3.5 px-4">Plan</th>
+                                            <th class="py-3.5 px-4">Dietary Pref</th>
+                                            <th class="py-3.5 px-4">Valid Period</th>
+                                            <th class="py-3.5 px-4">Monthly Rate</th>
+                                            <th class="py-3.5 px-4">Status</th>
+                                            <th class="py-3.5 px-4 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                        <template x-for="sub in messSubscriptionsList" :key="sub.id">
+                                            <tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition">
+                                                <td class="py-3.5 px-4">
+                                                    <div class="font-bold text-slate-900 dark:text-white" x-text="sub.student_name || ('Student #' + sub.student_id)"></div>
+                                                    <div class="text-[10px] text-slate-400 font-mono" x-text="sub.student_uid || '--'"></div>
+                                                </td>
+                                                <td class="py-3.5 px-4 font-mono font-medium" x-text="sub.room_number ? (sub.room_number + ' (' + (sub.bed_label || 'A') + ')') : '--'"></td>
+                                                <td class="py-3.5 px-4 font-semibold" x-text="sub.plan_type"></td>
+                                                <td class="py-3.5 px-4">
+                                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400" x-text="sub.dietary_preference"></span>
+                                                </td>
+                                                <td class="py-3.5 px-4 text-[11px]" x-text="sub.start_date + ' to ' + sub.end_date"></td>
+                                                <td class="py-3.5 px-4 font-bold text-slate-900 dark:text-white" x-text="'INR ' + Number(sub.monthly_rate).toLocaleString()"></td>
+                                                <td class="py-3.5 px-4">
+                                                    <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"
+                                                          :class="sub.status === 'Active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400' :
+                                                                  sub.status === 'Suspended' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400' :
+                                                                  'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'"
+                                                          x-text="sub.status"></span>
+                                                </td>
+                                                <td class="py-3.5 px-4 text-right space-x-1">
+                                                    <button x-show="sub.status === 'Active'" @click="handleUpdateMessSubscriptionStatus(sub.id, 'suspend')" class="px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 text-[10px] font-bold hover:bg-amber-100">Suspend</button>
+                                                    <button x-show="sub.status === 'Suspended'" @click="handleUpdateMessSubscriptionStatus(sub.id, 'reactivate')" class="px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 text-[10px] font-bold hover:bg-emerald-100">Reactivate</button>
+                                                    <button x-show="sub.status !== 'Cancelled'" @click="handleUpdateMessSubscriptionStatus(sub.id, 'cancel')" class="px-2 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 text-[10px] font-bold hover:bg-rose-100">Cancel</button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4. MEAL ATTENDANCE SUB-TAB -->
+                    <div x-show="messSubTab === 'attendance'" class="space-y-4">
+                        <div class="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                            <div class="flex flex-wrap items-center gap-3">
+                                <input type="date" x-model="messFilterDate" @change="loadMealAttendance()" class="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold">
+                                <select x-model="messFilterMealType" @change="loadMealAttendance()" class="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold">
+                                    <option value="Breakfast">Breakfast</option>
+                                    <option value="Lunch">Lunch</option>
+                                    <option value="Evening Snacks">Evening Snacks</option>
+                                    <option value="Dinner">Dinner</option>
+                                </select>
+                                <button @click="loadMealAttendance()" class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-200">
+                                    <i class="fa-solid fa-filter mr-1.5"></i>Query Scans
+                                </button>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button @click="qrAttendanceModalOpen = true" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition flex items-center space-x-1.5 shadow-sm">
+                                    <i class="fa-solid fa-qrcode"></i>
+                                    <span>Verify QR Scan</span>
+                                </button>
+                                <button @click="mealAttendanceModalOpen = true" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition flex items-center space-x-1.5 shadow-sm">
+                                    <i class="fa-solid fa-user-check"></i>
+                                    <span>Manual Scan</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs text-slate-600 dark:text-slate-400">
+                                    <thead class="bg-slate-50 dark:bg-slate-800/50 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                                        <tr>
+                                            <th class="py-3.5 px-4">Student</th>
+                                            <th class="py-3.5 px-4">Meal Type</th>
+                                            <th class="py-3.5 px-4">Date & Time</th>
+                                            <th class="py-3.5 px-4">Verification</th>
+                                            <th class="py-3.5 px-4">Recorded By</th>
+                                            <th class="py-3.5 px-4">Status</th>
+                                            <th class="py-3.5 px-4 text-right">Audit Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                        <template x-for="att in mealAttendanceList" :key="att.id">
+                                            <tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition">
+                                                <td class="py-3.5 px-4">
+                                                    <div class="font-bold text-slate-900 dark:text-white" x-text="att.student_name || ('Student #' + att.student_id)"></div>
+                                                    <div class="text-[10px] text-slate-400 font-mono" x-text="att.student_uid || '--'"></div>
+                                                </td>
+                                                <td class="py-3.5 px-4 font-semibold text-slate-800 dark:text-slate-200" x-text="att.meal_type"></td>
+                                                <td class="py-3.5 px-4 font-mono text-[11px]" x-text="att.meal_date + ' ' + (att.marked_at ? att.marked_at.substring(11, 16) : '')"></td>
+                                                <td class="py-3.5 px-4">
+                                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400" x-text="att.verification_method"></span>
+                                                </td>
+                                                <td class="py-3.5 px-4 text-[11px]" x-text="att.marked_by_name || 'Staff'"></td>
+                                                <td class="py-3.5 px-4">
+                                                    <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"
+                                                          :class="att.status === 'Present' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'"
+                                                          x-text="att.status"></span>
+                                                </td>
+                                                <td class="py-3.5 px-4 text-right">
+                                                    <button x-show="att.status === 'Present'" @click="handleCorrectMealAttendance(att.id, 'Cancelled')" class="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 text-[10px] font-bold hover:bg-rose-100">Revoke Scan</button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- MESS MODALS -->
+                <!-- Create Mess Menu Modal -->
+                <div x-show="messMenuModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs" style="display: none;">
+                    <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white">Create Daily/Weekly Mess Menu</h3>
+                            <button @click="messMenuModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <form @submit.prevent="handleCreateMessMenu()" class="space-y-3 text-xs">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Meal Date</label>
+                                    <input type="date" x-model="newMessMenu.meal_date" required class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Meal Session</label>
+                                    <select x-model="newMessMenu.meal_type" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                        <option value="Breakfast">Breakfast</option>
+                                        <option value="Lunch">Lunch</option>
+                                        <option value="Evening Snacks">Evening Snacks</option>
+                                        <option value="Dinner">Dinner</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Menu Title</label>
+                                <input type="text" x-model="newMessMenu.title" required placeholder="e.g. Deluxe North Indian Lunch" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                            </div>
+                            <div>
+                                <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Food Items (comma-separated)</label>
+                                <input type="text" x-model="newMessMenu.items" required placeholder="Paneer Butter Masala, Dal Makhani, Jeera Rice, Chapati, Gulab Jamun" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Start Time</label>
+                                    <input type="time" x-model="newMessMenu.start_time" required class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">End Time</label>
+                                    <input type="time" x-model="newMessMenu.end_time" required class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Description / Nutritional Notes</label>
+                                <textarea x-model="newMessMenu.description" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800" placeholder="High-protein vegetarian menu"></textarea>
+                            </div>
+                            <div class="flex items-center space-x-2 pt-1">
+                                <input type="checkbox" id="publish_now" x-model="newMessMenu.is_published" class="rounded">
+                                <label for="publish_now" class="text-slate-600 dark:text-slate-400 font-semibold">Publish immediately to student portal</label>
+                            </div>
+                            <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                <button type="button" @click="messMenuModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">Cancel</button>
+                                <button type="submit" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold">Save Menu</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Create Mess Subscription Modal -->
+                <div x-show="messSubscriptionModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs" style="display: none;">
+                    <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white">Enroll Student Mess Subscription</h3>
+                            <button @click="messSubscriptionModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <form @submit.prevent="handleCreateMessSubscription()" class="space-y-3 text-xs">
+                            <div>
+                                <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Student ID</label>
+                                <input type="number" x-model="newMessSubscription.student_id" required placeholder="e.g. 1" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Plan Type</label>
+                                    <select x-model="newMessSubscription.plan_type" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                        <option value="Monthly">Monthly</option>
+                                        <option value="Semester">Semester</option>
+                                        <option value="Custom">Custom</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Dietary Preference</label>
+                                    <select x-model="newMessSubscription.dietary_preference" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                        <option value="Vegetarian">Vegetarian</option>
+                                        <option value="Non-Vegetarian">Non-Vegetarian</option>
+                                        <option value="Vegan">Vegan</option>
+                                        <option value="Jain">Jain</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Start Date</label>
+                                    <input type="date" x-model="newMessSubscription.start_date" required class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">End Date</label>
+                                    <input type="date" x-model="newMessSubscription.end_date" required class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Monthly Rate (INR)</label>
+                                <input type="number" step="0.01" x-model="newMessSubscription.monthly_rate" required class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                            </div>
+                            <div class="flex items-center space-x-2 pt-1">
+                                <input type="checkbox" id="auto_invoice" x-model="newMessSubscription.auto_generate_invoice" class="rounded">
+                                <label for="auto_invoice" class="text-slate-600 dark:text-slate-400 font-semibold">Auto-generate Mess Fee Invoice in Financial Module</label>
+                            </div>
+                            <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                <button type="button" @click="messSubscriptionModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">Cancel</button>
+                                <button type="submit" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold">Enroll Boarder</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Record Meal Attendance Modal -->
+                <div x-show="mealAttendanceModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs" style="display: none;">
+                    <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white">Manual Meal Attendance Entry</h3>
+                            <button @click="mealAttendanceModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <form @submit.prevent="handleRecordMealAttendance()" class="space-y-3 text-xs">
+                            <div>
+                                <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Student ID</label>
+                                <input type="number" x-model="newMealAttendance.student_id" required placeholder="e.g. 1" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Meal Date</label>
+                                    <input type="date" x-model="newMealAttendance.meal_date" required class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Meal Session</label>
+                                    <select x-model="newMealAttendance.meal_type" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                        <option value="Breakfast">Breakfast</option>
+                                        <option value="Lunch">Lunch</option>
+                                        <option value="Evening Snacks">Evening Snacks</option>
+                                        <option value="Dinner">Dinner</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Remarks</label>
+                                <input type="text" x-model="newMealAttendance.remarks" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800" placeholder="e.g. Mess counter verification">
+                            </div>
+                            <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                <button type="button" @click="mealAttendanceModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">Cancel</button>
+                                <button type="submit" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold">Record Entry</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- QR Attendance Modal -->
+                <div x-show="qrAttendanceModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs" style="display: none;">
+                    <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white">Verify Student Meal QR / Token</h3>
+                            <button @click="qrAttendanceModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <form @submit.prevent="handleVerifyQRMealAttendance()" class="space-y-3 text-xs">
+                            <div>
+                                <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">QR Token / Student UID</label>
+                                <input type="text" x-model="qrMealAttendance.qr_token" required placeholder="Scan QR or enter token e.g. STU-1" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Meal Date</label>
+                                    <input type="date" x-model="qrMealAttendance.meal_date" required class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Meal Session</label>
+                                    <select x-model="qrMealAttendance.meal_type" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                        <option value="Breakfast">Breakfast</option>
+                                        <option value="Lunch">Lunch</option>
+                                        <option value="Evening Snacks">Evening Snacks</option>
+                                        <option value="Dinner">Dinner</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                <button type="button" @click="qrAttendanceModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">Cancel</button>
+                                <button type="submit" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold">Verify & Check In</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
 

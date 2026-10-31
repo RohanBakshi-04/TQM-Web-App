@@ -560,6 +560,240 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
             applied_now.append("007_fee_and_financial_enhancements")
             logger.info("Migration 007_fee_and_financial_enhancements applied successfully.")
 
+
+        # =========================================================================
+        # MIGRATION 008: Mess & Inventory Operations
+        # =========================================================================
+        if "008_mess_and_inventory_enhancements" not in applied:
+            logger.info("Applying Migration 008_mess_and_inventory_enhancements...")
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA foreign_keys = OFF;")
+
+            # 1. Suppliers Table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS suppliers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    contact_person TEXT DEFAULT '',
+                    phone TEXT DEFAULT '',
+                    email TEXT DEFAULT '',
+                    address TEXT DEFAULT '',
+                    category TEXT DEFAULT 'General',
+                    is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # 2. Enhance mess_menus
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS mess_menus_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    hostel_id INTEGER NULL REFERENCES hostels(id) ON DELETE CASCADE,
+                    menu_date TEXT NULL,
+                    day_of_week TEXT NOT NULL CHECK(day_of_week IN ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')),
+                    meal_type TEXT NOT NULL CHECK(meal_type IN ('Breakfast', 'Lunch', 'Evening Snacks', 'Snacks', 'Dinner')),
+                    title TEXT DEFAULT '',
+                    items_description TEXT NOT NULL,
+                    items TEXT NOT NULL DEFAULT '[]',
+                    start_time TEXT DEFAULT '',
+                    end_time TEXT DEFAULT '',
+                    is_special INTEGER NOT NULL DEFAULT 0 CHECK(is_special IN (0, 1)),
+                    status TEXT NOT NULL DEFAULT 'Published' CHECK(status IN ('Draft', 'Published', 'Cancelled')),
+                    cancelled_reason TEXT DEFAULT '',
+                    created_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            old_mm_cols = [c[1] for c in cursor.execute("PRAGMA table_info(mess_menus);").fetchall()]
+            common_mm = [c for c in ['id', 'day_of_week', 'meal_type', 'items_description', 'is_special', 'created_at', 'updated_at'] if c in old_mm_cols]
+            if common_mm:
+                c_str = ", ".join(common_mm)
+                cursor.execute(f"INSERT INTO mess_menus_new ({c_str}) SELECT {c_str} FROM mess_menus;")
+            cursor.execute("DROP TABLE IF EXISTS mess_menus;")
+            cursor.execute("ALTER TABLE mess_menus_new RENAME TO mess_menus;")
+
+            # 3. Enhance mess_subscriptions
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS mess_subscriptions_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    subscription_reference TEXT NOT NULL UNIQUE,
+                    student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE RESTRICT,
+                    hostel_id INTEGER NULL REFERENCES hostels(id) ON DELETE SET NULL,
+                    plan_type TEXT NOT NULL CHECK(plan_type IN ('Monthly', 'Semester', 'Custom', 'Annual')),
+                    diet_type TEXT NOT NULL DEFAULT 'Regular' CHECK(diet_type IN ('Regular', 'Vegetarian', 'Non-Vegetarian', 'Jain', 'Special')),
+                    start_date TEXT NOT NULL,
+                    end_date TEXT NOT NULL,
+                    monthly_fee REAL NOT NULL CHECK(monthly_fee >= 0),
+                    total_fee REAL NOT NULL DEFAULT 0.0 CHECK(total_fee >= 0),
+                    status TEXT NOT NULL DEFAULT 'Active' CHECK(status IN ('Pending', 'Active', 'Suspended', 'Expired', 'Cancelled')),
+                    invoice_id INTEGER NULL REFERENCES invoices(id) ON DELETE SET NULL,
+                    is_exempted INTEGER NOT NULL DEFAULT 0 CHECK(is_exempted IN (0, 1)),
+                    exemption_reason TEXT DEFAULT '',
+                    remarks TEXT DEFAULT '',
+                    approved_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    CHECK(end_date >= start_date)
+                );
+            """)
+            old_sub_cols = [c[1] for c in cursor.execute("PRAGMA table_info(mess_subscriptions);").fetchall()]
+            if 'id' in old_sub_cols:
+                cursor.execute("""
+                    INSERT INTO mess_subscriptions_new (
+                        id, subscription_reference, student_id, plan_type, start_date, end_date,
+                        monthly_fee, total_fee, status, created_at, updated_at
+                    )
+                    SELECT 
+                        id, 'SUB-LEGACY-' || id, student_id, plan_type, start_date, end_date,
+                        monthly_fee, monthly_fee, status, created_at, updated_at
+                    FROM mess_subscriptions;
+                """)
+            cursor.execute("DROP TABLE IF EXISTS mess_subscriptions;")
+            cursor.execute("ALTER TABLE mess_subscriptions_new RENAME TO mess_subscriptions;")
+
+            # 4. Enhance meal_attendance
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS meal_attendance_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE RESTRICT,
+                    subscription_id INTEGER NULL REFERENCES mess_subscriptions(id) ON DELETE SET NULL,
+                    hostel_id INTEGER NULL REFERENCES hostels(id) ON DELETE SET NULL,
+                    date TEXT NOT NULL,
+                    meal_type TEXT NOT NULL CHECK(meal_type IN ('Breakfast', 'Lunch', 'Evening Snacks', 'Snacks', 'Dinner')),
+                    verification_method TEXT NOT NULL DEFAULT 'Manual' CHECK(verification_method IN ('Manual', 'QR_Scan', 'Biometric', 'RFID')),
+                    status TEXT NOT NULL DEFAULT 'Present' CHECK(status IN ('Present', 'Absent', 'Corrected', 'Cancelled')),
+                    marked_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    correction_reason TEXT DEFAULT '',
+                    corrected_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    marked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(student_id, date, meal_type)
+                );
+            """)
+            old_att_cols = [c[1] for c in cursor.execute("PRAGMA table_info(meal_attendance);").fetchall()]
+            common_att = [c for c in ['id', 'student_id', 'date', 'meal_type', 'marked_at'] if c in old_att_cols]
+            if common_att:
+                c_str = ", ".join(common_att)
+                cursor.execute(f"INSERT OR IGNORE INTO meal_attendance_new ({c_str}) SELECT {c_str} FROM meal_attendance;")
+            cursor.execute("DROP TABLE IF EXISTS meal_attendance;")
+            cursor.execute("ALTER TABLE meal_attendance_new RENAME TO meal_attendance;")
+
+            # 5. Enhance inventory_categories default records
+            default_cats = [
+                ("Food Grains", "Rice, wheat, pulses, oats, and cereals"),
+                ("Vegetables", "Fresh vegetables, tubers, and greens"),
+                ("Fruits", "Fresh seasonal fruits"),
+                ("Dairy Products", "Milk, curd, paneer, butter, and cheese"),
+                ("Cooking Oil and Spices", "Edible oils, ghee, ground spices, and herbs"),
+                ("Cleaning Supplies", "Detergents, floor cleaners, disinfectants, and sanitizers"),
+                ("Kitchen Equipment", "Utensils, cookers, pans, and appliances"),
+                ("Furniture", "Beds, study tables, chairs, and cupboards"),
+                ("Maintenance Materials", "Pipes, plumbing fixtures, cement, and paint"),
+                ("Other", "Miscellaneous institutional hostel items")
+            ]
+            for cat_name, cat_desc in default_cats:
+                cursor.execute("""
+                    INSERT INTO inventory_categories (name, description)
+                    SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM inventory_categories WHERE name = ?);
+                """, (cat_name, cat_desc, cat_name))
+
+            # 6. Enhance inventory_items
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS inventory_items_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    item_code TEXT NOT NULL UNIQUE,
+                    name TEXT NOT NULL,
+                    category_id INTEGER NOT NULL REFERENCES inventory_categories(id) ON DELETE RESTRICT,
+                    supplier_id INTEGER NULL REFERENCES suppliers(id) ON DELETE SET NULL,
+                    hostel_id INTEGER NULL REFERENCES hostels(id) ON DELETE SET NULL,
+                    description TEXT DEFAULT '',
+                    unit TEXT NOT NULL,
+                    quantity_in_stock REAL NOT NULL DEFAULT 0.0 CHECK(quantity_in_stock >= 0),
+                    min_reorder_level REAL NOT NULL DEFAULT 0.0 CHECK(min_reorder_level >= 0),
+                    max_stock_threshold REAL NULL,
+                    unit_price REAL NOT NULL DEFAULT 0.0 CHECK(unit_price >= 0),
+                    storage_location TEXT NOT NULL DEFAULT 'Main Store',
+                    expiry_date TEXT NULL,
+                    status TEXT NOT NULL DEFAULT 'Active' CHECK(status IN ('Active', 'Available', 'Inactive', 'Discontinued', 'Low_Stock', 'Out_of_Stock')),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            old_item_cols = [c[1] for c in cursor.execute("PRAGMA table_info(inventory_items);").fetchall()]
+            common_items = [c for c in ['id', 'category_id', 'item_code', 'name', 'description', 'unit', 'quantity_in_stock', 'min_reorder_level', 'unit_price', 'status', 'created_at', 'updated_at'] if c in old_item_cols]
+            if common_items:
+                c_str = ", ".join(common_items)
+                cursor.execute(f"INSERT INTO inventory_items_new ({c_str}) SELECT {c_str} FROM inventory_items;")
+            cursor.execute("DROP TABLE IF EXISTS inventory_items;")
+            cursor.execute("ALTER TABLE inventory_items_new RENAME TO inventory_items;")
+
+            # 7. Enhance inventory_transactions
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS inventory_transactions_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    transaction_reference TEXT NOT NULL UNIQUE,
+                    item_id INTEGER NOT NULL REFERENCES inventory_items(id) ON DELETE RESTRICT,
+                    transaction_type TEXT NOT NULL CHECK(transaction_type IN ('Stock_In', 'Stock_Out', 'Adjustment', 'Transfer', 'Damaged', 'Wastage', 'Expired')),
+                    quantity REAL NOT NULL CHECK(quantity > 0),
+                    unit_price REAL NOT NULL DEFAULT 0.0 CHECK(unit_price >= 0),
+                    total_amount REAL NOT NULL DEFAULT 0.0 CHECK(total_amount >= 0),
+                    supplier_id INTEGER NULL REFERENCES suppliers(id) ON DELETE SET NULL,
+                    invoice_reference TEXT DEFAULT '',
+                    purchase_date TEXT NULL,
+                    department_destination TEXT DEFAULT '',
+                    purpose TEXT DEFAULT '',
+                    issued_to_user INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    source_location TEXT DEFAULT '',
+                    target_location TEXT DEFAULT '',
+                    adjustment_reason TEXT DEFAULT '',
+                    approval_status TEXT NOT NULL DEFAULT 'Approved' CHECK(approval_status IN ('Pending_Approval', 'Approved', 'Rejected')),
+                    approved_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    related_maintenance_task_id INTEGER NULL REFERENCES maintenance_tasks(id) ON DELETE SET NULL,
+                    performed_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    notes TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            old_tx_cols = [c[1] for c in cursor.execute("PRAGMA table_info(inventory_transactions);").fetchall()]
+            if 'id' in old_tx_cols:
+                cursor.execute("""
+                    INSERT INTO inventory_transactions_new (
+                        id, transaction_reference, item_id, transaction_type, quantity,
+                        unit_price, total_amount, related_maintenance_task_id, performed_by, notes, created_at
+                    )
+                    SELECT 
+                        id, 'TX-LEGACY-' || id, item_id, transaction_type, quantity,
+                        unit_price, ROUND(quantity * unit_price, 2), related_maintenance_task_id, performed_by, notes, created_at
+                    FROM inventory_transactions;
+                """)
+            cursor.execute("DROP TABLE IF EXISTS inventory_transactions;")
+            cursor.execute("ALTER TABLE inventory_transactions_new RENAME TO inventory_transactions;")
+
+            # 8. Composite B-Tree Indexes
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_mess_menus_hostel ON mess_menus(hostel_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_mess_menus_date ON mess_menus(menu_date);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_mess_menus_day_meal ON mess_menus(day_of_week, meal_type);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_mess_subs_student ON mess_subscriptions(student_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_mess_subs_status ON mess_subscriptions(status);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_mess_subs_dates ON mess_subscriptions(start_date, end_date);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_meal_att_student_date ON meal_attendance(student_id, date);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_meal_att_date_meal ON meal_attendance(date, meal_type);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_inv_items_code ON inventory_items(item_code);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_inv_items_cat ON inventory_items(category_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_inv_items_stock ON inventory_items(quantity_in_stock);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_inv_items_expiry ON inventory_items(expiry_date);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_inv_tx_item ON inventory_transactions(item_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_inv_tx_type ON inventory_transactions(transaction_type);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_inv_tx_date ON inventory_transactions(created_at);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(name);")
+
+            cursor.execute("PRAGMA foreign_keys = ON;")
+            conn.commit()
+            record_migration(conn, "008_mess_and_inventory_enhancements", "Mess Menus, Subscriptions, Meal Attendance, Inventory & Suppliers")
+            applied_now.append("008_mess_and_inventory_enhancements")
+            logger.info("Migration 008_mess_and_inventory_enhancements applied successfully.")
+
         return applied_now
     finally:
         if should_close:

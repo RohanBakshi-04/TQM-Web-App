@@ -25,6 +25,7 @@ from backend.app.routers.attendance import router as attendance_router
 from backend.app.routers.leave import router as leave_router, outpass_router
 from backend.app.routers.visitors import router as visitors_router
 from backend.app.routers.fees import fees_router
+from backend.app.routers.mess import mess_router
 from backend.app.routers.dashboard import metrics_router, router as dashboard_router
 from backend.app.routers.health import router as health_router
 from backend.app.routers.hostels import building_router, router as hostels_router
@@ -80,6 +81,7 @@ app.include_router(leave_router)
 app.include_router(outpass_router)
 app.include_router(visitors_router)
 app.include_router(fees_router)
+app.include_router(mess_router)
 
 
 # Mount static assets if directory exists
