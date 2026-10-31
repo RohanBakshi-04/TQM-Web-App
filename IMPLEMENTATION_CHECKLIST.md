@@ -305,3 +305,41 @@
 - [x] Updated `docs/PERFORMANCE_BENCHMARKS.md`
 - [x] 10 comprehensive tests in `backend/tests/test_cached_dashboard.py`
 - [x] Total 74 automated tests passing across the entire project (100% success rate)
+
+
+---
+
+## Prompt 11: Attendance, Leave & Visitor Management
+
+### 1. Attendance Management
+- [x] Daily student attendance recording with status options (`Present`, `Absent`, `On Leave`, `Not Marked`)
+- [x] Room-by-room batch marking roster by hostel, building, floor, and room
+- [x] Authorized staff access control (Warden, Assistant Warden, Super Admin, Hostel Admin)
+- [x] Poka-Yoke duplicate prevention via database `UNIQUE(student_id, date)` constraint
+- [x] Immutable correction audit log (`attendance_corrections`) requiring mandatory justification
+- [x] Daily attendance metrics aggregation and repeat absentee detection (>= 3 absences in 30 days)
+- [x] Comprehensive date-range and monthly attendance reports with percentage calculation
+
+### 2. Leave & Gate Outpass Management
+- [x] Student leave request workflow (`Draft` -> `Submitted` -> `Approved` / `Rejected` / `Cancelled`)
+- [x] Poka-Yoke self-approval defense: Students strictly blocked from approving own leaves (HTTP 403)
+- [x] State transition integrity: Rejected/Cancelled applications cannot be approved
+- [x] Overlapping active leave prevention
+- [x] Automated digital gate outpass generation (`OP-YYYYMM-XXXX`) upon warden approval
+- [x] Security officer gate verification (`verify-exit` and `verify-return`)
+- [x] Poka-Yoke exit/return defenses: Duplicate exits and premature returns rejected
+- [x] Real-time overdue curfew tracking for students outside campus premises
+
+### 3. Visitor Management & Security Passes
+- [x] Complete visitor registration capturing full credentials and host resident link
+- [x] Duplicate active visit prevention for the same contact number
+- [x] Digital visitor entry pass generation (`VP-YYYYMM-XXXX`)
+- [x] Gatekeeper check-in and check-out verification
+- [x] Real-time active visitors tracking on campus premises
+- [x] Overdue visit tracking flagging passes exceeding scheduled duration
+- [x] Role-based privacy masking: Government ID proof numbers masked (`XXXX-XXXX-1234`) for resident students
+
+### 4. Database & Infrastructure
+- [x] Migration `006_attendance_leave_visitor_enhancements` adding `attendance_corrections` and `outpasses`
+- [x] B-Tree composite indexes for attendance, leaves, outpasses, and visitor logs
+- [x] Total 95 tests passing across complete application test suite (100% success rate)

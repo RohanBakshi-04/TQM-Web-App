@@ -19,8 +19,46 @@
 | **Prompt 06: Infrastructure & Facility Engine** | Hostel, Building, Floor, Room, Bed hierarchy with dynamic capacity and occupancy calculation engine | 🟢 Completed | Included in Foundation |
 | **Prompt 07: Room Allocation & Poka-Yoke** | Defect-proof student room & bed allocation, multi-criteria AI suggestion engine, atomic room transfers, check-in/check-out lifecycle, 10 Poka-Yoke barriers, concurrency protection, allocation dashboard & confirmation certificates | 🟢 Completed | `f403357`, `39395ad`, `6d8d0c1`, `a96d1e7` |
 | **Prompt 08: Q05 Fast Search & Database Indexing** | Sub-10ms centralized search across students, hostels, rooms, allocations, complaints, maintenance, payments; SQLite FTS5 virtual engine; 9 B-Tree composite indexes; automated query plan verification; multi-tier benchmarks (1k-100k records); frontend Ctrl+K modal with debouncing & highlighting | 🟢 Completed | `47d9589`, `5b67acc`, `ea5c109` |
-| **Prompt 09: Q05 Cached Dashboard & Quick Navigation** | Thread-safe in-memory cache engine with TTL, dependency tag invalidation (students, hostels, rooms, allocations, complaints, finance), sub-0.05ms warm response time, role-based multi-tenant hostel isolation, SPA persistent shell, client-side request deduplication | 🟢 Completed | `1690967`, `26b5821`, Staged Commit 3 |
-| **Prompt 10: TQM Quality Audit & Final Delivery** | ISO/TQM compliance verification, statistical latency benchmarking, deployment readiness | ⏳ Next Phase | -- |
+| **Prompt 09: Q05 Cached Dashboard & Quick Navigation** | Thread-safe in-memory cache engine with TTL, dependency tag invalidation (students, hostels, rooms, allocations, complaints, finance), sub-0.05ms warm response time, role-based multi-tenant hostel isolation, SPA persistent shell, client-side request deduplication | 🟢 Completed | `1690967`, `26b5821` |
+| **Prompt 10: Complaint and Maintenance Management** | Student complaint submission across 10 categories & 4 severities, automated SLA escalation tracking, maintenance work orders with parts & cost tracking, supervisor verification, and feedback loop | 🟢 Completed | `3137962`, `a4087e6`, `90263f3` |
+| **Prompt 11: Attendance, Leave & Visitor Management** | Daily attendance tracking with duplicate prevention, biometric corrections with audit reason, repeat absentee detection; leave applications with automated digital gate outpasses (OP-YYYYMM-XXXX), gate exit/return verification, overdue tracking; visitor registration with active visit limits, digital visitor passes (VP-YYYYMM-XXXX), gate check-in/out, and ID privacy masking | 🟢 Completed | `407949a`, `9f14e48`, `a26ea17`, Staged Commit 4 |
+| **Prompt 12: Mess, Dining and Meal Operations** | Mess menu management, dietary subscriptions, dining attendance, and inventory integration | ⏳ Next Phase | -- |
+
+---
+
+## 🎯 Prompt 11 Attendance, Leave & Visitor Management Deliverables Checklist
+
+- [x] **Attendance Management Module (`backend/app/services/attendance_service.py` & `/api/v1/attendance`):**
+  - Daily student attendance marking (`Present`, `Absent`, `On Leave`, `Not Marked`) with authorized staff verification.
+  - Multi-level filtering by Hostel, Building, Floor, Room, Date, and Status.
+  - Poka-Yoke duplicate marking prevention via database `UNIQUE(student_id, date)` constraint.
+  - Transparent audit correction logging (`attendance_corrections`) with mandatory justification reasoning.
+  - Daily aggregated summaries (Present, Absent, On Leave, Not Marked, Attendance %) and automated repeat absentee detection (>= 3 unexcused absences within 30 days).
+  - Date-range and monthly attendance reports with per-student attendance rate calculation.
+- [x] **Leave & Gate Outpass Engine (`backend/app/services/leave_service.py`, `/api/v1/leave`, `/api/v1/outpasses`):**
+  - Complete multi-status student leave workflow (`Draft` -> `Submitted` -> `Approved` / `Rejected` / `Cancelled`).
+  - Strict Poka-Yoke validation: student self-approval prevention, historical state transition locks, overlapping active leave blocking.
+  - Automated digital gate outpass generation (`OP-YYYYMM-XXXX`) upon warden/administrator leave approval.
+  - Gatekeeper exit and return verification (`/api/v1/outpasses/{id}/verify-exit`, `/api/v1/outpasses/{id}/verify-return`) preventing duplicate exits and premature returns.
+  - Real-time overdue curfew tracking identifying residents outside campus past expected return time.
+- [x] **Visitor Management Module (`backend/app/services/visitor_service.py` & `/api/v1/visitors`):**
+  - Complete visitor registration workflow capturing visitor credentials, resident student link, purpose, and contact information.
+  - Anti-abuse active visit limit: prevents duplicate active passes for the same visitor contact number.
+  - Unique visitor pass generation (`VP-YYYYMM-XXXX`) with entry and expected departure window.
+  - Gate check-in and check-out verification (`/api/v1/visitors/logs/{id}/check-in`, `check-out`) with real-time active visitor monitoring.
+  - Overdue visit tracking flagging visitors remaining on campus beyond authorized visiting duration.
+  - Role-based privacy protection: sensitive government ID proof numbers are dynamically masked (`XXXX-XXXX-1234`) for resident students and unauthorized viewers.
+- [x] **Database Schema Migration 006 (`006_attendance_leave_visitor_enhancements`):**
+  - Added `attendance_corrections` table with foreign key linkage and mandatory change reasoning.
+  - Added `outpasses` table with unique constraint on `outpass_number` and foreign keys to `leave_requests` and verifying officers.
+  - Optimized composite indexes: `idx_attendance_student_date`, `idx_attendance_date_status`, `idx_leave_student_status`, `idx_outpasses_status`, `idx_visitor_logs_status_active`.
+- [x] **Alpine.js Reactive User Interface:**
+  - Dedicated Attendance tab with daily summary metrics, room-by-room batch marking roster, and individual attendance records.
+  - Dedicated Leave & Outpass tab with student submission modal, warden approval cards, and security guard barcode/outpass scanner interface.
+  - Dedicated Visitor Pass tab with visitor registration modal, active visitor roster, overdue warnings, and one-click check-out action.
+- [x] **Automated Testing Suite:**
+  - 11 comprehensive unit and integration tests in `backend/tests/test_attendance_leave_visitors.py`.
+  - Full suite now stands at **95 passing tests** across 8 test suites with 100% success rate.
 
 ---
 

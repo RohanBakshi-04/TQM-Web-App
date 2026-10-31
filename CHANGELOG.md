@@ -91,3 +91,31 @@ All notable changes to this project are documented in this file, adhering to Sem
 - **12 Tailored Dashboards:** Created dedicated stakeholder interfaces for all 12 roles (`super_admin`, `hostel_admin`, `warden`, `assistant_warden`, `student`, `accountant`, `mess_manager`, `maintenance_staff`, `security_guard`, `admission_officer`, `parent_guardian`, `auditor`).
 - **Live Metrics API:** Implemented `GET /api/v1/dashboard/stats` in `backend/app/routers/dashboard.py` querying real SQLite tables.
 - **Automated Verification:** Added `backend/tests/test_dashboard_api.py`, expanding the test suite to 38 tests (100% pass rate).
+
+---
+
+## [0.7.0] - 2026-10-31 (Prompt 11: Attendance, Leave & Visitor Management)
+
+### Added
+- **Attendance Management Module:**
+  - Daily student attendance marking across all hostels, floors, and rooms.
+  - Poka-Yoke duplicate marking prevention (`UNIQUE(student_id, date)`).
+  - Attendance corrections with mandatory audit trail (`attendance_corrections`).
+  - Daily aggregated summaries and automated repeat absentee detection (>= 3 absences).
+  - Date-range and monthly attendance reports with percentage calculation.
+- **Leave & Outpass Engine:**
+  - Complete multi-status leave application lifecycle with warden approval workflow.
+  - Automated digital gate outpass generation (`OP-YYYYMM-XXXX`).
+  - Gatekeeper exit and return verification with duplicate exit/return prevention.
+  - Real-time curfew overdue tracking.
+- **Visitor Pass Management:**
+  - Visitor registration with active visit limits per phone number.
+  - Digital visitor passes (`VP-YYYYMM-XXXX`) with entry and expected departure windows.
+  - Gate check-in and check-out verification.
+  - Role-based privacy masking of government ID numbers (`XXXX-XXXX-1234`).
+- **Database Schema Migration 006:**
+  - Added `attendance_corrections` and `outpasses` tables.
+  - Added composite indexes for sub-10ms query performance.
+- **Testing Suite:**
+  - Added 11 tests in `backend/tests/test_attendance_leave_visitors.py`.
+  - Expanded total test suite to 95 tests (100% passing).

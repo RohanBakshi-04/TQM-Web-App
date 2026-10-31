@@ -30,14 +30,16 @@ class AttendanceService:
         """Fetch active hostel and room allocation details for a student."""
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT ra.id as allocation_id, ra.hostel_id, ra.room_id, ra.bed_id,
+            SELECT ra.id as allocation_id, bld.hostel_id, ra.room_id, ra.bed_id,
                    h.name as hostel_name, r.room_number, b.bed_number as bed_code,
-                   s.first_name || ' ' || s.last_name as student_name, s.enrollment_number as roll_no,
+                   s.first_name || ' ' || s.last_name as student_name, s.student_id as roll_no,
                    s.user_id as student_user_id
             FROM students s
             LEFT JOIN room_allocations ra ON ra.student_id = s.id AND ra.allocation_status = 'Active'
-            LEFT JOIN hostels h ON h.id = ra.hostel_id
             LEFT JOIN rooms r ON r.id = ra.room_id
+            LEFT JOIN floors f ON f.id = r.floor_id
+            LEFT JOIN buildings bld ON bld.id = f.building_id
+            LEFT JOIN hostels h ON h.id = bld.hostel_id
             LEFT JOIN beds b ON b.id = ra.bed_id
             WHERE s.id = ?;
         """, (student_id,))
@@ -199,11 +201,14 @@ class AttendanceService:
         try:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT a.id, a.student_id, a.date, a.status, ra.hostel_id, s.user_id as student_user_id,
+                SELECT a.id, a.student_id, a.date, a.status, bld.hostel_id, s.user_id as student_user_id,
                        s.first_name || ' ' || s.last_name as student_name
                 FROM attendance a
                 JOIN students s ON s.id = a.student_id
                 LEFT JOIN room_allocations ra ON ra.student_id = s.id AND ra.allocation_status = 'Active'
+                LEFT JOIN rooms r ON r.id = ra.room_id
+                LEFT JOIN floors f ON f.id = r.floor_id
+                LEFT JOIN buildings bld ON bld.id = f.building_id
                 WHERE a.id = ?;
             """, (attendance_id,))
             record = cursor.fetchone()
@@ -304,7 +309,7 @@ class AttendanceService:
                 where_clauses.append(f"a.student_id IN ({placeholders})")
                 params.extend(wards)
             elif role in ["warden", "assistant_warden"] and user_hostel_id:
-                where_clauses.append("ra.hostel_id = ?")
+                where_clauses.append("bld.hostel_id = ?")
                 params.append(int(user_hostel_id))
 
             # Query Filters
@@ -324,10 +329,10 @@ class AttendanceService:
                 where_clauses.append("a.status = ?")
                 params.append(filters["status"])
             if filters.get("hostel_id"):
-                where_clauses.append("ra.hostel_id = ?")
+                where_clauses.append("bld.hostel_id = ?")
                 params.append(filters["hostel_id"])
             if filters.get("building_id"):
-                where_clauses.append("r.building_id = ?")
+                where_clauses.append("f.building_id = ?")
                 params.append(filters["building_id"])
             if filters.get("room_id"):
                 where_clauses.append("ra.room_id = ?")
@@ -342,6 +347,8 @@ class AttendanceService:
                 JOIN students s ON s.id = a.student_id
                 LEFT JOIN room_allocations ra ON ra.student_id = s.id AND ra.allocation_status = 'Active'
                 LEFT JOIN rooms r ON r.id = ra.room_id
+                LEFT JOIN floors f ON f.id = r.floor_id
+                LEFT JOIN buildings bld ON bld.id = f.building_id
                 WHERE {where_str};
             """
             cursor.execute(count_query, params)
@@ -353,14 +360,16 @@ class AttendanceService:
 
             query = f"""
                 SELECT a.id, a.student_id, a.date, a.status, a.remarks, a.marked_at, a.created_at,
-                       s.first_name || ' ' || s.last_name as student_name, s.enrollment_number as roll_no,
-                       h.name as hostel_name, ra.hostel_id, r.room_number, b.bed_number as bed_code,
+                       s.first_name || ' ' || s.last_name as student_name, s.student_id as roll_no,
+                       h.name as hostel_name, bld.hostel_id, r.room_number, b.bed_number as bed_code,
                        u.username as marked_by_name, a.marked_by
                 FROM attendance a
                 JOIN students s ON s.id = a.student_id
                 LEFT JOIN room_allocations ra ON ra.student_id = s.id AND ra.allocation_status = 'Active'
-                LEFT JOIN hostels h ON h.id = ra.hostel_id
                 LEFT JOIN rooms r ON r.id = ra.room_id
+                LEFT JOIN floors f ON f.id = r.floor_id
+                LEFT JOIN buildings bld ON bld.id = f.building_id
+                LEFT JOIN hostels h ON h.id = bld.hostel_id
                 LEFT JOIN beds b ON b.id = ra.bed_id
                 LEFT JOIN users u ON u.id = a.marked_by
                 WHERE {where_str}
@@ -469,13 +478,16 @@ class AttendanceService:
             cursor = conn.cursor()
 
             # Active resident students count
-            hostel_clause = "AND ra.hostel_id = ?" if hostel_id else ""
+            hostel_clause = "AND bld.hostel_id = ?" if hostel_id else ""
             h_params = [hostel_id] if hostel_id else []
 
             cursor.execute(f"""
                 SELECT COUNT(DISTINCT s.id)
                 FROM students s
                 JOIN room_allocations ra ON ra.student_id = s.id AND ra.allocation_status = 'Active'
+                JOIN rooms r ON r.id = ra.room_id
+                JOIN floors f ON f.id = r.floor_id
+                JOIN buildings bld ON bld.id = f.building_id
                 WHERE 1=1 {hostel_clause};
             """, h_params)
             total_students = cursor.fetchone()[0]
@@ -488,6 +500,9 @@ class AttendanceService:
                     SUM(CASE WHEN a.status IN ('On Leave', 'On_Leave') THEN 1 ELSE 0 END) as on_leave_count
                 FROM attendance a
                 JOIN room_allocations ra ON ra.student_id = a.student_id AND ra.allocation_status = 'Active'
+                JOIN rooms r ON r.id = ra.room_id
+                JOIN floors f ON f.id = r.floor_id
+                JOIN buildings bld ON bld.id = f.building_id
                 WHERE a.date = ? {hostel_clause};
             """, [target_date] + h_params)
             counts = cursor.fetchone()
@@ -502,13 +517,15 @@ class AttendanceService:
             thirty_days_ago = (date.fromisoformat(target_date) - timedelta(days=30)).isoformat()
             cursor.execute(f"""
                 SELECT s.id as student_id, s.first_name || ' ' || s.last_name as student_name,
-                       s.enrollment_number as roll_no, r.room_number, h.name as hostel_name,
+                       s.student_id as roll_no, r.room_number, h.name as hostel_name,
                        COUNT(a.id) as absent_days
                 FROM attendance a
                 JOIN students s ON s.id = a.student_id
                 JOIN room_allocations ra ON ra.student_id = s.id AND ra.allocation_status = 'Active'
-                LEFT JOIN rooms r ON r.id = ra.room_id
-                LEFT JOIN hostels h ON h.id = ra.hostel_id
+                JOIN rooms r ON r.id = ra.room_id
+                JOIN floors f ON f.id = r.floor_id
+                JOIN buildings bld ON bld.id = f.building_id
+                LEFT JOIN hostels h ON h.id = bld.hostel_id
                 WHERE a.status = 'Absent' AND a.date >= ? AND a.date <= ? {hostel_clause}
                 GROUP BY s.id
                 HAVING COUNT(a.id) >= 3
@@ -541,14 +558,14 @@ class AttendanceService:
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
-            hostel_clause = "AND ra.hostel_id = ?" if hostel_id else ""
+            hostel_clause = "AND bld.hostel_id = ?" if hostel_id else ""
             h_params = [hostel_id] if hostel_id else []
 
             cursor.execute(f"""
                 SELECT 
                     s.id as student_id,
                     s.first_name || ' ' || s.last_name as student_name,
-                    s.enrollment_number as roll_no,
+                    s.student_id as roll_no,
                     h.name as hostel_name,
                     r.room_number,
                     COUNT(a.id) as total_days,
@@ -557,8 +574,10 @@ class AttendanceService:
                     SUM(CASE WHEN a.status IN ('On Leave', 'On_Leave') THEN 1 ELSE 0 END) as on_leave_days
                 FROM students s
                 JOIN room_allocations ra ON ra.student_id = s.id AND ra.allocation_status = 'Active'
-                LEFT JOIN hostels h ON h.id = ra.hostel_id
-                LEFT JOIN rooms r ON r.id = ra.room_id
+                JOIN rooms r ON r.id = ra.room_id
+                JOIN floors f ON f.id = r.floor_id
+                JOIN buildings bld ON bld.id = f.building_id
+                LEFT JOIN hostels h ON h.id = bld.hostel_id
                 LEFT JOIN attendance a ON a.student_id = s.id AND a.date >= ? AND a.date <= ?
                 WHERE 1=1 {hostel_clause}
                 GROUP BY s.id
@@ -630,10 +649,10 @@ class AttendanceService:
             params: List[Any] = [target_date, target_date]
 
             if hostel_id:
-                where_clauses.append("ra.hostel_id = ?")
+                where_clauses.append("bld.hostel_id = ?")
                 params.append(hostel_id)
             if building_id:
-                where_clauses.append("r.building_id = ?")
+                where_clauses.append("f.building_id = ?")
                 params.append(building_id)
             if floor_id:
                 where_clauses.append("r.floor_id = ?")
@@ -647,14 +666,16 @@ class AttendanceService:
             # Check if student is on approved leave
             query = f"""
                 SELECT s.id as student_id, s.first_name || ' ' || s.last_name as student_name,
-                       s.enrollment_number as roll_no, h.name as hostel_name, ra.hostel_id,
+                       s.student_id as roll_no, h.name as hostel_name, bld.hostel_id,
                        r.room_number, b.bed_number as bed_code,
                        att.id as attendance_id, att.status as marked_status, att.remarks as marked_remarks,
                        CASE WHEN lr.id IS NOT NULL THEN 1 ELSE 0 END as is_on_leave
                 FROM students s
                 JOIN room_allocations ra ON ra.student_id = s.id
-                LEFT JOIN hostels h ON h.id = ra.hostel_id
-                LEFT JOIN rooms r ON r.id = ra.room_id
+                JOIN rooms r ON r.id = ra.room_id
+                JOIN floors f ON f.id = r.floor_id
+                JOIN buildings bld ON bld.id = f.building_id
+                LEFT JOIN hostels h ON h.id = bld.hostel_id
                 LEFT JOIN beds b ON b.id = ra.bed_id
                 LEFT JOIN attendance att ON att.student_id = s.id AND att.date = ?
                 LEFT JOIN leave_requests lr ON lr.student_id = s.id 

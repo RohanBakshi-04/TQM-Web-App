@@ -30,7 +30,7 @@ class LeaveService:
     def _get_student_for_user(conn: sqlite3.Connection, user_id: int) -> Optional[sqlite3.Row]:
         """Resolve student ID for a student user account."""
         cursor = conn.cursor()
-        cursor.execute("SELECT id, first_name || ' ' || s.last_name as name FROM students WHERE user_id = ?;", (user_id,))
+        cursor.execute("SELECT id, first_name || ' ' || last_name as name FROM students WHERE user_id = ?;", (user_id,))
         return cursor.fetchone()
 
     @staticmethod
@@ -97,8 +97,11 @@ class LeaveService:
                 cursor.execute("""
                     SELECT u.id as warden_user_id
                     FROM room_allocations ra
+                    JOIN rooms r ON r.id = ra.room_id
+                    JOIN floors f ON f.id = r.floor_id
+                    JOIN buildings bld ON bld.id = f.building_id
                     JOIN user_roles ur ON ur.role_id IN (SELECT id FROM roles WHERE name IN ('warden', 'assistant_warden'))
-                    JOIN users u ON u.id = ur.user_id AND (u.hostel_id = ra.hostel_id OR u.hostel_id IS NULL)
+                    JOIN users u ON u.id = ur.user_id AND (u.linked_hostel_id = bld.hostel_id OR u.linked_hostel_id IS NULL)
                     WHERE ra.student_id = ? AND ra.allocation_status = 'Active';
                 """, (student_id,))
                 for w in cursor.fetchall():
@@ -137,14 +140,16 @@ class LeaveService:
         try:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT lr.*, s.first_name || ' ' || s.last_name as student_name, s.enrollment_number as student_roll_no,
-                       s.user_id as student_user_id, h.name as hostel_name, ra.hostel_id, r.room_number,
+                SELECT lr.*, s.first_name || ' ' || s.last_name as student_name, s.student_id as student_roll_no,
+                       s.user_id as student_user_id, h.name as hostel_name, bld.hostel_id, r.room_number,
                        u.username as approved_by_name
                 FROM leave_requests lr
                 JOIN students s ON s.id = lr.student_id
                 LEFT JOIN room_allocations ra ON ra.student_id = s.id AND ra.allocation_status = 'Active'
-                LEFT JOIN hostels h ON h.id = ra.hostel_id
                 LEFT JOIN rooms r ON r.id = ra.room_id
+                LEFT JOIN floors f ON f.id = r.floor_id
+                LEFT JOIN buildings bld ON bld.id = f.building_id
+                LEFT JOIN hostels h ON h.id = bld.hostel_id
                 LEFT JOIN users u ON u.id = lr.approved_by
                 WHERE lr.id = ?;
             """, (leave_id,))
@@ -262,10 +267,13 @@ class LeaveService:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT lr.*, s.user_id as student_user_id, s.first_name || ' ' || s.last_name as student_name,
-                       ra.hostel_id
+                       bld.hostel_id
                 FROM leave_requests lr
                 JOIN students s ON s.id = lr.student_id
                 LEFT JOIN room_allocations ra ON ra.student_id = s.id AND ra.allocation_status = 'Active'
+                LEFT JOIN rooms r ON r.id = ra.room_id
+                LEFT JOIN floors f ON f.id = r.floor_id
+                LEFT JOIN buildings bld ON bld.id = f.building_id
                 WHERE lr.id = ?;
             """, (leave_id,))
             record = cursor.fetchone()
@@ -356,10 +364,13 @@ class LeaveService:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT lr.*, s.user_id as student_user_id, s.first_name || ' ' || s.last_name as student_name,
-                       ra.hostel_id
+                       bld.hostel_id
                 FROM leave_requests lr
                 JOIN students s ON s.id = lr.student_id
                 LEFT JOIN room_allocations ra ON ra.student_id = s.id AND ra.allocation_status = 'Active'
+                LEFT JOIN rooms r ON r.id = ra.room_id
+                LEFT JOIN floors f ON f.id = r.floor_id
+                LEFT JOIN buildings bld ON bld.id = f.building_id
                 WHERE lr.id = ?;
             """, (leave_id,))
             record = cursor.fetchone()
@@ -574,18 +585,20 @@ class LeaveService:
             cursor = conn.cursor()
             now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-            hostel_clause = "AND ra.hostel_id = ?" if hostel_id else ""
+            hostel_clause = "AND bld.hostel_id = ?" if hostel_id else ""
             h_params = [hostel_id] if hostel_id else []
 
             query = f"""
-                SELECT op.*, s.first_name || ' ' || s.last_name as student_name, s.enrollment_number as roll_no,
-                       s.emergency_contact_phone, h.name as hostel_name, r.room_number, lr.destination, lr.leave_type
+                SELECT op.*, s.first_name || ' ' || s.last_name as student_name, s.student_id as roll_no,
+                       lr.emergency_contact as emergency_contact_phone, h.name as hostel_name, r.room_number, lr.destination, lr.leave_type
                 FROM outpasses op
                 JOIN students s ON s.id = op.student_id
                 JOIN leave_requests lr ON lr.id = op.leave_request_id
                 LEFT JOIN room_allocations ra ON ra.student_id = s.id AND ra.allocation_status = 'Active'
-                LEFT JOIN hostels h ON h.id = ra.hostel_id
                 LEFT JOIN rooms r ON r.id = ra.room_id
+                LEFT JOIN floors f ON f.id = r.floor_id
+                LEFT JOIN buildings bld ON bld.id = f.building_id
+                LEFT JOIN hostels h ON h.id = bld.hostel_id
                 WHERE op.status = 'Departed' AND op.actual_return_time IS NULL AND op.expected_return_time < ? {hostel_clause}
                 ORDER BY op.expected_return_time ASC;
             """
@@ -633,7 +646,7 @@ class LeaveService:
                 where_clauses.append(f"lr.student_id IN ({placeholders})")
                 params.extend(wards)
             elif role in ["warden", "assistant_warden"] and user_hostel_id:
-                where_clauses.append("ra.hostel_id = ?")
+                where_clauses.append("bld.hostel_id = ?")
                 params.append(int(user_hostel_id))
 
             # Query Filters
@@ -644,7 +657,7 @@ class LeaveService:
                 where_clauses.append("lr.leave_type = ?")
                 params.append(filters["leave_type"])
             if filters.get("hostel_id"):
-                where_clauses.append("ra.hostel_id = ?")
+                where_clauses.append("bld.hostel_id = ?")
                 params.append(filters["hostel_id"])
             if filters.get("start_date"):
                 where_clauses.append("lr.start_date >= ?")
@@ -661,6 +674,9 @@ class LeaveService:
                 FROM leave_requests lr
                 JOIN students s ON s.id = lr.student_id
                 LEFT JOIN room_allocations ra ON ra.student_id = s.id AND ra.allocation_status = 'Active'
+                LEFT JOIN rooms r ON r.id = ra.room_id
+                LEFT JOIN floors f ON f.id = r.floor_id
+                LEFT JOIN buildings bld ON bld.id = f.building_id
                 WHERE {where_str};
             """, params)
             total = cursor.fetchone()[0]
@@ -669,14 +685,16 @@ class LeaveService:
             offset = int(filters.get("offset", 0))
 
             query = f"""
-                SELECT lr.*, s.first_name || ' ' || s.last_name as student_name, s.enrollment_number as student_roll_no,
-                       h.name as hostel_name, ra.hostel_id, r.room_number,
+                SELECT lr.*, s.first_name || ' ' || s.last_name as student_name, s.student_id as student_roll_no,
+                       h.name as hostel_name, bld.hostel_id, r.room_number,
                        op.outpass_number, op.status as outpass_status, op.actual_exit_time, op.actual_return_time
                 FROM leave_requests lr
                 JOIN students s ON s.id = lr.student_id
                 LEFT JOIN room_allocations ra ON ra.student_id = s.id AND ra.allocation_status = 'Active'
-                LEFT JOIN hostels h ON h.id = ra.hostel_id
                 LEFT JOIN rooms r ON r.id = ra.room_id
+                LEFT JOIN floors f ON f.id = r.floor_id
+                LEFT JOIN buildings bld ON bld.id = f.building_id
+                LEFT JOIN hostels h ON h.id = bld.hostel_id
                 LEFT JOIN outpasses op ON op.leave_request_id = lr.id
                 WHERE {where_str}
                 ORDER BY lr.id DESC
@@ -714,7 +732,7 @@ class LeaveService:
                 where_clauses.append("op.student_id = ?")
                 params.append(st["id"])
             elif role in ["warden", "assistant_warden"] and user_hostel_id:
-                where_clauses.append("ra.hostel_id = ?")
+                where_clauses.append("bld.hostel_id = ?")
                 params.append(int(user_hostel_id))
 
             if filters.get("status"):
@@ -731,6 +749,9 @@ class LeaveService:
                 FROM outpasses op
                 JOIN students s ON s.id = op.student_id
                 LEFT JOIN room_allocations ra ON ra.student_id = s.id AND ra.allocation_status = 'Active'
+                LEFT JOIN rooms r ON r.id = ra.room_id
+                LEFT JOIN floors f ON f.id = r.floor_id
+                LEFT JOIN buildings bld ON bld.id = f.building_id
                 WHERE {where_str};
             """, params)
             total = cursor.fetchone()[0]
@@ -739,15 +760,17 @@ class LeaveService:
             offset = int(filters.get("offset", 0))
 
             query = f"""
-                SELECT op.*, s.first_name || ' ' || s.last_name as student_name, s.enrollment_number as student_roll_no,
+                SELECT op.*, s.first_name || ' ' || s.last_name as student_name, s.student_id as student_roll_no,
                        h.name as hostel_name, r.room_number, lr.leave_type, lr.destination,
                        u1.username as exit_verified_by_name, u2.username as return_verified_by_name
                 FROM outpasses op
                 JOIN students s ON s.id = op.student_id
                 JOIN leave_requests lr ON lr.id = op.leave_request_id
                 LEFT JOIN room_allocations ra ON ra.student_id = s.id AND ra.allocation_status = 'Active'
-                LEFT JOIN hostels h ON h.id = ra.hostel_id
                 LEFT JOIN rooms r ON r.id = ra.room_id
+                LEFT JOIN floors f ON f.id = r.floor_id
+                LEFT JOIN buildings bld ON bld.id = f.building_id
+                LEFT JOIN hostels h ON h.id = bld.hostel_id
                 LEFT JOIN users u1 ON u1.id = op.exit_verified_by
                 LEFT JOIN users u2 ON u2.id = op.return_verified_by
                 WHERE {where_str}

@@ -82,11 +82,13 @@ class VisitorService:
             # 3. Resolve student allocation details
             cursor.execute("""
                 SELECT s.id as student_id, s.user_id as student_user_id, s.first_name || ' ' || s.last_name as student_name,
-                       ra.hostel_id, ra.room_id, h.name as hostel_name, r.room_number
+                       bld.hostel_id, ra.room_id, h.name as hostel_name, r.room_number
                 FROM students s
                 LEFT JOIN room_allocations ra ON ra.student_id = s.id AND ra.allocation_status = 'Active'
-                LEFT JOIN hostels h ON h.id = ra.hostel_id
                 LEFT JOIN rooms r ON r.id = ra.room_id
+                LEFT JOIN floors f ON f.id = r.floor_id
+                LEFT JOIN buildings bld ON bld.id = f.building_id
+                LEFT JOIN hostels h ON h.id = bld.hostel_id
                 WHERE s.id = ?;
             """, (payload.student_id,))
             student_info = cursor.fetchone()
@@ -98,9 +100,15 @@ class VisitorService:
 
             # 4. Generate unique pass number: VP-YYYYMM-XXXX
             today_prefix = date.today().strftime("%Y%m")
-            cursor.execute("SELECT COUNT(id) FROM visitor_logs;")
-            seq = (cursor.fetchone()[0] or 0) + 1
-            pass_number = f"VP-{today_prefix}-{seq:04d}"
+            cursor.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM visitor_logs;")
+            seq = cursor.fetchone()[0] or 1
+            while True:
+                candidate_pass = f"VP-{today_prefix}-{seq:04d}"
+                cursor.execute("SELECT 1 FROM visitor_logs WHERE pass_number = ?;", (candidate_pass,))
+                if not cursor.fetchone():
+                    pass_number = candidate_pass
+                    break
+                seq += 1
 
             now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             expected_exit = payload.expected_exit_time or (datetime.now() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
@@ -166,7 +174,7 @@ class VisitorService:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT vl.*, v.name, v.phone, v.id_proof_type, v.id_proof_number,
-                       s.first_name || ' ' || s.last_name as student_name, s.enrollment_number as student_roll_no,
+                       s.first_name || ' ' || s.last_name as student_name, s.student_id as student_roll_no,
                        s.user_id as student_user_id, h.name as hostel_name, r.room_number,
                        u.username as approved_by_name
                 FROM visitor_logs vl
@@ -405,7 +413,7 @@ class VisitorService:
             where_str = " AND ".join(where_clauses)
             query = f"""
                 SELECT vl.*, v.name, v.phone, v.id_proof_type, v.id_proof_number,
-                       s.first_name || ' ' || s.last_name as student_name, s.enrollment_number as student_roll_no,
+                       s.first_name || ' ' || s.last_name as student_name, s.student_id as student_roll_no,
                        h.name as hostel_name, r.room_number
                 FROM visitor_logs vl
                 JOIN visitors v ON v.id = vl.visitor_id
@@ -490,7 +498,7 @@ class VisitorService:
 
             query = f"""
                 SELECT vl.*, v.name, v.phone, v.id_proof_type, v.id_proof_number,
-                       s.first_name || ' ' || s.last_name as student_name, s.enrollment_number as student_roll_no,
+                       s.first_name || ' ' || s.last_name as student_name, s.student_id as student_roll_no,
                        h.name as hostel_name, r.room_number, u.username as approved_by_name
                 FROM visitor_logs vl
                 JOIN visitors v ON v.id = vl.visitor_id
