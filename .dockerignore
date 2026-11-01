@@ -1,0 +1,17 @@
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/backups/*
+.git
+.gitignore
+.gemini/
+*.log
+.DS_Store

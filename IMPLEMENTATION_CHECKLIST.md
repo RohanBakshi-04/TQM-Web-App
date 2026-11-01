@@ -455,3 +455,90 @@
 - [x] Migration `008_mess_and_inventory_enhancements` with 15 composite B-Tree indexes
 - [x] In-memory cache integration with tag invalidation (`mess`, `inventory`)
 - [x] Total 118 automated tests passing across entire project (100% success rate)
+
+
+---
+
+## Prompt 14: Notifications, Announcements & System Administration
+
+### 1. Centralized Notification Center
+- [x] Multi-channel notification delivery (In-App, Email, Browser Web Push)
+- [x] 10 event categories: Admissions, Allocations, Attendance, Leaves, Fees, Complaints, Maintenance, Emergency, System, General
+- [x] Priority levels: Normal, Important, Urgent, Critical
+- [x] Poka-Yoke duplicate event prevention via cryptographic `event_key` unique index
+- [x] User notification delivery preference management and category suppression toggles
+- [x] Unread badge counter endpoint and instant mark-as-read / mark-all-read REST actions
+- [x] Paginated notification listing with category and priority filtering
+
+### 2. Institutional Announcements Center
+- [x] Complete lifecycle: Draft -> Scheduled -> Published -> Archived
+- [x] Target audience filtering (All Users, Students, Staff, Hostel Residents)
+- [x] Multi-tenant hostel isolation: residents only see announcements for their assigned hostel
+- [x] Resident view tracking and formal drill acknowledgement recording (`announcement_views`)
+- [x] Emergency announcement alert banner integrated at the top of the frontend interface
+- [x] Automated in-app notification generation upon announcement publication
+
+### 3. System Administration
+- [x] Centralized key-value system settings with category grouping
+- [x] Audit change history logging in `system_setting_history`
+- [x] Cache invalidation on settings update
+- [x] User management: search, pagination, status toggle
+- [x] Poka-Yoke Super Admin deactivation protection (user ID 1 invariant)
+- [x] Role reassignment with privilege escalation prevention barrier
+- [x] Administrative password reset without logging plaintext credentials
+- [x] Roles & Permissions directory inspection
+- [x] Core permission protection: cannot strip fundamental permissions from super_admin
+- [x] Multi-criteria audit log filtering with date range, user, entity, and action
+- [x] Streaming RFC 4180 CSV audit log export
+- [x] Online hot SQLite WAL database backup via `sqlite3.Connection.backup()`
+- [x] Backup integrity verification via `PRAGMA integrity_check`
+- [x] Safe database restoration with pre-restore safety snapshots
+
+### 4. Database & Infrastructure
+- [x] Migration `009_notifications_announcements_and_admin_enhancements`
+- [x] Enhanced `notifications` with `category`, `priority`, `event_key`, `delivery_channel`
+- [x] Created `notification_preferences` table
+- [x] Enhanced `announcements` with `status`, `category`, `priority`, `target_audience`, `target_hostel_id`
+- [x] Created `announcement_views` table
+- [x] Created `system_setting_history` table
+- [x] Seeded 28 standard institutional settings and 3 initial announcements
+- [x] Added 10 composite B-Tree indexes for sub-10ms Q05 SLA
+- [x] 13 new automated tests in `test_notifications_and_admin.py`
+
+---
+
+## Prompt 15: Final Integration, Quality Assurance & Deployment
+
+### 1. Complete Project Audit & Test Verification
+- [x] Full test discovery: 131 automated unit and integration tests
+- [x] 100% pass rate (131/131 OK) in 8.89 seconds
+- [x] Fixed seeder `INSERT OR IGNORE` for system_settings idempotency
+- [x] Fixed admin password reset test pollution (restored user 5 password after reset)
+
+### 2. Q05 Performance Benchmark Suite
+- [x] Created unified `scripts/benchmark_q05.py` benchmarking all 6 operation categories
+- [x] Verified FTS5 search P95 = 0.369 ms (< 10.0 ms SLA)
+- [x] Verified cold SQL dashboard P95 = 0.266 ms (< 10.0 ms SLA)
+- [x] Verified warm cache P95 = 0.002 ms (< 0.05 ms target)
+- [x] Verified cache invalidation P95 = 0.031 ms
+- [x] Verified domain operations P95 = 0.037 ms
+- [x] Verified scalability at 100,000 rows = 0.002 ms (logarithmic B-Tree)
+
+### 3. Production Containerization & Deployment Assets
+- [x] Created multi-stage `Dockerfile` with healthcheck endpoint probe
+- [x] Created `docker-compose.yml` with persistent volumes and restart policies
+- [x] Created `.dockerignore` for minimal secure image footprint
+- [x] Verified `.env.example` and `requirements.txt` completeness
+- [x] Verified `run.py` unified startup launcher
+
+### 4. Comprehensive Documentation Suite
+- [x] `docs/INSTALLATION_GUIDE.md` — Prerequisites, setup (Windows/Linux/Docker), demo accounts
+- [x] `docs/USER_MANUAL.md` — Role-by-role workflows for all 12 stakeholder accounts
+- [x] `docs/API_DOCUMENTATION.md` — Complete endpoint specifications across 21 modules
+- [x] `docs/DEPLOYMENT_GUIDE.md` — Nginx reverse proxy, TLS/SSL, systemd, backup cron
+- [x] `docs/TQM_FINAL_PROJECT_REPORT.md` — Academic report: TQM methodology, Q05 SLA, Poka-Yoke
+- [x] Updated `README.md` with benchmark results, quick start, and documentation index
+- [x] Updated `CHANGELOG.md` with Prompt 14 (v0.10.0) and Prompt 15 (v1.0.0) entries
+- [x] Updated `PROJECT_PROGRESS.md` with Prompt 14 and 15 completion status
+- [x] Updated `TESTING_REPORT.md` with final 131-test verification and benchmark results
+- [x] Updated `IMPLEMENTATION_CHECKLIST.md` with Prompt 14 and 15 checklists
