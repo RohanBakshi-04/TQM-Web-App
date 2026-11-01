@@ -116,7 +116,7 @@ def get_student_attendance_history(
 
 @router.get("/students-for-marking", status_code=status.HTTP_200_OK)
 def get_students_for_marking(
-    date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    date: str = Query(..., description="Date for roll call (YYYY-MM-DD or MM/DD/YYYY)"),
     hostel_id: Optional[int] = Query(None, gt=0),
     building_id: Optional[int] = Query(None, gt=0),
     floor_id: Optional[int] = Query(None, gt=0),
@@ -124,6 +124,12 @@ def get_students_for_marking(
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Fetch all active resident students in a scope for daily roll call marking."""
+    clean_date = date.strip()
+    if "/" in clean_date:
+        parts = clean_date.split("/")
+        if len(parts) == 3 and len(parts[2]) == 4:
+            clean_date = f"{parts[2]}-{parts[0].zfill(2)}-{parts[1].zfill(2)}"
+
     return AttendanceService.get_students_for_marking(
-        date, hostel_id, building_id, floor_id, room_id, current_user
+        clean_date, hostel_id, building_id, floor_id, room_id, current_user
     )

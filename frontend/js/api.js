@@ -33,6 +33,23 @@ const API = {
         return headers;
     },
 
+    async request(url, options = {}) {
+        options.headers = this.getHeaders(options.headers || {});
+        options.credentials = "include";
+
+        let response = await fetch(url, options);
+
+        if (response.status === 401) {
+            // Attempt single silent automatic token refresh
+            const refreshed = await this.refreshToken();
+            if (refreshed && refreshed.access_token) {
+                options.headers = this.getHeaders(options.headers || {});
+                response = await fetch(url, options);
+            }
+        }
+        return response;
+    },
+
     /**
      * Fetch system health and latency telemetry from backend.
      */
@@ -862,10 +879,11 @@ const API = {
         if (floorId) params.append('floor_id', floorId);
         if (roomId) params.append('room_id', roomId);
 
-        const response = await fetch(`${this.baseUrl}/api/v1/attendance/students-for-marking?${params.toString()}`, {
-            headers: this.getHeaders()
-        });
-        if (!response.ok) throw new Error("Failed to load resident students for marking.");
+        const response = await this.request(`${this.baseUrl}/api/v1/attendance/students-for-marking?${params.toString()}`);
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.detail || "Failed to load resident students for marking.");
+        }
         return await response.json();
     },
 

@@ -469,9 +469,11 @@ class AttendanceService:
         if not target_date:
             target_date = date.today().isoformat()
 
-        role = current_user.get("role")
-        user_hostel_id = current_user.get("hostel_id")
-        if role in ["warden", "assistant_warden"] and user_hostel_id:
+        user_roles = set(current_user.get("roles", []))
+        if current_user.get("role"):
+            user_roles.add(current_user["role"])
+        user_hostel_id = current_user.get("hostel_id") or current_user.get("linked_hostel_id")
+        if user_roles.intersection({"warden", "assistant_warden"}) and user_hostel_id and not hostel_id:
             hostel_id = int(user_hostel_id)
 
         conn = get_db_connection()
@@ -551,9 +553,11 @@ class AttendanceService:
     @classmethod
     def get_attendance_reports(cls, start_date: str, end_date: str, hostel_id: Optional[int], current_user: Dict[str, Any]) -> Dict[str, Any]:
         """Generate comprehensive date-range attendance reports with percentage calculations."""
-        role = current_user.get("role")
-        user_hostel_id = current_user.get("hostel_id")
-        if role in ["warden", "assistant_warden"] and user_hostel_id:
+        user_roles = set(current_user.get("roles", []))
+        if current_user.get("role"):
+            user_roles.add(current_user["role"])
+        user_hostel_id = current_user.get("hostel_id") or current_user.get("linked_hostel_id")
+        if user_roles.intersection({"warden", "assistant_warden"}) and user_hostel_id and not hostel_id:
             hostel_id = int(user_hostel_id)
 
         conn = get_db_connection()
@@ -638,9 +642,11 @@ class AttendanceService:
         current_user: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """Fetch all active students eligible for attendance marking in a given hostel/building/floor/room."""
-        role = current_user.get("role")
-        user_hostel_id = current_user.get("hostel_id")
-        if role in ["warden", "assistant_warden"] and user_hostel_id:
+        user_roles = set(current_user.get("roles", []))
+        if current_user.get("role"):
+            user_roles.add(current_user["role"])
+        user_hostel_id = current_user.get("hostel_id") or current_user.get("linked_hostel_id")
+        if user_roles.intersection({"warden", "assistant_warden"}) and user_hostel_id and not hostel_id:
             hostel_id = int(user_hostel_id)
 
         conn = get_db_connection()

@@ -46,7 +46,7 @@ def get_current_user(
         cursor = conn.cursor()
         cursor.execute("""
             SELECT id, username, email, first_name, last_name, phone, is_active,
-                   linked_student_id, linked_hostel_id, staff_id
+                   linked_student_id, linked_hostel_id, staff_id, gender
             FROM users
             WHERE id = ?;
         """, (user_id,))

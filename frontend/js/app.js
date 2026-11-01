@@ -1938,14 +1938,19 @@ selectPreset(preset) {
 
         async loadStudentsForMarking() {
             try {
+                let d = (this.attendanceDate || "").trim();
+                if (!d) {
+                    d = new Date().toISOString().split("T")[0];
+                    this.attendanceDate = d;
+                }
                 const students = await window.API.getStudentsForMarking(
-                    this.attendanceDate,
+                    d,
                     this.attendanceHostelId || null,
                     this.attendanceBuildingId || null,
                     this.attendanceFloorId || null,
                     this.attendanceRoomId || null
                 );
-                this.attendanceMarkingStudents = students.map(s => ({
+                this.attendanceMarkingStudents = (students || []).map(s => ({
                     student_id: s.student_id,
                     student_name: s.student_name,
                     roll_no: s.roll_no,
@@ -1957,6 +1962,11 @@ selectPreset(preset) {
                     is_already_marked: !!s.marked_status,
                     is_on_leave: !!s.is_on_leave
                 }));
+                if (this.attendanceMarkingStudents.length === 0) {
+                    this.showToast("No active resident students found for the selected scope.", "info");
+                } else {
+                    this.showToast(`Loaded ${this.attendanceMarkingStudents.length} resident students for roll call.`, "success");
+                }
             } catch (err) {
                 this.showToast(`Failed to load students for roll call: ${err.message}`, "error");
             }
