@@ -5,7 +5,7 @@ Quality Goal: Q05 - Reduce Response Time (<10ms)
 Poka-Yoke: Defect-Proof Relational Integrity & Concurrency Protection
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from fastapi import APIRouter, Depends, Query, status
 from backend.app.database.connection import get_db_connection
 from backend.app.models.allocation_dto import (
@@ -47,7 +47,7 @@ def list_allocations(
     floor_id: Optional[int] = Query(None),
     room_type: Optional[str] = Query(None),
     allocation_status: Optional[str] = Query(None),
-    student_id: Optional[int] = Query(None),
+    student_id: Optional[Union[str, int]] = Query(None),
     search: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
@@ -103,7 +103,7 @@ def list_available_beds(
 
 @router.get("/suggestions", response_model=List[Dict[str, Any]])
 def get_allocation_suggestions(
-    student_id: int = Query(..., description="ID of student needing allocation"),
+    student_id: Union[str, int] = Query(..., description="Student ID (e.g. STU-202611-0089) or internal student database ID"),
     preferred_hostel_id: Optional[int] = Query(None),
     preferred_room_type: Optional[str] = Query(None),
     floor_preference: Optional[int] = Query(None),
@@ -271,7 +271,7 @@ student_history_router = APIRouter(prefix="/api/v1/students", tags=["Student All
 
 @student_history_router.get("/{student_id}/allocation-history", response_model=List[Dict[str, Any]])
 def get_student_history(
-    student_id: int,
+    student_id: Union[str, int],
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> List[Dict[str, Any]]:
     """View chronological room allocation, checkout, and transfer history for a student."""

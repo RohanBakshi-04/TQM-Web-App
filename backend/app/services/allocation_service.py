@@ -8,7 +8,7 @@ Poka-Yoke: Defect-Proof Relational Integrity & Concurrency Protection
 import hashlib
 import sqlite3
 from datetime import date, datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from fastapi import HTTPException, status
 from backend.app.models.allocation_dto import (
     AllocationCreate,
@@ -33,14 +33,25 @@ class AllocationService:
         cursor = conn.cursor()
 
         # Poka-Yoke Check 1: Student existence and eligibility
+        raw_student_key = str(data.student_id).strip()
         student = cursor.execute("""
             SELECT id, student_id, first_name, last_name, gender, status, branch, academic_year
             FROM students
-            WHERE id = ?;
-        """, (data.student_id,)).fetchone()
+            WHERE UPPER(TRIM(student_id)) = UPPER(?);
+        """, (raw_student_key,)).fetchone()
+
+        if not student and raw_student_key.isdigit():
+            student = cursor.execute("""
+                SELECT id, student_id, first_name, last_name, gender, status, branch, academic_year
+                FROM students
+                WHERE id = ?;
+            """, (int(raw_student_key),)).fetchone()
 
         if not student:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Student ID {data.student_id} not found.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Student ID '{data.student_id}' not found. Please verify the student's unique Student ID (e.g. STU-202611-0089)."
+            )
 
         if student["status"] != "Active":
             raise HTTPException(
@@ -57,13 +68,13 @@ class AllocationService:
             JOIN buildings b ON f.building_id = b.id
             JOIN hostels h ON b.hostel_id = h.id
             WHERE ra.student_id = ? AND ra.allocation_status = 'Active';
-        """, (data.student_id,)).fetchone()
+        """, (student["id"],)).fetchone()
 
         if existing_alloc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
-                    f"Poka-Yoke Violation: Student already possesses an Active allocation "
+                    f"Poka-Yoke Violation: Student '{student['first_name']} {student['last_name']}' ({student['student_id']}) already possesses an Active allocation "
                     f"(Allocation ID: {existing_alloc['id']} in Room {existing_alloc['room_number']}, {existing_alloc['hostel_name']}). "
                     f"Duplicate active student allocations are strictly prohibited."
                 )
@@ -174,7 +185,7 @@ class AllocationService:
                 )
                 VALUES (?, ?, ?, ?, ?, ?, 'Active', 'Approved', ?, ?, ?);
             """, (
-                data.student_id,
+                student["id"],
                 data.bed_id,
                 bed_info["room_id"],
                 start_dt,
@@ -315,8 +326,13 @@ class AllocationService:
             query += " AND ra.allocation_status = ?"
             params.append(allocation_status)
         if student_id:
-            query += " AND ra.student_id = ?"
-            params.append(student_id)
+            s_val = str(student_id).strip()
+            if s_val.isdigit():
+                query += " AND (ra.student_id = ? OR UPPER(TRIM(s.student_id)) = UPPER(?))"
+                params.extend([int(s_val), s_val])
+            else:
+                query += " AND UPPER(TRIM(s.student_id)) = UPPER(?)"
+                params.append(s_val)
         if search:
             query += """ AND (
                 s.first_name LIKE ? OR s.last_name LIKE ? OR s.student_id LIKE ? 
@@ -335,7 +351,7 @@ class AllocationService:
     @staticmethod
     def get_allocation_suggestions(
         conn: sqlite3.Connection,
-        student_id: int,
+        student_id: Union[str, int],
         preferred_hostel_id: Optional[int] = None,
         preferred_room_type: Optional[str] = None,
         floor_preference: Optional[int] = None,
@@ -348,15 +364,26 @@ class AllocationService:
         """
         cursor = conn.cursor()
 
-        # 1. Verify student eligibility
+        # 1. Verify student eligibility by unique student_id or internal ID
+        raw_key = str(student_id).strip()
         student = cursor.execute("""
             SELECT id, student_id, first_name, last_name, gender, branch, academic_year, email, status
             FROM students
-            WHERE id = ?;
-        """, (student_id,)).fetchone()
+            WHERE UPPER(TRIM(student_id)) = UPPER(?);
+        """, (raw_key,)).fetchone()
+
+        if not student and raw_key.isdigit():
+            student = cursor.execute("""
+                SELECT id, student_id, first_name, last_name, gender, branch, academic_year, email, status
+                FROM students
+                WHERE id = ?;
+            """, (int(raw_key),)).fetchone()
 
         if not student:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Student ID {student_id} not found.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Student ID '{student_id}' not found. Please verify the student's unique Student ID (e.g. STU-202611-0089)."
+            )
 
         if student["status"] != "Active":
             raise HTTPException(
@@ -530,9 +557,16 @@ class AllocationService:
         return [dict(r) for r in rows]
 
     @staticmethod
-    def get_student_allocation_history(conn: sqlite3.Connection, student_id: int) -> List[Dict[str, Any]]:
+    def get_student_allocation_history(conn: sqlite3.Connection, student_id: Union[str, int]) -> List[Dict[str, Any]]:
         """Retrieve full chronological allocation and transfer history for a student."""
         cursor = conn.cursor()
+        raw_key = str(student_id).strip()
+        student = cursor.execute("""
+            SELECT id FROM students WHERE UPPER(TRIM(student_id)) = UPPER(?);
+        """, (raw_key,)).fetchone()
+        target_id = student["id"] if student else (int(raw_key) if raw_key.isdigit() else None)
+        if not target_id:
+            return []
         rows = cursor.execute("""
             SELECT 
                 ra.id, ra.start_date, ra.end_date, ra.checkin_date, ra.checkout_date,
@@ -547,7 +581,7 @@ class AllocationService:
             JOIN hostels h ON b.hostel_id = h.id
             WHERE ra.student_id = ?
             ORDER BY ra.id DESC;
-        """, (student_id,)).fetchall()
+        """, (target_id,)).fetchall()
         return [dict(r) for r in rows]
 
     # ==================== CHECK-IN & CHECK-OUT LIFECYCLE ====================

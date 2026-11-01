@@ -4,7 +4,7 @@ Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
 Quality Goal: Q05 - Reduce Response Time
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from backend.app.database.connection import get_db_connection
@@ -267,7 +267,7 @@ def list_system_users(
 
 @router.get("/students/{student_id}/profile")
 def get_student_profile(
-    student_id: int,
+    student_id: Union[str, int],
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """Retrieve student profile with strict student data isolation enforcement.
@@ -279,16 +279,26 @@ def get_student_profile(
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
+        raw_key = str(student_id).strip()
         cursor.execute("""
             SELECT s.id, s.student_id, s.first_name, s.last_name, s.email, s.phone,
                    s.date_of_birth, s.gender, s.blood_group, s.branch, s.academic_year,
                    s.semester, s.status, s.admission_date, s.address
             FROM students s
-            WHERE s.id = ?;
-        """, (student_id,))
+            WHERE UPPER(TRIM(s.student_id)) = UPPER(?);
+        """, (raw_key,))
         student = cursor.fetchone()
+        if not student and raw_key.isdigit():
+            cursor.execute("""
+                SELECT s.id, s.student_id, s.first_name, s.last_name, s.email, s.phone,
+                       s.date_of_birth, s.gender, s.blood_group, s.branch, s.academic_year,
+                       s.semester, s.status, s.admission_date, s.address
+                FROM students s
+                WHERE s.id = ?;
+            """, (int(raw_key),))
+            student = cursor.fetchone()
         if not student:
-            raise HTTPException(status_code=404, detail="Student record not found.")
+            raise HTTPException(status_code=404, detail=f"Student record '{student_id}' not found.")
 
         # Also fetch active room allocation if any
         cursor.execute("""

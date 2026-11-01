@@ -1,7 +1,10 @@
 import unittest
 import sqlite3
 import os
+from fastapi import HTTPException
 from backend.app.services.auth_service import AuthService
+from backend.app.services.allocation_service import AllocationService
+from backend.app.models.allocation_dto import AllocationCreate
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "hostel_web.db")
 
@@ -9,6 +12,7 @@ class TestUniqueStaffAndStudentIDs(unittest.TestCase):
     def setUp(self):
         self.conn = sqlite3.connect(DB_PATH)
         self.conn.row_factory = sqlite3.Row
+        self.conn.execute("PRAGMA foreign_keys = ON;")
 
     def tearDown(self):
         self.conn.close()
@@ -88,6 +92,55 @@ class TestUniqueStaffAndStudentIDs(unittest.TestCase):
         student_user = AuthService.authenticate_user("rohan", "Password123!", conn=self.conn)
         self.assertIsNotNone(student_user["student_id"], "Rohan must have student_id")
         self.assertEqual(student_user["student_id"], "2410301057")
+
+    def test_allocation_and_suggestions_with_alphanumeric_student_id(self):
+        """Verify allocating rooms using alphanumeric Student IDs (e.g. STU-202611-0089)."""
+        cur = self.conn.cursor()
+        test_sid = "STU-202611-9988"
+
+        # Create a test active student with alphanumeric student_id
+        cur.execute("DELETE FROM students WHERE student_id = ?;", (test_sid,))
+        cur.execute("""
+            INSERT INTO students (student_id, first_name, last_name, email, phone, gender, branch, academic_year, admission_date, status)
+            VALUES (?, 'Ananya', 'Sen', 'ananya.test9988@university.edu', '9876543210', 'Female', 'CSE', '1st Year', date('now'), 'Active');
+        """, (test_sid,))
+        self.conn.commit()
+
+        # 1. Test AI Suggestions with alphanumeric Student ID
+        suggestions = AllocationService.get_allocation_suggestions(self.conn, test_sid)
+        self.assertIsInstance(suggestions, list)
+        self.assertGreater(len(suggestions), 0, "Should generate suggestions for active female student")
+
+        # 2. Test Room Allocation using alphanumeric Student ID string
+        candidate_bed = suggestions[0]["bed_id"]
+        alloc_data = AllocationCreate(
+            student_id=test_sid,
+            bed_id=candidate_bed,
+            start_date="2026-11-01",
+            remarks="Test Alphanumeric Student ID Allotment"
+        )
+        res = AllocationService.create_allocation(self.conn, alloc_data, allocated_by_user_id=1)
+        self.assertIsNotNone(res)
+        self.assertEqual(res["student_enrollment"], test_sid)
+        self.assertEqual(res["allocation_status"], "Active")
+
+        # Cleanup
+        cur.execute("DELETE FROM room_allocations WHERE id = ?;", (res["id"],))
+        cur.execute("UPDATE beds SET status = 'Available' WHERE id = ?;", (candidate_bed,))
+        cur.execute("DELETE FROM students WHERE student_id = ?;", (test_sid,))
+        self.conn.commit()
+
+    def test_allocation_fails_cleanly_for_nonexistent_student_id(self):
+        """Verify non-existent student ID returns HTTP 404 with helpful message."""
+        alloc_data = AllocationCreate(
+            student_id="STU-NONEXISTENT-0000",
+            bed_id=1,
+            start_date="2026-11-01"
+        )
+        with self.assertRaises(HTTPException) as ctx:
+            AllocationService.create_allocation(self.conn, alloc_data)
+        self.assertEqual(ctx.exception.status_code, 404)
+        self.assertIn("not found", ctx.exception.detail)
 
 
 if __name__ == "__main__":

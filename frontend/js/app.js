@@ -1267,13 +1267,14 @@ selectPreset(preset) {
         },
 
         async submitAllocation() {
-            if (!this.allocationForm.student_id || !this.allocationForm.bed_id || !this.allocationForm.start_date) {
+            const sidInput = (this.allocationForm.student_id || "").toString().trim();
+            if (!sidInput || !this.allocationForm.bed_id || !this.allocationForm.start_date) {
                 this.showToast("Please provide Student ID, Bed ID, and Start Date.", "warning");
                 return;
             }
             try {
                 const payload = {
-                    student_id: parseInt(this.allocationForm.student_id),
+                    student_id: sidInput,
                     bed_id: parseInt(this.allocationForm.bed_id),
                     start_date: this.allocationForm.start_date,
                     end_date: this.allocationForm.end_date ? this.allocationForm.end_date : null,
@@ -1293,8 +1294,9 @@ selectPreset(preset) {
         },
 
         async getSuggestionsForStudent(studentId) {
-            if (!studentId) {
-                this.showToast("Please enter a valid student ID first", "warning");
+            const sid = (studentId || "").toString().trim();
+            if (!sid) {
+                this.showToast("Please enter a valid Student ID first (e.g. STU-202611-0089)", "warning");
                 return;
             }
             this.suggestionsLoading = true;

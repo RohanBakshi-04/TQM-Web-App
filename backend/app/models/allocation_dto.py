@@ -4,12 +4,12 @@ Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
 Quality Goal: Q05 - Reduce Response Time (<10ms)
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field
 
 
 class AllocationCreate(BaseModel):
-    student_id: int = Field(..., description="ID of the eligible student")
+    student_id: Union[str, int] = Field(..., description="Student ID (e.g. STU-202611-0089) or internal database ID of the eligible student")
     bed_id: int = Field(..., description="ID of the target bed")
     start_date: str = Field(..., description="Allocation start date (YYYY-MM-DD)")
     end_date: Optional[str] = Field(None, description="Expected checkout date (YYYY-MM-DD)")

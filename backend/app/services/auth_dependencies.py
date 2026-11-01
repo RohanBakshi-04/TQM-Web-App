@@ -4,7 +4,7 @@ Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
 Quality Goal: Q05 - Reduce Response Time
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from backend.app.database.connection import get_db_connection
@@ -132,10 +132,11 @@ def require_permissions(*required_permissions: str):
     return permission_checker
 
 
-def verify_student_isolation(student_id: int, current_user: Dict[str, Any]) -> None:
+def verify_student_isolation(student_id: Union[str, int], current_user: Dict[str, Any]) -> None:
     """Enforce strict student-level and guardian-level data isolation.
 
     A student must NEVER access another student's private records by changing an ID in an API request.
+    Supports both internal integer ID and university/system Student ID string (e.g. STU-202611-0089).
     """
     user_roles = set(current_user.get("roles", []))
 
@@ -144,10 +145,19 @@ def verify_student_isolation(student_id: int, current_user: Dict[str, Any]) -> N
     if user_roles.intersection(privileged_roles):
         return
 
+    s_val = str(student_id).strip()
+
     # Student can only access their own linked record
     if "student" in user_roles:
         linked_s_id = current_user.get("linked_student_id")
-        if linked_s_id is None or int(linked_s_id) != int(student_id):
+        user_student_id = current_user.get("student_id")
+        is_match = False
+        if linked_s_id is not None and str(linked_s_id) == s_val:
+            is_match = True
+        elif user_student_id and user_student_id.strip().upper() == s_val.upper():
+            is_match = True
+
+        if not is_match:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Security Violation: You are not authorized to access another student's private records."
@@ -157,7 +167,14 @@ def verify_student_isolation(student_id: int, current_user: Dict[str, Any]) -> N
     # Parent/Guardian can only access their linked ward
     if "parent_guardian" in user_roles:
         linked_s_id = current_user.get("linked_student_id")
-        if linked_s_id is None or int(linked_s_id) != int(student_id):
+        user_student_id = current_user.get("student_id")
+        is_match = False
+        if linked_s_id is not None and str(linked_s_id) == s_val:
+            is_match = True
+        elif user_student_id and user_student_id.strip().upper() == s_val.upper():
+            is_match = True
+
+        if not is_match:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Security Violation: You are not authorized to view this student's records."
