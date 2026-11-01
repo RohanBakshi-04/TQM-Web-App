@@ -64,12 +64,14 @@ def get_current_user(
 
         return {
             "id": user_row["id"],
+            "user_id": user_row["id"],
             "username": user_row["username"],
             "email": user_row["email"],
             "first_name": user_row["first_name"],
             "last_name": user_row["last_name"],
             "phone": user_row["phone"],
             "roles": roles,
+            "role": active_role,
             "active_role": active_role,
             "permissions": list(permissions),
             "linked_student_id": user_row["linked_student_id"],

@@ -166,8 +166,7 @@ document.addEventListener("alpine:init", () => {
                 { id: "mess", label: "Mess & Dining", icon: "fa-utensils" },
                 { id: "inventory", label: "Inventory & Stock", icon: "fa-boxes-stacked" },
                 { id: "announcements", label: "Announcements", icon: "fa-bullhorn" },
-                { id: "admin", label: "System Admin", icon: "fa-sliders" },
-                { id: "architecture", label: "System Architecture", icon: "fa-microchip" }
+                { id: "admin", label: "System Admin", icon: "fa-sliders" }
             ],
             hostel_admin: [
                 { id: "dashboard", label: "Hostel Dashboard", icon: "fa-gauge-high" },
@@ -240,8 +239,7 @@ document.addEventListener("alpine:init", () => {
             auditor: [
                 { id: "dashboard", label: "Compliance Dashboard", icon: "fa-gauge-high" },
                 { id: "admin", label: "System Audit Logs", icon: "fa-sliders" },
-                { id: "finance", label: "Financial Ledger Audit", icon: "fa-file-invoice-dollar" },
-                { id: "architecture", label: "System Architecture", icon: "fa-microchip" }
+                { id: "finance", label: "Financial Ledger Audit", icon: "fa-file-invoice-dollar" }
             ]
         },
 
@@ -249,7 +247,6 @@ document.addEventListener("alpine:init", () => {
             if (!this.isAuthenticated) {
                 return [
                     { id: "welcome", label: "Overview", icon: "fa-compass" },
-                    { id: "architecture", label: "System Architecture", icon: "fa-microchip" },
                     { id: "login", label: "Sign In", icon: "fa-right-to-bracket" }
                 ];
             }
@@ -750,8 +747,6 @@ document.addEventListener("alpine:init", () => {
                 crumbs.push({ label: "Overview", section: "welcome" });
             } else if (this.activeSection === "login") {
                 crumbs.push({ label: "Stakeholder Sign In", section: "login" });
-            } else if (this.activeSection === "architecture") {
-                crumbs.push({ label: "System Architecture", section: "architecture" });
             } else if (this.activeSection === "dashboard") {
                 const currentPreset = this.rolePresets.find(p => p.role === this.activeRoleView);
                 crumbs.push({ label: "Stakeholder Portal", section: "dashboard" });
@@ -1268,7 +1263,7 @@ selectPreset(preset) {
 
             // Route guard: unauthenticated users cannot access operational sections
             if (!this.isAuthenticated) {
-                if (section !== "welcome" && section !== "architecture" && section !== "login") {
+                if (section !== "welcome" && section !== "login") {
                     this.showToast("Please sign in to access operational modules.", "info");
                     this.activeSection = "login";
                     this.mobileMenuOpen = false;
@@ -1276,7 +1271,7 @@ selectPreset(preset) {
                 }
             } else {
                 // Route guard for authenticated users: verify permission for section
-                if (section !== "welcome" && section !== "dashboard" && section !== "architecture") {
+                if (section !== "welcome" && section !== "dashboard") {
                     const allowed = this.authorizedNavItems.some(item => item.id === section);
                     if (!allowed && !this.hasRole("super_admin")) {
                         this.showToast("Access Restricted: This section is not authorized for your role.", "error");
@@ -1460,6 +1455,23 @@ selectPreset(preset) {
         },
 
         // ==================== MAINTENANCE WORK-ORDER METHODS ====================
+        get filteredMaintenanceTasks() {
+            if (!this.maintenanceTasks) return [];
+            if (this.maintenanceFilterCategory === 'all') return this.maintenanceTasks;
+            const filter = (this.maintenanceFilterCategory || '').toLowerCase();
+            return this.maintenanceTasks.filter(t => {
+                const cat = (t.category || '').toLowerCase();
+                const title = (t.title || '').toLowerCase();
+                const desc = (t.description || '').toLowerCase();
+                const combined = `${cat} ${title} ${desc}`;
+                if (filter === 'electrician' || filter === 'electrical') return combined.includes('elect') || combined.includes('power') || combined.includes('light');
+                if (filter === 'plumber' || filter === 'plumbing') return combined.includes('plumb') || combined.includes('water') || combined.includes('pipe') || combined.includes('tap') || combined.includes('drain');
+                if (filter === 'chef' || filter === 'kitchen' || filter === 'mess') return combined.includes('mess') || combined.includes('kitchen') || combined.includes('cook') || combined.includes('food') || combined.includes('dining');
+                if (filter === 'carpenter' || filter === 'carpentry') return combined.includes('carpent') || combined.includes('wood') || combined.includes('door') || combined.includes('lock') || combined.includes('bed') || combined.includes('chair');
+                return combined.includes(filter);
+            });
+        },
+
         async loadMaintenanceTasks() {
             this.maintenanceLoading = true;
             try {
@@ -2915,6 +2927,8 @@ selectPreset(preset) {
         announcementsList: [],
         emergencyAnnouncement: null,
         announcementModalOpen: false,
+        editingAnnouncementId: null,
+        maintenanceFilterCategory: 'all',
         announcementDetailModalOpen: false,
         announcementViewsModalOpen: false,
         selectedAnnouncement: null,
@@ -2956,7 +2970,36 @@ selectPreset(preset) {
             }
         },
 
-        async saveNewAnnouncement() {
+        openCreateAnnouncement() {
+            this.editingAnnouncementId = null;
+            this.newAnnouncement = {
+                title: '',
+                content: '',
+                category: 'General Notice',
+                priority: 'Normal',
+                target_audience: 'All Users',
+                target_hostel_id: null,
+                expires_at: ''
+            };
+            this.announcementModalOpen = true;
+        },
+
+        openEditAnnouncement(a) {
+            this.editingAnnouncementId = a.id;
+            this.newAnnouncement = {
+                title: a.title || '',
+                content: a.content || '',
+                category: a.category || 'General Notice',
+                priority: a.priority || 'Normal',
+                target_audience: a.target_audience || 'All Users',
+                target_hostel_id: a.target_hostel_id || null,
+                expires_at: a.expires_at ? a.expires_at.substring(0, 10) : ''
+            };
+            this.announcementDetailModalOpen = false;
+            this.announcementModalOpen = true;
+        },
+
+        async saveAnnouncement() {
             if (!this.newAnnouncement.title || !this.newAnnouncement.content) {
                 this.showToast("Title and content are required.", "warning");
                 return;
@@ -2972,14 +3015,24 @@ selectPreset(preset) {
                     expires_at: this.newAnnouncement.expires_at || null,
                     status: 'Published'
                 };
-                await window.API.createAnnouncement(payload);
-                this.showToast("Announcement published successfully!", "success");
+                if (this.editingAnnouncementId) {
+                    await window.API.updateAnnouncement(this.editingAnnouncementId, payload);
+                    this.showToast("Announcement updated successfully!", "success");
+                } else {
+                    await window.API.createAnnouncement(payload);
+                    this.showToast("Announcement published successfully!", "success");
+                }
                 this.announcementModalOpen = false;
+                this.editingAnnouncementId = null;
                 this.newAnnouncement = { title: '', content: '', category: 'General Notice', priority: 'Normal', target_audience: 'All Users', target_hostel_id: null, expires_at: '' };
                 await this.loadAnnouncements();
             } catch (err) {
                 this.showToast(`Error: ${err.message}`, "error");
             }
+        },
+
+        async saveNewAnnouncement() {
+            return await this.saveAnnouncement();
         },
 
         async publishAnnouncementAction(id) {

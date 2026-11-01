@@ -2102,49 +2102,7 @@
                             </template>
                         </div>
 
-                        <!-- Student Data Isolation Barrier Interactive Box -->
-                        <div class="bg-gradient-to-br from-slate-900 to-brand-950 p-6 rounded-3xl text-white shadow-xl space-y-4">
-                            <div class="flex items-center space-x-3">
-                                <div class="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center text-lg border border-rose-500/30">
-                                    <i class="fa-solid fa-lock"></i>
-                                </div>
-                                <div>
-                                    <h4 class="font-extrabold text-base">Student Data Isolation Enforcement Barrier</h4>
-                                    <p class="text-xs text-slate-300">Security policies and data isolation strictly prevent students from inspecting other students' private records</p>
-                                </div>
-                            </div>
 
-                            <div class="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
-                                <div class="text-xs text-slate-300">
-                                    Click below to verify how the backend blocks unauthorized horizontal privilege escalation:
-                                </div>
-
-                                <div class="flex flex-wrap gap-3">
-                                    <button @click="testStudentIsolation(1)" :disabled="isolationTestLoading"
-                                            class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center space-x-2">
-                                        <i class="fa-solid fa-check text-xs"></i>
-                                        <span>Query Own Record (ID: 1)</span>
-                                    </button>
-
-                                    <button @click="testStudentIsolation(2)" :disabled="isolationTestLoading"
-                                            class="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition flex items-center space-x-2">
-                                        <i class="fa-solid fa-ban text-xs"></i>
-                                        <span>Attempt Unauthorized Query (ID: 2)</span>
-                                    </button>
-                                </div>
-
-                                <template x-if="isolationTestResult">
-                                    <div class="mt-3 p-3 rounded-xl border text-xs"
-                                         :class="isolationTestResult.success ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-200' : 'bg-rose-950/80 border-rose-500/50 text-rose-200'">
-                                        <div class="font-bold flex items-center space-x-2">
-                                            <i :class="isolationTestResult.success ? 'fa-solid fa-circle-check text-emerald-400' : 'fa-solid fa-triangle-exclamation text-rose-400'"></i>
-                                            <span x-text="'HTTP ' + isolationTestResult.status + ' Response'"></span>
-                                        </div>
-                                        <div class="mt-1 font-mono text-[11px]" x-text="isolationTestResult.message"></div>
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
 
                         <!-- Student Grievances & Maintenance Section -->
                         <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
@@ -2381,14 +2339,36 @@
                                 </div>
                             </div>
 
-                            <!-- Filter Controls -->
-                            <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <!-- Filter Controls with Trade Specialties -->
+                            <div class="space-y-2 text-xs">
+                                <!-- Trade / Specialty Switcher -->
+                                <div class="flex items-center space-x-1.5 overflow-x-auto pb-1">
+                                    <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">Trade:</span>
+                                    <template x-for="cat in [
+                                        { id: 'all', label: 'All Trades', icon: 'fa-layer-group' },
+                                        { id: 'electrician', label: 'Electrician', icon: 'fa-bolt' },
+                                        { id: 'plumber', label: 'Plumber', icon: 'fa-faucet-drip' },
+                                        { id: 'chef', label: 'Chef / Kitchen', icon: 'fa-utensils' },
+                                        { id: 'carpenter', label: 'Carpenter', icon: 'fa-hammer' },
+                                        { id: 'facility', label: 'General Facility', icon: 'fa-wrench' }
+                                    ]" :key="cat.id">
+                                        <button type="button" @click="maintenanceFilterCategory = cat.id"
+                                                :class="maintenanceFilterCategory === cat.id ? 'bg-brand-900 text-white font-bold shadow-xs' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'"
+                                                class="px-3 py-1.5 rounded-xl text-[11px] transition flex items-center space-x-1.5 whitespace-nowrap">
+                                            <i :class="'fa-solid ' + cat.icon"></i>
+                                            <span x-text="cat.label"></span>
+                                        </button>
+                                    </template>
+                                </div>
+
+                                <!-- Status Filter -->
                                 <div class="flex items-center space-x-1 overflow-x-auto pb-1">
+                                    <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">Status:</span>
                                     <template x-for="st in ['all', 'Assigned', 'Accepted', 'In Progress', 'On Hold', 'Completed', 'Verified']" :key="st">
                                         <button type="button" @click="maintenanceFilterStatus = st; loadMaintenanceTasks();"
                                                 :class="maintenanceFilterStatus === st ? 'bg-amber-600 text-white font-bold' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'"
                                                 class="px-3 py-1 rounded-lg text-[11px] transition"
-                                                x-text="st === 'all' ? 'All Tasks' : st"></button>
+                                                x-text="st === 'all' ? 'All Work Orders' : st"></button>
                                     </template>
                                 </div>
                             </div>
@@ -2410,7 +2390,7 @@
 
                                 <!-- Live Tasks Grid -->
                                 <div x-show="!maintenanceLoading && maintenanceTasks.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <template x-for="task in maintenanceTasks" :key="task.id">
+                                    <template x-for="task in filteredMaintenanceTasks" :key="task.id">
                                         <div class="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:border-amber-400 dark:hover:border-amber-600 transition space-y-3">
                                             <div class="flex items-start justify-between">
                                                 <div>
@@ -2569,38 +2549,182 @@
                     <!-- ========================================== -->
                     <!-- 11. PARENT / GUARDIAN DASHBOARD            -->
                     <!-- ========================================== -->
+                    <!-- 11. PARENT / GUARDIAN DASHBOARD (WARD-CENTRIC) -->
                     <div x-show="activeRoleView === 'parent_guardian'" class="space-y-6">
-                        <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-                            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-                                <div>
-                                    <h3 class="font-extrabold text-slate-900 dark:text-white text-lg">Linked Ward Oversight Portal</h3>
-                                    <p class="text-xs text-slate-500 dark:text-slate-400">Authenticated guardian • Linked Ward: Resident Student</p>
+                        <!-- Ward Overview Banner -->
+                        <div class="bg-gradient-to-r from-brand-900 via-indigo-900 to-slate-900 p-6 rounded-3xl text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+                            <div class="flex items-center space-x-4">
+                                <div class="w-16 h-16 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-2xl font-black text-amber-400 shadow-inner">
+                                    <i class="fa-solid fa-graduation-cap"></i>
                                 </div>
-                                <span class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                                    Primary Guardian
-                                </span>
+                                <div>
+                                    <div class="flex items-center space-x-2">
+                                        <h2 class="text-2xl font-black">Rohan Bakshi</h2>
+                                        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">Resident Active</span>
+                                    </div>
+                                    <p class="text-xs text-slate-300 mt-1">Roll No: <span class="font-mono font-bold text-white">2410301057</span> &bull; B.Tech Computer Science &bull; 3rd Year (Sem 5)</p>
+                                    <p class="text-xs text-slate-300">Room: <span class="font-bold text-white">Room 101, Bed 101-A</span> &bull; Rabindranath Tagore Hostel</p>
+                                </div>
+                            </div>
+                            <div class="flex flex-col sm:flex-row gap-3">
+                                <button type="button" @click="activeSection = 'attendance'"
+                                        class="px-4 py-2.5 rounded-xl bg-white text-slate-900 font-bold text-xs hover:bg-slate-100 transition shadow-xs flex items-center justify-center space-x-2">
+                                    <i class="fa-solid fa-clipboard-user text-brand-700"></i>
+                                    <span>View Daily Roll-Call</span>
+                                </button>
+                                <button type="button" @click="activeSection = 'leaves'"
+                                        class="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs transition flex items-center justify-center space-x-2">
+                                    <i class="fa-solid fa-id-badge text-amber-400"></i>
+                                    <span>Gate Outpass Status</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Real-time Roll-Call Presence & Safety Status -->
+                        <div class="p-6 rounded-3xl border bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border-emerald-500/30 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div class="flex items-center space-x-4">
+                                <div class="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center text-xl font-bold shadow-md">
+                                    <i class="fa-solid fa-shield-heart"></i>
+                                </div>
+                                <div>
+                                    <div class="text-xs uppercase font-extrabold text-emerald-700 dark:text-emerald-400 tracking-wider">Today's Campus & Hostel Status</div>
+                                    <div class="text-lg font-black text-slate-900 dark:text-white mt-0.5 flex items-center space-x-2">
+                                        <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+                                        <span>Present in Hostel Quarters</span>
+                                    </div>
+                                    <div class="text-xs text-slate-500 dark:text-slate-400">Night roll-call verified by Hostel Warden &bull; Curfew safe</div>
+                                </div>
+                            </div>
+                            <div class="text-right sm:text-right">
+                                <div class="text-[11px] font-bold text-slate-400 uppercase">Verification Timestamp</div>
+                                <div class="text-xs font-mono font-bold text-slate-800 dark:text-slate-200">2026-11-01 20:15:00 IST</div>
+                            </div>
+                        </div>
+
+                        <!-- 4 Child Metrics -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Attendance Rate</div>
+                                <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400">94.8%</div>
+                                <div class="text-[11px] text-slate-500">Regular attendance (Min: 75%)</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Hostel Fee Balance</div>
+                                <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400">₹0 Due</div>
+                                <div class="text-[11px] text-slate-500">Semester invoice fully settled</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Outpass Permits</div>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white">1 Approved</div>
+                                <div class="text-[11px] text-slate-500">Weekend hometown leave (OP-0001)</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Disciplinary Standing</div>
+                                <div class="text-2xl font-black text-indigo-600 dark:text-indigo-400">Clean</div>
+                                <div class="text-[11px] text-slate-500">Zero infractions on record</div>
+                            </div>
+                        </div>
+
+                        <!-- Two-Column Ward Telemetry: Recent Attendance Log & Emergency Warden Contact -->
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <!-- Left 2 Cols: Attendance Log -->
+                            <div class="lg:col-span-2 space-y-6">
+                                <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
+                                    <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                                        <h3 class="font-extrabold text-sm text-slate-900 dark:text-white flex items-center space-x-2">
+                                            <i class="fa-solid fa-clock-rotate-left text-brand-600"></i>
+                                            <span>Recent Roll-Call & Verification Log</span>
+                                        </h3>
+                                        <span class="text-[11px] text-slate-400">Past 5 sessions</span>
+                                    </div>
+                                    <div class="overflow-x-auto text-xs">
+                                        <table class="w-full text-left">
+                                            <thead class="text-[10px] uppercase font-bold text-slate-400 bg-slate-50 dark:bg-slate-800/50">
+                                                <tr>
+                                                    <th class="p-3">Date</th>
+                                                    <th class="p-3">Session</th>
+                                                    <th class="p-3">Roll-Call Status</th>
+                                                    <th class="p-3">Verified By</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                                                <tr>
+                                                    <td class="p-3 font-mono font-bold text-slate-800 dark:text-slate-200">2026-11-01</td>
+                                                    <td class="p-3 text-slate-500">Night Roll-Call</td>
+                                                    <td class="p-3"><span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">Present</span></td>
+                                                    <td class="p-3 text-slate-500">Chief Warden</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="p-3 font-mono font-bold text-slate-800 dark:text-slate-200">2026-10-31</td>
+                                                    <td class="p-3 text-slate-500">Night Roll-Call</td>
+                                                    <td class="p-3"><span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">Present</span></td>
+                                                    <td class="p-3 text-slate-500">Assistant Warden</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="p-3 font-mono font-bold text-slate-800 dark:text-slate-200">2026-10-30</td>
+                                                    <td class="p-3 text-slate-500">Night Roll-Call</td>
+                                                    <td class="p-3"><span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">Present</span></td>
+                                                    <td class="p-3 text-slate-500">Chief Warden</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="p-3 font-mono font-bold text-slate-800 dark:text-slate-200">2026-10-29</td>
+                                                    <td class="p-3 text-slate-500">Night Roll-Call</td>
+                                                    <td class="p-3"><span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">Present</span></td>
+                                                    <td class="p-3 text-slate-500">Chief Warden</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="p-3 font-mono font-bold text-slate-800 dark:text-slate-200">2026-10-28</td>
+                                                    <td class="p-3 text-slate-500">Night Roll-Call</td>
+                                                    <td class="p-3"><span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">Present</span></td>
+                                                    <td class="p-3 text-slate-500">Chief Warden</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             </div>
 
-                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-                                <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                                    <div class="text-slate-400 font-semibold uppercase">Ward Attendance</div>
-                                    <div class="font-bold text-emerald-600 dark:text-emerald-400 text-base mt-0.5">94.8%</div>
-                                    <div class="text-[10px] text-slate-400">Exceeds 75% requirement</div>
-                                </div>
-                                <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                                    <div class="text-slate-400 font-semibold uppercase">Hostel Fee Clearance</div>
-                                    <div class="font-bold text-emerald-600 dark:text-emerald-400 text-base mt-0.5">Fully Paid</div>
-                                    <div class="text-[10px] text-slate-400">Receipt #INV-2026-001</div>
-                                </div>
-                                <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                                    <div class="text-slate-400 font-semibold uppercase">Allocated Quarters</div>
-                                    <div class="font-bold text-slate-900 dark:text-white text-sm mt-0.5">Room 101, Bed 101-A</div>
-                                    <div class="text-[10px] text-slate-400">Rabindranath Tagore Hostel</div>
-                                </div>
-                                <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                                    <div class="text-slate-400 font-semibold uppercase">Disciplinary Standing</div>
-                                    <div class="font-bold text-emerald-600 dark:text-emerald-400 text-sm mt-0.5">Exemplary</div>
-                                    <div class="text-[10px] text-slate-400">Zero active grievances</div>
+                            <!-- Right Col: Hostel Warden Emergency Contacts -->
+                            <div class="space-y-6">
+                                <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
+                                    <div class="flex items-center space-x-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                                        <div class="w-9 h-9 rounded-xl bg-rose-500/10 text-rose-600 flex items-center justify-center font-bold text-sm">
+                                            <i class="fa-solid fa-phone-volume"></i>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-extrabold text-sm text-slate-900 dark:text-white">Emergency Warden Helpline</h4>
+                                            <p class="text-[11px] text-slate-500">24/7 Hostel Duty Officers</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="space-y-3 text-xs">
+                                        <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-1">
+                                            <div class="font-bold text-slate-900 dark:text-white">Dr. R. K. Sharma</div>
+                                            <div class="text-[11px] text-slate-400 font-semibold">Chief Warden &bull; Block A & B</div>
+                                            <div class="flex items-center space-x-2 pt-1 text-brand-600 dark:text-brand-300 font-bold">
+                                                <i class="fa-solid fa-phone text-xs"></i>
+                                                <span>+91 98103 01050</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-1">
+                                            <div class="font-bold text-slate-900 dark:text-white">Mr. Ankit Verma</div>
+                                            <div class="text-[11px] text-slate-400 font-semibold">Assistant Warden (Night Duty)</div>
+                                            <div class="flex items-center space-x-2 pt-1 text-brand-600 dark:text-brand-300 font-bold">
+                                                <i class="fa-solid fa-phone text-xs"></i>
+                                                <span>+91 98103 01051</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-1">
+                                            <div class="font-bold text-slate-900 dark:text-white">Main Security Gate Desk</div>
+                                            <div class="text-[11px] text-slate-400 font-semibold">Campus Gate 1 (24 Hours)</div>
+                                            <div class="flex items-center space-x-2 pt-1 text-slate-700 dark:text-slate-300 font-mono font-bold">
+                                                <i class="fa-solid fa-tower-broadcast text-xs"></i>
+                                                <span>Ext: 104 / +91 98103 09999</span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -3009,8 +3133,8 @@
                                     <i class="fa-solid fa-clipboard-user"></i>
                                 </div>
                                 <div>
-                                    <h2 class="text-xl font-bold text-slate-900 dark:text-white">Resident Student Attendance</h2>
-                                    <p class="text-xs text-slate-500 dark:text-slate-400">Daily verification, curfew compliance, and repeat absence telemetry</p>
+                                    <h2 class="text-xl font-bold text-slate-900 dark:text-white">Warden Attendance Oversight & Roll-Call</h2>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">Chief & Assistant Warden roll-call verification, curfew compliance, and repeat absence escalation</p>
                                 </div>
                             </div>
                         </div>
@@ -3999,6 +4123,15 @@
 
                 <!-- VISITOR MANAGEMENT SECTION -->
                 <section x-show="activeSection === 'visitors'" class="animate-fade-in space-y-6">
+                    <!-- Obsolete Module Banner -->
+                    <div class="px-5 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs text-amber-800 dark:text-amber-300 shadow-xs">
+                        <div class="flex items-center space-x-3">
+                            <span class="px-2.5 py-1 rounded-md bg-amber-500 text-white font-extrabold text-[10px] uppercase tracking-wider">Obsolete</span>
+                            <span class="font-medium">Legacy Module Notice: Manual visitor pass logging is obsolete. Campus operations are transitioning to automated biometric turnstiles and digital QR passes.</span>
+                        </div>
+                        <span class="text-[11px] font-mono text-amber-600 dark:text-amber-400 hidden sm:inline">Archived Workflow</span>
+                    </div>
+
                     <!-- Header & Sub-navigation -->
                     <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                         <div>
@@ -6156,34 +6289,7 @@
                     </div>
                 </div>
 
-                <!-- 4. ARCHITECTURE & TELEMETRY SECTION -->
-                <section x-show="activeSection === 'architecture'" class="animate-fade-in space-y-6">
-                    <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-                        <h3 class="text-lg font-bold text-slate-900 dark:text-white">Live Foundation Telemetry</h3>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
-                                <div class="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase">API Status</div>
-                                <div class="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 capitalize" x-text="systemHealth.status"></div>
-                                <div class="text-[11px] text-slate-400 mt-0.5">FastAPI ASGI Engine</div>
-                            </div>
-                            <div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
-                                <div class="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase">Database Engine</div>
-                                <div class="text-xl font-bold text-slate-900 dark:text-white mt-1" x-text="systemHealth.database?.engine || 'SQLite'"></div>
-                                <div class="text-[11px] text-slate-400 mt-0.5">Isolated Local Storage</div>
-                            </div>
-                            <div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
-                                <div class="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase">Concurrency Mode</div>
-                                <div class="text-xl font-bold text-brand-600 dark:text-brand-400 mt-1" x-text="systemHealth.database?.journal_mode || 'WAL'"></div>
-                                <div class="text-[11px] text-slate-400 mt-0.5">Write-Ahead Logging</div>
-                            </div>
-                            <div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
-                                <div class="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase">Ping Latency</div>
-                                <div class="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1" x-text="(systemHealth.database?.ping_latency_ms || 0) + ' ms'"></div>
-                                <div class="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">✓ Ultra-Fast Response</div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
+
 
 
                 <!-- ========================================== -->
@@ -6205,7 +6311,7 @@
                         </div>
                         <div class="flex items-center space-x-3">
                             <template x-if="activeRoleView === 'super_admin' || activeRoleView === 'hostel_admin' || activeRoleView === 'warden' || activeRoleView === 'assistant_warden'">
-                                <button type="button" @click="announcementModalOpen = true"
+                                <button type="button" @click="openCreateAnnouncement()"
                                         class="px-4 py-2.5 rounded-xl bg-brand-900 text-white text-xs font-bold hover:bg-brand-800 transition shadow-sm flex items-center space-x-2">
                                     <i class="fa-solid fa-plus"></i>
                                     <span>New Announcement</span>
@@ -6242,6 +6348,11 @@
                                         <button type="button" @click="openAnnouncementDetail(a)" class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition">
                                             Read
                                         </button>
+                                        <template x-if="activeRoleView === 'super_admin' || activeRoleView === 'hostel_admin' || activeRoleView === 'warden'">
+                                            <button type="button" @click="openEditAnnouncement(a)" class="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold hover:bg-indigo-100 transition">
+                                                Edit
+                                            </button>
+                                        </template>
                                         <template x-if="activeRoleView === 'super_admin' || activeRoleView === 'hostel_admin'">
                                             <button type="button" @click="viewAnnouncementAudience(a.id)" class="px-2 py-1 text-slate-400 hover:text-brand-600" title="Reader Views">
                                                 <i class="fa-solid fa-eye text-xs"></i>
@@ -6254,39 +6365,259 @@
                         </template>
                     </div>
                 </section>
+                <!-- ========================================== -->
+                <!-- ANNOUNCEMENT CREATE / EDIT MODAL           -->
+                <!-- ========================================== -->
+                <div x-show="announcementModalOpen" x-cloak
+                     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+                     @click.self="announcementModalOpen = false" style="display: none;">
+                    <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center text-sm font-bold">
+                                    <i class="fa-solid fa-bullhorn"></i>
+                                </div>
+                                <h3 class="font-extrabold text-base text-slate-900 dark:text-white"
+                                    x-text="editingAnnouncementId ? 'Edit Announcement #' + editingAnnouncementId : 'Create Official Announcement'"></h3>
+                            </div>
+                            <button type="button" @click="announcementModalOpen = false" class="text-slate-400 hover:text-slate-600">
+                                <i class="fa-solid fa-xmark text-sm"></i>
+                            </button>
+                        </div>
+
+                        <form @submit.prevent="saveAnnouncement()" class="space-y-3 text-xs">
+                            <div>
+                                <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Title <span class="text-rose-500">*</span></label>
+                                <input type="text" x-model="newAnnouncement.title" required placeholder="Important Notice: ..."
+                                       class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white">
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Category</label>
+                                    <select x-model="newAnnouncement.category" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white">
+                                        <option value="General Notice">General Notice</option>
+                                        <option value="Hostel Rule">Hostel Rule</option>
+                                        <option value="Fee & Billing">Fee & Billing</option>
+                                        <option value="Mess & Dining">Mess & Dining</option>
+                                        <option value="Maintenance">Maintenance</option>
+                                        <option value="Emergency Alert">Emergency Alert</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Priority</label>
+                                    <select x-model="newAnnouncement.priority" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white">
+                                        <option value="Normal">Normal</option>
+                                        <option value="High">High</option>
+                                        <option value="Critical">Critical</option>
+                                        <option value="Emergency">Emergency</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Target Audience</label>
+                                    <select x-model="newAnnouncement.target_audience" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white">
+                                        <option value="All Users">All Users</option>
+                                        <option value="Students Only">Students Only</option>
+                                        <option value="Wardens & Staff">Wardens & Staff</option>
+                                        <option value="Parents Only">Parents Only</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Expiry Date</label>
+                                    <input type="date" x-model="newAnnouncement.expires_at"
+                                           class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Announcement Body <span class="text-rose-500">*</span></label>
+                                <textarea x-model="newAnnouncement.content" rows="4" required placeholder="Type the full announcement message..."
+                                          class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"></textarea>
+                            </div>
+
+                            <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                <button type="button" @click="announcementModalOpen = false"
+                                        class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200">Cancel</button>
+                                <button type="submit"
+                                        class="px-5 py-2 rounded-xl bg-brand-900 hover:bg-brand-800 text-white font-bold shadow-xs">
+                                    <span x-text="editingAnnouncementId ? 'Update Notice' : 'Publish Notice'"></span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
 
                 <!-- ========================================== -->
-                <!-- SYSTEM ADMINISTRATION SECTION -->
+                <!-- ANNOUNCEMENT READ / DETAIL MODAL           -->
+                <!-- ========================================== -->
+                <div x-show="announcementDetailModalOpen" x-cloak
+                     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+                     @click.self="announcementDetailModalOpen = false" style="display: none;">
+                    <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                        <template x-if="selectedAnnouncement">
+                            <div class="space-y-4">
+                                <div class="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                                    <div class="space-y-1">
+                                        <div class="flex items-center space-x-2">
+                                            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold"
+                                                  :class="{
+                                                      'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300': selectedAnnouncement.priority === 'Critical' || selectedAnnouncement.priority === 'Emergency',
+                                                      'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300': selectedAnnouncement.priority === 'High',
+                                                      'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300': selectedAnnouncement.priority === 'Normal' || selectedAnnouncement.priority === 'Low'
+                                                  }" x-text="selectedAnnouncement.priority"></span>
+                                            <span class="text-xs text-slate-400 font-semibold" x-text="selectedAnnouncement.category"></span>
+                                        </div>
+                                        <h3 class="font-extrabold text-lg text-slate-900 dark:text-white" x-text="selectedAnnouncement.title"></h3>
+                                    </div>
+                                    <button type="button" @click="announcementDetailModalOpen = false" class="text-slate-400 hover:text-slate-600">
+                                        <i class="fa-solid fa-xmark text-sm"></i>
+                                    </button>
+                                </div>
+
+                                <div class="flex items-center space-x-3 text-xs text-slate-400">
+                                    <div><i class="fa-solid fa-user-pen mr-1"></i><span x-text="selectedAnnouncement.created_by_name || 'Administration'"></span></div>
+                                    <div>&bull;</div>
+                                    <div><i class="fa-solid fa-calendar mr-1"></i><span x-text="(selectedAnnouncement.publish_at || selectedAnnouncement.created_at || '').substring(0, 10)"></span></div>
+                                    <div>&bull;</div>
+                                    <div><i class="fa-solid fa-eye mr-1"></i><span x-text="(selectedAnnouncement.view_count || 0) + ' views'"></span></div>
+                                </div>
+
+                                <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap font-sans"
+                                     x-text="selectedAnnouncement.content"></div>
+
+                                <div class="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+                                    <template x-if="activeRoleView === 'super_admin' || activeRoleView === 'hostel_admin' || activeRoleView === 'warden'">
+                                        <div class="flex items-center space-x-2">
+                                            <button type="button" @click="openEditAnnouncement(selectedAnnouncement)"
+                                                    class="px-3.5 py-1.5 rounded-xl bg-brand-900 text-white text-xs font-bold hover:bg-brand-800 transition flex items-center space-x-1.5">
+                                                <i class="fa-solid fa-pen-to-square text-xs"></i>
+                                                <span>Edit Notice</span>
+                                            </button>
+                                            <button type="button" @click="archiveAnnouncementAction(selectedAnnouncement.id); announcementDetailModalOpen = false;"
+                                                    class="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 transition">
+                                                <i class="fa-solid fa-box-archive text-xs mr-1"></i>Archive
+                                            </button>
+                                        </div>
+                                    </template>
+                                    <button type="button" @click="announcementDetailModalOpen = false"
+                                            class="px-4 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-200 ml-auto">
+                                        Close
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- ========================================== -->
+                <!-- ANNOUNCEMENT AUDIENCE VIEWS MODAL          -->
+                <!-- ========================================== -->
+                <div x-show="announcementViewsModalOpen" x-cloak
+                     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+                     @click.self="announcementViewsModalOpen = false" style="display: none;">
+                    <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                            <h3 class="font-extrabold text-base text-slate-900 dark:text-white">Announcement Reader Telemetry</h3>
+                            <button type="button" @click="announcementViewsModalOpen = false" class="text-slate-400 hover:text-slate-600">
+                                <i class="fa-solid fa-xmark text-sm"></i>
+                            </button>
+                        </div>
+                        <div class="max-h-64 overflow-y-auto space-y-2 text-xs">
+                            <template x-if="!announcementViewsList || announcementViewsList.length === 0">
+                                <div class="py-6 text-center text-slate-400">No readers logged yet.</div>
+                            </template>
+                            <template x-for="v in announcementViewsList" :key="v.id">
+                                <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-between">
+                                    <div>
+                                        <div class="font-bold text-slate-800 dark:text-white" x-text="v.reader_name || v.username"></div>
+                                        <div class="text-[10px] text-slate-400 font-mono" x-text="v.viewed_at"></div>
+                                    </div>
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300" x-text="v.reader_role || 'Resident'"></span>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="flex justify-end pt-3 border-t border-slate-100 dark:border-slate-800">
+                            <button type="button" @click="announcementViewsModalOpen = false" class="px-4 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300">Close</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========================================== -->
+                <!-- SYSTEM ADMINISTRATION CONTROL CONSOLE       -->
                 <!-- ========================================== -->
                 <section x-show="activeSection === 'admin'" class="animate-fade-in space-y-6">
-                    <!-- Admin Header -->
-                    <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                        <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 rounded-2xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold text-lg">
-                                <i class="fa-solid fa-sliders"></i>
+                    <!-- Top Enterprise Command Banner -->
+                    <div class="bg-gradient-to-r from-slate-950 via-slate-900 to-brand-950 p-6 rounded-3xl text-white shadow-xl flex flex-col md:flex-row md:items-center md:justify-between gap-6 border border-slate-800">
+                        <div class="flex items-center space-x-4">
+                            <div class="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center font-black text-2xl text-rose-400 shadow-inner">
+                                <i class="fa-solid fa-server"></i>
                             </div>
                             <div>
-                                <h2 class="text-xl font-extrabold text-slate-900 dark:text-white">System Administration</h2>
-                                <p class="text-xs text-slate-500 dark:text-slate-400">Enterprise governance, system configuration, RBAC, and audit log telemetry</p>
+                                <div class="flex items-center space-x-2">
+                                    <h2 class="text-2xl font-black text-white">System Administration Console</h2>
+                                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">Enterprise Active</span>
+                                </div>
+                                <p class="text-xs text-slate-300 mt-0.5">Centralized institutional control: RBAC permissions, live settings, audit trails & database snapshots</p>
                             </div>
                         </div>
-                        <!-- Admin Subtabs -->
-                        <div class="flex items-center space-x-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl">
+
+                        <!-- Quick System Stats Pill Badges -->
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                            <div class="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-center">
+                                <div class="text-[10px] uppercase font-bold text-slate-400">Total Users</div>
+                                <div class="font-bold text-sm text-white mt-0.5" x-text="adminUsersTotal || '12+'"></div>
+                            </div>
+                            <div class="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-center">
+                                <div class="text-[10px] uppercase font-bold text-slate-400">DB Journal</div>
+                                <div class="font-bold text-sm text-emerald-400 mt-0.5 font-mono">WAL Mode</div>
+                            </div>
+                            <div class="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-center">
+                                <div class="text-[10px] uppercase font-bold text-slate-400">Security</div>
+                                <div class="font-bold text-sm text-brand-300 mt-0.5">RBAC Enforced</div>
+                            </div>
+                            <div class="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-center">
+                                <div class="text-[10px] uppercase font-bold text-slate-400">Audit Logs</div>
+                                <div class="font-bold text-sm text-amber-300 mt-0.5">Active</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Navigation Sub-tabs Toolbar -->
+                    <div class="bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between gap-2 overflow-x-auto">
+                        <div class="flex items-center space-x-1.5">
                             <button type="button" @click="adminTab = 'settings'; loadAdminSettings();"
-                                    :class="adminTab === 'settings' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'"
-                                    class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition">Settings</button>
+                                    :class="adminTab === 'settings' ? 'bg-brand-900 text-white font-bold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                                    class="px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-2 whitespace-nowrap">
+                                <i class="fa-solid fa-sliders"></i>
+                                <span>Configuration</span>
+                            </button>
                             <button type="button" @click="adminTab = 'users'; loadAdminUsers();"
-                                    :class="adminTab === 'users' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'"
-                                    class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition">Users</button>
+                                    :class="adminTab === 'users' ? 'bg-brand-900 text-white font-bold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                                    class="px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-2 whitespace-nowrap">
+                                <i class="fa-solid fa-users"></i>
+                                <span>Users Directory</span>
+                            </button>
                             <button type="button" @click="adminTab = 'roles'; loadAdminRolesAndPermissions();"
-                                    :class="adminTab === 'roles' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'"
-                                    class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition">Roles & RBAC</button>
+                                    :class="adminTab === 'roles' ? 'bg-brand-900 text-white font-bold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                                    class="px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-2 whitespace-nowrap">
+                                <i class="fa-solid fa-shield-halved"></i>
+                                <span>Roles & RBAC</span>
+                            </button>
                             <button type="button" @click="adminTab = 'audit'; loadAdminAuditLogs();"
-                                    :class="adminTab === 'audit' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'"
-                                    class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition">Audit Logs</button>
+                                    :class="adminTab === 'audit' ? 'bg-brand-900 text-white font-bold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                                    class="px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-2 whitespace-nowrap">
+                                <i class="fa-solid fa-clock-rotate-left"></i>
+                                <span>Audit Logs</span>
+                            </button>
                             <button type="button" @click="adminTab = 'backups'; loadAdminBackups();"
-                                    :class="adminTab === 'backups' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'"
-                                    class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition">Backups</button>
+                                    :class="adminTab === 'backups' ? 'bg-brand-900 text-white font-bold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                                    class="px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-2 whitespace-nowrap">
+                                <i class="fa-solid fa-database"></i>
+                                <span>WAL Backups</span>
+                            </button>
                         </div>
                     </div>
 

@@ -429,8 +429,9 @@ class LeaveService:
     @classmethod
     def verify_outpass_exit(cls, outpass_ref: str, payload: OutpassVerificationRequest, current_user: Dict[str, Any]) -> Dict[str, Any]:
         """Record student physical exit at the campus security gate."""
-        role = current_user.get("role")
-        if role not in ["security_guard", "super_admin", "hostel_admin", "warden", "assistant_warden"]:
+        role = current_user.get("role") or current_user.get("active_role")
+        user_roles = set(current_user.get("roles", []))
+        if role not in ["security_guard", "super_admin", "hostel_admin", "warden", "assistant_warden"] and not user_roles.intersection({"super_admin", "hostel_admin", "security_guard", "warden", "assistant_warden"}):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Unauthorized: Only security guards and hostel staff can record gate exits."
@@ -501,8 +502,9 @@ class LeaveService:
     @classmethod
     def verify_outpass_return(cls, outpass_ref: str, payload: OutpassVerificationRequest, current_user: Dict[str, Any]) -> Dict[str, Any]:
         """Record student physical return to the hostel at campus security gate."""
-        role = current_user.get("role")
-        if role not in ["security_guard", "super_admin", "hostel_admin", "warden", "assistant_warden"]:
+        role = current_user.get("role") or current_user.get("active_role")
+        user_roles = set(current_user.get("roles", []))
+        if role not in ["security_guard", "super_admin", "hostel_admin", "warden", "assistant_warden"] and not user_roles.intersection({"super_admin", "hostel_admin", "security_guard", "warden", "assistant_warden"}):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Unauthorized: Only security guards and hostel staff can record gate returns."

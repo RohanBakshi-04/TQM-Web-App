@@ -37,8 +37,9 @@ class VisitorService:
     @classmethod
     def register_visitor(cls, payload: VisitorRegistrationRequest, current_user: Dict[str, Any]) -> Dict[str, Any]:
         """Register a visitor and log their visit pass, preventing active duplicate entries."""
-        role = current_user.get("role")
-        if role not in ["security_guard", "super_admin", "hostel_admin", "warden", "assistant_warden"]:
+        role = current_user.get("role") or current_user.get("active_role")
+        user_roles = set(current_user.get("roles", []))
+        if role not in ["security_guard", "super_admin", "hostel_admin", "warden", "assistant_warden"] and not user_roles.intersection({"super_admin", "hostel_admin", "security_guard", "warden", "assistant_warden"}):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Unauthorized: Only security guards and hostel staff can register visitors."
@@ -281,9 +282,10 @@ class VisitorService:
     @classmethod
     def check_in_visitor(cls, log_id: int, payload: VisitorCheckInRequest, current_user: Dict[str, Any]) -> Dict[str, Any]:
         """Log visitor ingress into hostel campus."""
-        role = current_user.get("role")
-        if role not in ["security_guard", "super_admin", "hostel_admin", "warden", "assistant_warden"]:
-            raise HTTPException(status_code=403, detail="Unauthorized: Only security guards can log check-ins.")
+        role = current_user.get("role") or current_user.get("active_role")
+        user_roles = set(current_user.get("roles", []))
+        if role not in ["security_guard", "super_admin", "hostel_admin", "warden", "assistant_warden"] and not user_roles.intersection({"super_admin", "hostel_admin", "security_guard", "warden", "assistant_warden"}):
+            raise HTTPException(status_code=403, detail="Unauthorized: Only security guards and authorized staff can log check-ins.")
 
         conn = get_db_connection()
         try:
@@ -337,9 +339,10 @@ class VisitorService:
     @classmethod
     def check_out_visitor(cls, log_id: int, payload: VisitorCheckOutRequest, current_user: Dict[str, Any]) -> Dict[str, Any]:
         """Log visitor departure and campus egress."""
-        role = current_user.get("role")
-        if role not in ["security_guard", "super_admin", "hostel_admin", "warden", "assistant_warden"]:
-            raise HTTPException(status_code=403, detail="Unauthorized: Only security guards can log check-outs.")
+        role = current_user.get("role") or current_user.get("active_role")
+        user_roles = set(current_user.get("roles", []))
+        if role not in ["security_guard", "super_admin", "hostel_admin", "warden", "assistant_warden"] and not user_roles.intersection({"super_admin", "hostel_admin", "security_guard", "warden", "assistant_warden"}):
+            raise HTTPException(status_code=403, detail="Unauthorized: Only security guards and authorized staff can log check-outs.")
 
         conn = get_db_connection()
         try:

@@ -64,6 +64,14 @@ class TestMessAndInventoryManagement(unittest.TestCase):
         self.auditor_user = {"user_id": 12, "username": "evaluator", "role": "auditor", "hostel_id": None}
 
     def tearDown(self):
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("DELETE FROM inventory_transactions WHERE item_id > 10;")
+            cursor.execute("DELETE FROM inventory_items WHERE id > 10;")
+            cursor.execute("DELETE FROM suppliers WHERE id > 4;")
+            self.conn.commit()
+        except Exception:
+            pass
         self.conn.close()
 
     # ==========================================
