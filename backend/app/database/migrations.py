@@ -183,6 +183,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         if "005_complaints_and_maintenance_workflow" not in applied:
             logger.info("Applying Migration 005_complaints_and_maintenance_workflow (rebuilding complaints & maintenance schemas)...")
             cursor = conn.cursor()
+            cursor = conn.cursor()
             cursor.execute("PRAGMA foreign_keys = OFF;")
 
             # 1. Rebuild complaints table
@@ -283,6 +284,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         # Migration 006: Attendance, Leave & Outpass, and Visitor Management
         if "006_attendance_leave_visitor_enhancements" not in applied:
             logger.info("Applying Migration 006_attendance_leave_visitor_enhancements...")
+            cursor = conn.cursor()
             cursor = conn.cursor()
             cursor.execute("PRAGMA foreign_keys = OFF;")
 
@@ -420,6 +422,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         # ---------------------------------------------------------
         if "007_fee_and_financial_enhancements" not in applied:
             logger.info("Applying Migration 007_fee_and_financial_enhancements...")
+            cursor = conn.cursor()
             cursor = conn.cursor()
             cursor.execute("PRAGMA foreign_keys = OFF;")
 
@@ -566,6 +569,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         # =========================================================================
         if "008_mess_and_inventory_enhancements" not in applied:
             logger.info("Applying Migration 008_mess_and_inventory_enhancements...")
+            cursor = conn.cursor()
             cursor = conn.cursor()
             cursor.execute("PRAGMA foreign_keys = OFF;")
 
@@ -793,6 +797,171 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
             record_migration(conn, "008_mess_and_inventory_enhancements", "Mess Menus, Subscriptions, Meal Attendance, Inventory & Suppliers")
             applied_now.append("008_mess_and_inventory_enhancements")
             logger.info("Migration 008_mess_and_inventory_enhancements applied successfully.")
+
+        # Migration 009: Notifications, Announcements & System Administration Enhancements
+        if "009_notifications_announcements_and_admin_enhancements" not in applied:
+            logger.info("Applying Migration 009_notifications_announcements_and_admin_enhancements...")
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA foreign_keys = OFF;")
+
+            # 1. Enhance notifications table
+            cursor.execute("PRAGMA table_info(notifications);")
+            notif_cols = [c[1] for c in cursor.fetchall()]
+            if "category" not in notif_cols:
+                cursor.execute("ALTER TABLE notifications ADD COLUMN category TEXT DEFAULT 'general';")
+            if "priority" not in notif_cols:
+                cursor.execute("ALTER TABLE notifications ADD COLUMN priority TEXT DEFAULT 'Normal';")
+            if "related_entity_type" not in notif_cols:
+                cursor.execute("ALTER TABLE notifications ADD COLUMN related_entity_type TEXT DEFAULT '';")
+            if "related_entity_id" not in notif_cols:
+                cursor.execute("ALTER TABLE notifications ADD COLUMN related_entity_id TEXT DEFAULT '';")
+            if "event_key" not in notif_cols:
+                cursor.execute("ALTER TABLE notifications ADD COLUMN event_key TEXT DEFAULT '';")
+            if "delivery_channel" not in notif_cols:
+                cursor.execute("ALTER TABLE notifications ADD COLUMN delivery_channel TEXT DEFAULT 'in_app';")
+
+            # 2. Create notification_preferences table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS notification_preferences (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+                    in_app_enabled INTEGER DEFAULT 1 CHECK(in_app_enabled IN (0, 1)),
+                    email_enabled INTEGER DEFAULT 0 CHECK(email_enabled IN (0, 1)),
+                    browser_enabled INTEGER DEFAULT 0 CHECK(browser_enabled IN (0, 1)),
+                    disabled_categories TEXT DEFAULT '[]',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # 3. Enhance announcements table schema
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS announcements_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    category TEXT NOT NULL DEFAULT 'General Notice',
+                    priority TEXT NOT NULL DEFAULT 'Normal' CHECK(priority IN ('Low', 'Normal', 'High', 'Critical', 'Emergency', 'low', 'normal', 'high', 'urgent')),
+                    target_audience TEXT NOT NULL DEFAULT 'All Users',
+                    target_hostel_id INTEGER NULL REFERENCES hostels(id) ON DELETE SET NULL,
+                    target_roles TEXT DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'Published' CHECK(status IN ('Draft', 'Scheduled', 'Published', 'Expired', 'Archived')),
+                    publish_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    expires_at TIMESTAMP NULL,
+                    attachment_url TEXT DEFAULT '',
+                    attachment_name TEXT DEFAULT '',
+                    created_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    published_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    published_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    archived_at TIMESTAMP NULL,
+                    archived_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            cursor.execute("""
+                INSERT INTO announcements_new (
+                    id, title, content, target_audience, priority, published_by, published_at, expires_at, is_active, created_at
+                )
+                SELECT id, title, content, target_audience, priority, published_by, published_at, expires_at, is_active, created_at
+                FROM announcements;
+            """)
+            cursor.execute("DROP TABLE IF EXISTS announcements;")
+            cursor.execute("ALTER TABLE announcements_new RENAME TO announcements;")
+
+            # 4. Create announcement_views table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS announcement_views (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    announcement_id INTEGER NOT NULL REFERENCES announcements(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    acknowledged_at TIMESTAMP NULL,
+                    UNIQUE(announcement_id, user_id)
+                );
+            """)
+
+            # 5. Create system_setting_history table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS system_setting_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    setting_key TEXT NOT NULL,
+                    old_value TEXT,
+                    new_value TEXT NOT NULL,
+                    changed_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                    reason TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # 6. Seed standard system settings
+            standard_settings = [
+                ('app_name', 'Hostel Management System TQM', 'general', 'Application display name'),
+                ('institution_name', 'University College of Engineering', 'general', 'Institute name'),
+                ('institution_contact', '+91-20-25507000, contact@uce.edu.in', 'general', 'Institute official contact details'),
+                ('institution_logo', '/static/img/logo.png', 'general', 'Institution logo URL'),
+                ('default_timezone', 'Asia/Kolkata', 'localization', 'Default system timezone'),
+                ('date_format', 'YYYY-MM-DD', 'localization', 'Standard date display format'),
+                ('time_format', 'HH:mm', 'localization', 'Standard time display format'),
+                ('currency', 'INR', 'finance', 'Standard billing currency'),
+                ('currency_symbol', '₹', 'finance', 'Billing currency symbol'),
+                ('academic_session', '2026-27', 'academic', 'Current academic operational session'),
+                ('admission_auto_approval', 'false', 'admission', 'Enable automatic admission review approval'),
+                ('max_applications_per_student', '1', 'admission', 'Maximum active admission applications per candidate'),
+                ('auto_allocation_enabled', 'true', 'allocation', 'Allow algorithmic smart room suggestions'),
+                ('room_transfer_cooldown_days', '14', 'allocation', 'Minimum days before subsequent room transfer request'),
+                ('attendance_cutoff_time', '22:00', 'attendance', 'Nightly attendance curfew reporting cutoff'),
+                ('min_attendance_percentage', '75.0', 'attendance', 'Minimum academic attendance threshold'),
+                ('max_leave_duration_days', '15', 'leave', 'Maximum permissible consecutive leave span'),
+                ('require_parent_consent', 'true', 'leave', 'Require guardian verification for overnight leaves'),
+                ('visiting_hours_start', '09:00', 'visitor', 'Campus visitor entry opening time'),
+                ('visiting_hours_end', '19:00', 'visitor', 'Campus visitor departure closing time'),
+                ('max_visitor_stay_hours', '4', 'visitor', 'Maximum authorized duration per visitor pass'),
+                ('late_fine_grace_period_days', '7', 'finance', 'Grace period days before late payment penalties apply'),
+                ('daily_late_fine_rate', '50.0', 'finance', 'Daily penalty amount for overdue fee payments'),
+                ('email_notifications_enabled', 'false', 'notification', 'Enable outbound email dispatch via SMTP'),
+                ('browser_notifications_enabled', 'true', 'notification', 'Enable web push / browser notifications'),
+                ('session_timeout_minutes', '30', 'security', 'JWT user session idle timeout window'),
+                ('max_login_attempts', '5', 'security', 'Consecutive failed login attempts before lockout'),
+                ('lockout_duration_minutes', '15', 'security', 'Account lock duration in minutes upon brute force')
+            ]
+            for key, val, cat, desc in standard_settings:
+                cursor.execute("""
+                    INSERT INTO system_settings (setting_key, setting_value, category, description, updated_at)
+                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(setting_key) DO UPDATE SET
+                        category = excluded.category,
+                        description = excluded.description;
+                """, (key, val, cat, desc))
+
+            # 7. Seed sample announcements
+            cursor.execute("""
+                INSERT OR IGNORE INTO announcements (
+                    id, title, content, category, priority, target_audience, target_hostel_id,
+                    status, publish_at, created_by, published_by, is_active, created_at
+                ) VALUES 
+                (1, 'Hostel Annual Maintenance & Wi-Fi Upgrade', 'Hostel Wi-Fi access points and electrical switchboards will undergo routine maintenance this weekend from 10:00 AM to 02:00 PM.', 'Maintenance Notice', 'Normal', 'All Users', NULL, 'Published', CURRENT_TIMESTAMP, 1, 1, 1, CURRENT_TIMESTAMP),
+                (2, 'Semester Fee Payment Deadline Notice', 'All residential students are hereby reminded to clear their semester hostel and mess dues before November 15, 2026 to avoid late payment fines.', 'Fee Notice', 'High', 'All Students', NULL, 'Published', CURRENT_TIMESTAMP, 1, 1, 1, CURRENT_TIMESTAMP),
+                (3, 'Emergency Water Pipeline Repair', 'Emergency maintenance is in progress on the central water supply line of Nilgiri Boys Hostel. Tanker backup has been deployed on ground floor.', 'Emergency Notice', 'Critical', 'Hostel Residents', 1, 'Published', CURRENT_TIMESTAMP, 1, 1, 1, CURRENT_TIMESTAMP);
+            """)
+
+            # 8. Composite B-Tree Indexes for Sub-10ms Q05 SLA
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, is_read, created_at);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_notifications_category ON notifications(category, priority);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_notifications_event_key ON notifications(event_key);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_announcements_status_publish ON announcements(status, publish_at, expires_at);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_announcements_target ON announcements(target_audience, target_hostel_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_announcement_views_user ON announcement_views(user_id, announcement_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_user_action ON audit_logs(user_id, action, created_at);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_name, entity_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_role_status ON users(is_active, username);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_settings_key ON system_settings(setting_key);")
+
+            cursor.execute("PRAGMA foreign_keys = ON;")
+            conn.commit()
+            record_migration(conn, "009_notifications_announcements_and_admin_enhancements", "Notifications, Preferences, Announcements, Views, Settings & Audit Indexes")
+            applied_now.append("009_notifications_announcements_and_admin_enhancements")
+            logger.info("Migration 009_notifications_announcements_and_admin_enhancements applied successfully.")
 
         return applied_now
     finally:

@@ -242,8 +242,8 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
         )
 
         # 11. Seed System Settings
-        cursor.execute("INSERT INTO system_settings (setting_key, setting_value, category, description) VALUES ('institution_name', 'University College of Engineering', 'general', 'Institute name');")
-        cursor.execute("INSERT INTO system_settings (setting_key, setting_value, category, description) VALUES ('q05_latency_target_ms', '10.0', 'performance', 'Target response time SLA');")
+        cursor.execute("INSERT OR IGNORE INTO system_settings (setting_key, setting_value, category, description) VALUES ('institution_name', 'University College of Engineering', 'general', 'Institute name');")
+        cursor.execute("INSERT OR IGNORE INTO system_settings (setting_key, setting_value, category, description) VALUES ('q05_latency_target_ms', '10.0', 'performance', 'Target response time SLA');")
 
         conn.commit()
         logger.info(f"Database seeded with {len(demo_users)} demo users across all 12 roles.")

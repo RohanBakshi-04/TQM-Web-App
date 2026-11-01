@@ -1522,6 +1522,292 @@ const API = {
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load inventory dashboard.");
         return await response.json();
+    },
+
+    // ==================== NOTIFICATIONS API ====================
+    async getNotifications(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/notifications${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load notifications.");
+        return await response.json();
+    },
+
+    async getUnreadNotificationCount() {
+        const response = await fetch(`${this.baseUrl}/api/v1/notifications/unread-count`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) return { unread_count: 0 };
+        return await response.json();
+    },
+
+    async markNotificationRead(id) {
+        const response = await fetch(`${this.baseUrl}/api/v1/notifications/${id}/read`, {
+            method: "POST",
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to mark notification as read.");
+        return await response.json();
+    },
+
+    async markAllNotificationsRead() {
+        const response = await fetch(`${this.baseUrl}/api/v1/notifications/read-all`, {
+            method: "POST",
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to mark all as read.");
+        return await response.json();
+    },
+
+    async getNotificationPreferences() {
+        const response = await fetch(`${this.baseUrl}/api/v1/notifications/preferences`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load notification preferences.");
+        return await response.json();
+    },
+
+    async updateNotificationPreferences(payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/notifications/preferences`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to update notification preferences.");
+        return await response.json();
+    },
+
+    // ==================== ANNOUNCEMENTS API ====================
+    async getAnnouncements(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/announcements${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load announcements.");
+        return await response.json();
+    },
+
+    async createAnnouncement(payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/announcements`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to create announcement.");
+        return res;
+    },
+
+    async getAnnouncement(id) {
+        const response = await fetch(`${this.baseUrl}/api/v1/announcements/${id}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load announcement.");
+        return await response.json();
+    },
+
+    async updateAnnouncement(id, payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/announcements/${id}`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to update announcement.");
+        return res;
+    },
+
+    async publishAnnouncement(id) {
+        const response = await fetch(`${this.baseUrl}/api/v1/announcements/${id}/publish`, {
+            method: "POST",
+            headers: this.getHeaders()
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to publish announcement.");
+        return res;
+    },
+
+    async archiveAnnouncement(id) {
+        const response = await fetch(`${this.baseUrl}/api/v1/announcements/${id}/archive`, {
+            method: "POST",
+            headers: this.getHeaders()
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to archive announcement.");
+        return res;
+    },
+
+    async acknowledgeAnnouncement(id) {
+        const response = await fetch(`${this.baseUrl}/api/v1/announcements/${id}/acknowledge`, {
+            method: "POST",
+            headers: this.getHeaders()
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to acknowledge announcement.");
+        return res;
+    },
+
+    async getAnnouncementViews(id) {
+        const response = await fetch(`${this.baseUrl}/api/v1/announcements/${id}/views`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load views.");
+        return await response.json();
+    },
+
+    // ==================== SYSTEM ADMINISTRATION API ====================
+    async getAdminSettings(category = null) {
+        const url = `${this.baseUrl}/api/v1/admin/settings${category ? '?category=' + encodeURIComponent(category) : ''}`;
+        const response = await fetch(url, { headers: this.getHeaders() });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load system settings.");
+        return await response.json();
+    },
+
+    async updateAdminSettings(payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/admin/settings`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to update system settings.");
+        return res;
+    },
+
+    async getAdminSettingsHistory(limit = 50) {
+        const response = await fetch(`${this.baseUrl}/api/v1/admin/settings/history?limit=${limit}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load settings history.");
+        return await response.json();
+    },
+
+    async getAdminUsers(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/admin/users${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load users directory.");
+        return await response.json();
+    },
+
+    async getAdminUserDetail(id) {
+        const response = await fetch(`${this.baseUrl}/api/v1/admin/users/${id}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load user details.");
+        return await response.json();
+    },
+
+    async updateAdminUserStatus(id, payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/admin/users/${id}/status`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to update user status.");
+        return res;
+    },
+
+    async updateAdminUserRoles(id, payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/admin/users/${id}/roles`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to update user roles.");
+        return res;
+    },
+
+    async adminResetPassword(id, payload = {}) {
+        const response = await fetch(`${this.baseUrl}/api/v1/admin/users/${id}/password-reset`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to reset password.");
+        return res;
+    },
+
+    async getAdminRoles() {
+        const response = await fetch(`${this.baseUrl}/api/v1/admin/roles`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load roles.");
+        return await response.json();
+    },
+
+    async getAdminPermissions() {
+        const response = await fetch(`${this.baseUrl}/api/v1/admin/permissions`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load permissions.");
+        return await response.json();
+    },
+
+    async updateRolePermissions(roleId, payload) {
+        const response = await fetch(`${this.baseUrl}/api/v1/admin/roles/${roleId}/permissions`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to update role permissions.");
+        return res;
+    },
+
+    async getAdminAuditLogs(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const response = await fetch(`${this.baseUrl}/api/v1/admin/audit-logs${qs ? '?' + qs : ''}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load audit logs.");
+        return await response.json();
+    },
+
+    async getAdminAuditLogDetail(id) {
+        const response = await fetch(`${this.baseUrl}/api/v1/admin/audit-logs/${id}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load audit log.");
+        return await response.json();
+    },
+
+    getAdminAuditLogsExportUrl(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        return `${this.baseUrl}/api/v1/admin/audit-logs/export${qs ? '?' + qs : ''}`;
+    },
+
+    async createBackup(note = "") {
+        const response = await fetch(`${this.baseUrl}/api/v1/admin/backups${note ? '?note=' + encodeURIComponent(note) : ''}`, {
+            method: "POST",
+            headers: this.getHeaders()
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to create database backup.");
+        return res;
+    },
+
+    async listBackups() {
+        const response = await fetch(`${this.baseUrl}/api/v1/admin/backups`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to list backups.");
+        return await response.json();
+    },
+
+    async restoreBackup(backupFilename) {
+        const response = await fetch(`${this.baseUrl}/api/v1/admin/backups/restore?backup_filename=${encodeURIComponent(backupFilename)}`, {
+            method: "POST",
+            headers: this.getHeaders()
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to restore database backup.");
+        return res;
     }
 };
 

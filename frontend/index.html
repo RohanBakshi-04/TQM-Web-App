@@ -1169,6 +1169,24 @@
                         </button>
                     </template>
 
+                    <template x-if="isAuthenticated">
+                        <button @click="navigateTo('announcements')"
+                                :class="activeSection === 'announcements' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
+                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
+                            <i class="fa-solid fa-bullhorn w-5 text-center text-sm"></i>
+                            <span x-show="!sidebarCollapsed" class="truncate">Announcements</span>
+                        </button>
+                    </template>
+
+                    <template x-if="isAuthenticated && (activeRoleView === 'super_admin' || activeRoleView === 'hostel_admin' || activeRoleView === 'auditor')">
+                        <button @click="navigateTo('admin')"
+                                :class="activeSection === 'admin' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
+                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
+                            <i class="fa-solid fa-sliders w-5 text-center text-sm"></i>
+                            <span x-show="!sidebarCollapsed" class="truncate">System Admin</span>
+                        </button>
+                    </template>
+
                     <button @click="navigateTo('architecture')"
                             :class="activeSection === 'architecture' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
                             class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
@@ -1480,6 +1498,32 @@
 
                 <!-- 3. ROLE-BASED DASHBOARD SECTION (FOR ALL 12 ROLES) -->
                 <section x-show="activeSection === 'dashboard'" class="animate-fade-in space-y-6">
+                    <!-- Emergency Announcement Alert Banner -->
+                    <template x-if="emergencyAnnouncement">
+                        <div class="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 flex items-start justify-between shadow-sm animate-pulse">
+                            <div class="flex items-start space-x-3">
+                                <div class="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center flex-shrink-0 mt-0.5">
+                                    <i class="fa-solid fa-triangle-exclamation"></i>
+                                </div>
+                                <div>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="px-2 py-0.5 text-[10px] font-extrabold uppercase rounded-full bg-rose-200 dark:bg-rose-900 text-rose-800 dark:text-rose-200">Critical Notice</span>
+                                        <h4 class="font-bold text-sm text-rose-900 dark:text-rose-100" x-text="emergencyAnnouncement.title"></h4>
+                                    </div>
+                                    <p class="text-xs text-rose-800 dark:text-rose-200 mt-1" x-text="emergencyAnnouncement.content"></p>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2 flex-shrink-0">
+                                <button type="button" @click="acknowledgeAnnouncementAction(emergencyAnnouncement.id)"
+                                        class="px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 transition">
+                                    Acknowledge
+                                </button>
+                                <button type="button" @click="emergencyAnnouncement = null" class="text-rose-400 hover:text-rose-600 p-1">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </template>
 
                     <!-- Dashboard Role Header Banner -->
                     <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -5798,6 +5842,322 @@
                                 <div class="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1" x-text="(systemHealth.database?.ping_latency_ms || 0) + ' ms'"></div>
                                 <div class="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">✓ Meets &lt; 10ms SLA</div>
                             </div>
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- ========================================== -->
+                <!-- ANNOUNCEMENTS SECTION -->
+                <!-- ========================================== -->
+                <section x-show="activeSection === 'announcements'" class="animate-fade-in space-y-6">
+                    <!-- Header -->
+                    <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div>
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-lg">
+                                    <i class="fa-solid fa-bullhorn"></i>
+                                </div>
+                                <div>
+                                    <h2 class="text-xl font-extrabold text-slate-900 dark:text-white">Announcements & Notices</h2>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">Official campus, hostel, fee, and academic communications</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <template x-if="activeRoleView === 'super_admin' || activeRoleView === 'hostel_admin' || activeRoleView === 'warden' || activeRoleView === 'assistant_warden'">
+                                <button type="button" @click="announcementModalOpen = true"
+                                        class="px-4 py-2.5 rounded-xl bg-brand-900 text-white text-xs font-bold hover:bg-brand-800 transition shadow-sm flex items-center space-x-2">
+                                    <i class="fa-solid fa-plus"></i>
+                                    <span>New Announcement</span>
+                                </button>
+                            </template>
+                            <button type="button" @click="loadAnnouncements()" class="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+                                <i class="fa-solid fa-rotate text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Announcements Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <template x-for="a in announcementsList" :key="a.id">
+                            <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition space-y-4">
+                                <div class="space-y-3">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span class="px-2.5 py-1 rounded-full text-[10px] font-bold"
+                                              :class="{
+                                                  'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400': a.priority === 'Critical' || a.priority === 'Emergency',
+                                                  'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400': a.priority === 'High',
+                                                  'bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-400': a.priority === 'Normal' || a.priority === 'Low'
+                                              }" x-text="a.priority"></span>
+                                        <span class="text-[11px] text-slate-400 font-medium" x-text="a.category"></span>
+                                    </div>
+                                    <h3 class="font-bold text-sm text-slate-900 dark:text-white line-clamp-2" x-text="a.title"></h3>
+                                    <p class="text-xs text-slate-600 dark:text-slate-300 line-clamp-3" x-text="a.content"></p>
+                                </div>
+                                <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                                    <div class="text-slate-400">
+                                        <span x-text="a.created_by_name || 'Administration'"></span> &bull; <span x-text="(a.publish_at || a.created_at || '').substring(0, 10)"></span>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <button type="button" @click="openAnnouncementDetail(a)" class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+                                            Read
+                                        </button>
+                                        <template x-if="activeRoleView === 'super_admin' || activeRoleView === 'hostel_admin'">
+                                            <button type="button" @click="viewAnnouncementAudience(a.id)" class="px-2 py-1 text-slate-400 hover:text-brand-600" title="Reader Views">
+                                                <i class="fa-solid fa-eye text-xs"></i>
+                                                <span x-text="a.view_count || 0"></span>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </section>
+
+                <!-- ========================================== -->
+                <!-- SYSTEM ADMINISTRATION SECTION -->
+                <!-- ========================================== -->
+                <section x-show="activeSection === 'admin'" class="animate-fade-in space-y-6">
+                    <!-- Admin Header -->
+                    <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-2xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold text-lg">
+                                <i class="fa-solid fa-sliders"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-xl font-extrabold text-slate-900 dark:text-white">System Administration</h2>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">Enterprise governance, system configuration, RBAC, and audit log telemetry</p>
+                            </div>
+                        </div>
+                        <!-- Admin Subtabs -->
+                        <div class="flex items-center space-x-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl">
+                            <button type="button" @click="adminTab = 'settings'; loadAdminSettings();"
+                                    :class="adminTab === 'settings' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'"
+                                    class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition">Settings</button>
+                            <button type="button" @click="adminTab = 'users'; loadAdminUsers();"
+                                    :class="adminTab === 'users' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'"
+                                    class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition">Users</button>
+                            <button type="button" @click="adminTab = 'roles'; loadAdminRolesAndPermissions();"
+                                    :class="adminTab === 'roles' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'"
+                                    class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition">Roles & RBAC</button>
+                            <button type="button" @click="adminTab = 'audit'; loadAdminAuditLogs();"
+                                    :class="adminTab === 'audit' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'"
+                                    class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition">Audit Logs</button>
+                            <button type="button" @click="adminTab = 'backups'; loadAdminBackups();"
+                                    :class="adminTab === 'backups' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'"
+                                    class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition">Backups</button>
+                        </div>
+                    </div>
+
+                    <!-- SUBTAB 1: SYSTEM SETTINGS -->
+                    <div x-show="adminTab === 'settings'" class="space-y-6">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2 overflow-x-auto pb-2">
+                                <template x-for="cat in adminSettingsCategories" :key="cat">
+                                    <button type="button" @click="selectedSettingsCategory = cat; loadAdminSettings();"
+                                            :class="selectedSettingsCategory === cat ? 'bg-brand-900 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'"
+                                            class="px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition" x-text="cat"></button>
+                                </template>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button type="button" @click="openSettingsHistory()" class="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
+                                    <i class="fa-solid fa-clock-rotate-left mr-1"></i> Change History
+                                </button>
+                                <button type="button" @click="saveAdminSettings()" class="px-4 py-2 rounded-xl bg-brand-900 text-white text-xs font-bold hover:bg-brand-800 shadow-sm">
+                                    <i class="fa-solid fa-floppy-disk mr-1"></i> Save Changes
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <template x-for="s in adminSettings" :key="s.setting_key">
+                                <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-xs font-extrabold text-slate-800 dark:text-slate-200" x-text="s.setting_key"></span>
+                                        <span class="text-[10px] uppercase font-bold text-slate-400" x-text="s.category"></span>
+                                    </div>
+                                    <p class="text-[11px] text-slate-500 line-clamp-1" x-text="s.description"></p>
+                                    <input type="text" x-model="s.setting_value"
+                                           class="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900">
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- SUBTAB 2: USER DIRECTORY -->
+                    <div x-show="adminTab === 'users'" class="space-y-4">
+                        <div class="flex items-center justify-between gap-4">
+                            <div class="flex items-center space-x-2 flex-1 max-w-md">
+                                <input type="text" x-model="adminUsersSearch" @input.debounce.300ms="loadAdminUsers(1)" placeholder="Search users by name, username, email..."
+                                       class="w-full px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+                            </div>
+                            <div class="text-xs text-slate-500">
+                                Total Users: <strong class="text-slate-900 dark:text-white" x-text="adminUsersTotal"></strong>
+                            </div>
+                        </div>
+
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead>
+                                    <tr class="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                                        <th class="p-4">User</th>
+                                        <th class="p-4">Email / Phone</th>
+                                        <th class="p-4">Roles</th>
+                                        <th class="p-4">Status</th>
+                                        <th class="p-4 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="u in adminUsersList" :key="u.id">
+                                        <tr class="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition">
+                                            <td class="p-4">
+                                                <div class="font-bold text-slate-900 dark:text-white" x-text="u.username"></div>
+                                                <div class="text-[11px] text-slate-400" x-text="u.first_name + ' ' + u.last_name"></div>
+                                            </td>
+                                            <td class="p-4 text-slate-600 dark:text-slate-300">
+                                                <div x-text="u.email"></div>
+                                                <div class="text-[11px] text-slate-400" x-text="u.phone || 'No phone'"></div>
+                                            </td>
+                                            <td class="p-4">
+                                                <div class="flex flex-wrap gap-1">
+                                                    <template x-for="r in u.roles" :key="r">
+                                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-300" x-text="r"></span>
+                                                    </template>
+                                                </div>
+                                            </td>
+                                            <td class="p-4">
+                                                <span class="px-2.5 py-1 rounded-full text-[10px] font-bold"
+                                                      :class="u.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400'"
+                                                      x-text="u.is_active ? 'Active' : 'Inactive'"></span>
+                                            </td>
+                                            <td class="p-4 text-right space-x-1">
+                                                <button type="button" @click="openAdminUserDetail(u)" class="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" title="View Details">
+                                                    <i class="fa-solid fa-circle-info"></i>
+                                                </button>
+                                                <button type="button" @click="openAdminUserRoles(u)" class="p-1.5 rounded-lg text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950" title="Edit Roles">
+                                                    <i class="fa-solid fa-user-tag"></i>
+                                                </button>
+                                                <button type="button" @click="openAdminPasswordReset(u)" class="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950" title="Reset Password">
+                                                    <i class="fa-solid fa-key"></i>
+                                                </button>
+                                                <button type="button" @click="toggleAdminUserStatus(u)" class="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950" :title="u.is_active ? 'Deactivate' : 'Activate'">
+                                                    <i :class="u.is_active ? 'fa-solid fa-user-slash' : 'fa-solid fa-user-check'"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- SUBTAB 3: ROLES & RBAC -->
+                    <div x-show="adminTab === 'roles'" class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <template x-for="r in adminRolesList" :key="r.id">
+                                <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-3">
+                                    <div class="flex items-center justify-between">
+                                        <h3 class="font-extrabold text-sm text-slate-900 dark:text-white capitalize" x-text="r.name.replace('_', ' ')"></h3>
+                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" x-text="(r.user_count || 0) + ' Users'"></span>
+                                    </div>
+                                    <p class="text-xs text-slate-500 line-clamp-2" x-text="r.description || 'System access role'"></p>
+                                    <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                                        <span class="text-slate-400" x-text="(r.permissions.length || 0) + ' Permissions'"></span>
+                                        <button type="button" @click="openRolePermissionsModal(r)" class="px-3 py-1.5 rounded-xl bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-300 font-bold hover:bg-brand-100 transition">
+                                            Permissions
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- SUBTAB 4: AUDIT LOGS -->
+                    <div x-show="adminTab === 'audit'" class="space-y-4">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div class="flex items-center space-x-2 flex-1 max-w-md">
+                                <input type="text" x-model="adminAuditLogsSearch" @input.debounce.300ms="loadAdminAuditLogs(1)" placeholder="Search action, details, username..."
+                                       class="w-full px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+                            </div>
+                            <button type="button" @click="exportAuditLogsCsv()"
+                                    class="px-4 py-2 rounded-xl bg-emerald-700 text-white text-xs font-bold hover:bg-emerald-600 transition shadow-sm flex items-center space-x-2">
+                                <i class="fa-solid fa-file-csv"></i>
+                                <span>Export Audit CSV</span>
+                            </button>
+                        </div>
+
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead>
+                                    <tr class="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                                        <th class="p-4">Timestamp</th>
+                                        <th class="p-4">Actor</th>
+                                        <th class="p-4">Action</th>
+                                        <th class="p-4">Module / Entity</th>
+                                        <th class="p-4">Details</th>
+                                        <th class="p-4">Latency</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="log in adminAuditLogsList" :key="log.id">
+                                        <tr class="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition">
+                                            <td class="p-4 text-slate-400" x-text="log.created_at"></td>
+                                            <td class="p-4 font-bold text-slate-800 dark:text-slate-200" x-text="log.username"></td>
+                                            <td class="p-4">
+                                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" x-text="log.action"></span>
+                                            </td>
+                                            <td class="p-4 text-slate-500" x-text="log.entity_name + ' #' + (log.entity_id || '')"></td>
+                                            <td class="p-4 text-slate-600 dark:text-slate-300 max-w-xs truncate" x-text="log.details"></td>
+                                            <td class="p-4 font-mono text-[11px] text-emerald-600 dark:text-emerald-400" x-text="(log.latency_ms || 0) + ' ms'"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- SUBTAB 5: DATABASE BACKUPS -->
+                    <div x-show="adminTab === 'backups'" class="space-y-6">
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div>
+                                <h3 class="font-bold text-sm text-slate-900 dark:text-white">SQLite WAL Online Backups</h3>
+                                <p class="text-xs text-slate-500">Atomic, non-blocking snapshot engine with SHA-256 and PRAGMA integrity verification</p>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <input type="text" x-model="backupNote" placeholder="Backup label / note..." class="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs">
+                                <button type="button" @click="createBackupAction()" class="px-4 py-2 rounded-xl bg-brand-900 text-white text-xs font-bold hover:bg-brand-800 transition shadow-sm">
+                                    <i class="fa-solid fa-database mr-1"></i> Create Backup
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead>
+                                    <tr class="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                                        <th class="p-4">Filename</th>
+                                        <th class="p-4">Created Date</th>
+                                        <th class="p-4">Size</th>
+                                        <th class="p-4 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="b in adminBackupsList" :key="b.filename">
+                                        <tr class="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition">
+                                            <td class="p-4 font-mono text-slate-800 dark:text-slate-200 font-bold" x-text="b.filename"></td>
+                                            <td class="p-4 text-slate-500" x-text="b.created_at"></td>
+                                            <td class="p-4 text-slate-500" x-text="(b.size_bytes / 1024).toFixed(1) + ' KB'"></td>
+                                            <td class="p-4 text-right">
+                                                <button type="button" @click="restoreBackupAction(b.filename)" class="px-3 py-1 rounded-lg bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300 font-bold hover:bg-rose-100 transition">
+                                                    Restore
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </section>

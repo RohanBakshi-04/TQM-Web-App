@@ -1074,6 +1074,14 @@ document.addEventListener("alpine:init", () => {
                 this.loadInventoryDashboard();
                 this.loadInventoryItems();
                 this.loadSuppliers();
+            } else if (section === 'announcements') {
+                this.loadAnnouncements();
+            } else if (section === 'admin') {
+                this.loadAdminSettings();
+                this.loadAdminUsers();
+                this.loadAdminRolesAndPermissions();
+                this.loadAdminAuditLogs();
+                this.loadAdminBackups();
             }
             this.navigationLatencyMs = parseFloat((performance.now() - t0).toFixed(2));
         },
@@ -2588,5 +2596,440 @@ document.addEventListener("alpine:init", () => {
                 this.showToast(`Adjustment failed: ${err.message}`, "error");
             }
         }
+
+        // ==========================================
+        // PROMPT 14 & 15: NOTIFICATIONS, ANNOUNCEMENTS, ADMIN & BACKUP
+        // ==========================================
+
+        // --- NOTIFICATIONS STATE ---
+        notificationsList: [],
+        notificationUnreadCount: 0,
+        notificationPreferencesModalOpen: false,
+        notificationPreferences: { in_app_enabled: true, email_enabled: false, browser_enabled: false, disabled_categories: [] },
+
+        async loadNotifications() {
+            try {
+                const res = await window.API.getNotifications({ page: 1, page_size: 50 });
+                this.notificationsList = res.items || [];
+                this.notificationUnreadCount = res.unread_count || 0;
+            } catch (err) {
+                console.error("Failed to load notifications:", err);
+            }
+        },
+
+        async loadUnreadNotificationCount() {
+            try {
+                const res = await window.API.getUnreadNotificationCount();
+                this.notificationUnreadCount = res.unread_count || 0;
+            } catch (err) {
+                console.error("Failed to load unread count:", err);
+            }
+        },
+
+        async markNotificationAsRead(id) {
+            try {
+                await window.API.markNotificationRead(id);
+                const n = this.notificationsList.find(item => item.id === id);
+                if (n) n.is_read = true;
+                if (this.notificationUnreadCount > 0) this.notificationUnreadCount--;
+            } catch (err) {
+                this.showToast(`Error: ${err.message}`, "error");
+            }
+        },
+
+        async markAllNotificationsAsRead() {
+            try {
+                const res = await window.API.markAllNotificationsRead();
+                this.notificationsList.forEach(n => n.is_read = true);
+                this.notificationUnreadCount = 0;
+                this.showToast(res.message || "All notifications marked as read.", "success");
+            } catch (err) {
+                this.showToast(`Error: ${err.message}`, "error");
+            }
+        },
+
+        async openNotificationPreferencesModal() {
+            try {
+                const prefs = await window.API.getNotificationPreferences();
+                this.notificationPreferences = prefs;
+                this.notificationPreferencesModalOpen = true;
+            } catch (err) {
+                this.showToast(`Failed to load preferences: ${err.message}`, "error");
+            }
+        },
+
+        async saveNotificationPreferences() {
+            try {
+                await window.API.updateNotificationPreferences(this.notificationPreferences);
+                this.showToast("Notification preferences updated successfully!", "success");
+                this.notificationPreferencesModalOpen = false;
+            } catch (err) {
+                this.showToast(`Error: ${err.message}`, "error");
+            }
+        },
+
+        // --- ANNOUNCEMENTS STATE ---
+        announcementsList: [],
+        emergencyAnnouncement: null,
+        announcementModalOpen: false,
+        announcementDetailModalOpen: false,
+        announcementViewsModalOpen: false,
+        selectedAnnouncement: null,
+        announcementViewsList: [],
+        announcementTab: 'active',
+        newAnnouncement: {
+            title: '',
+            content: '',
+            category: 'General Notice',
+            priority: 'Normal',
+            target_audience: 'All Users',
+            target_hostel_id: null,
+            expires_at: ''
+        },
+
+        async loadAnnouncements() {
+            try {
+                const list = await window.API.getAnnouncements({ limit: 100 });
+                this.announcementsList = list || [];
+                // Check for high-priority emergency announcements
+                this.emergencyAnnouncement = this.announcementsList.find(a => 
+                    (a.priority === 'Critical' || a.priority === 'Emergency') && a.status === 'Published' && !a.is_acknowledged_by_me
+                ) || null;
+            } catch (err) {
+                console.error("Failed to load announcements:", err);
+            }
+        },
+
+        async openAnnouncementDetail(a) {
+            try {
+                const detailed = await window.API.getAnnouncement(a.id);
+                this.selectedAnnouncement = detailed;
+                this.announcementDetailModalOpen = true;
+                // Update in local list
+                const idx = this.announcementsList.findIndex(item => item.id === a.id);
+                if (idx !== -1) this.announcementsList[idx].is_viewed_by_me = true;
+            } catch (err) {
+                this.showToast(`Failed to load notice: ${err.message}`, "error");
+            }
+        },
+
+        async saveNewAnnouncement() {
+            if (!this.newAnnouncement.title || !this.newAnnouncement.content) {
+                this.showToast("Title and content are required.", "warning");
+                return;
+            }
+            try {
+                const payload = {
+                    title: this.newAnnouncement.title,
+                    content: this.newAnnouncement.content,
+                    category: this.newAnnouncement.category,
+                    priority: this.newAnnouncement.priority,
+                    target_audience: this.newAnnouncement.target_audience,
+                    target_hostel_id: this.newAnnouncement.target_hostel_id ? parseInt(this.newAnnouncement.target_hostel_id) : null,
+                    expires_at: this.newAnnouncement.expires_at || null,
+                    status: 'Published'
+                };
+                await window.API.createAnnouncement(payload);
+                this.showToast("Announcement published successfully!", "success");
+                this.announcementModalOpen = false;
+                this.newAnnouncement = { title: '', content: '', category: 'General Notice', priority: 'Normal', target_audience: 'All Users', target_hostel_id: null, expires_at: '' };
+                await this.loadAnnouncements();
+            } catch (err) {
+                this.showToast(`Error: ${err.message}`, "error");
+            }
+        },
+
+        async publishAnnouncementAction(id) {
+            try {
+                await window.API.publishAnnouncement(id);
+                this.showToast("Announcement published!", "success");
+                await this.loadAnnouncements();
+            } catch (err) {
+                this.showToast(`Publish error: ${err.message}`, "error");
+            }
+        },
+
+        async archiveAnnouncementAction(id) {
+            try {
+                await window.API.archiveAnnouncement(id);
+                this.showToast("Announcement archived.", "info");
+                await this.loadAnnouncements();
+            } catch (err) {
+                this.showToast(`Archive error: ${err.message}`, "error");
+            }
+        },
+
+        async acknowledgeAnnouncementAction(id) {
+            try {
+                await window.API.acknowledgeAnnouncement(id);
+                this.showToast("Notice acknowledged.", "success");
+                if (this.selectedAnnouncement && this.selectedAnnouncement.id === id) {
+                    this.selectedAnnouncement.is_acknowledged_by_me = true;
+                }
+                if (this.emergencyAnnouncement && this.emergencyAnnouncement.id === id) {
+                    this.emergencyAnnouncement = null;
+                }
+                await this.loadAnnouncements();
+            } catch (err) {
+                this.showToast(`Error: ${err.message}`, "error");
+            }
+        },
+
+        async viewAnnouncementAudience(id) {
+            try {
+                const views = await window.API.getAnnouncementViews(id);
+                this.announcementViewsList = views || [];
+                this.announcementViewsModalOpen = true;
+            } catch (err) {
+                this.showToast(`Failed to load reader logs: ${err.message}`, "error");
+            }
+        },
+
+        // --- SYSTEM ADMINISTRATION STATE ---
+        adminTab: 'settings',
+        adminSettings: [],
+        adminSettingsCategories: ['all', 'general', 'localization', 'finance', 'academic', 'admission', 'allocation', 'attendance', 'leave', 'visitor', 'notification', 'security'],
+        selectedSettingsCategory: 'all',
+        adminSettingsHistory: [],
+        adminSettingsHistoryModalOpen: false,
+        adminUsersList: [],
+        adminUsersTotal: 0,
+        adminUsersPage: 1,
+        adminUsersSearch: '',
+        adminUsersRoleFilter: '',
+        selectedAdminUser: null,
+        adminUserDetailModalOpen: false,
+        adminUserRolesModalOpen: false,
+        editingUserRoles: [],
+        adminPasswordResetModalOpen: false,
+        adminResetPasswordData: { temporary_password: '', reason: '' },
+        adminRolesList: [],
+        adminPermissionsList: [],
+        selectedRoleForPermissions: null,
+        editingRolePermissions: [],
+        adminRolePermissionsModalOpen: false,
+        adminAuditLogsList: [],
+        adminAuditLogsTotal: 0,
+        adminAuditLogsPage: 1,
+        adminAuditLogsSearch: '',
+        adminAuditLogsActionFilter: '',
+        adminAuditLogsModuleFilter: '',
+        adminAuditLogsStartDate: '',
+        adminAuditLogsEndDate: '',
+        selectedAuditLog: null,
+        adminAuditLogDetailModalOpen: false,
+        adminBackupsList: [],
+        backupNote: '',
+
+        async loadAdminSettings() {
+            try {
+                const cat = this.selectedSettingsCategory === 'all' ? null : this.selectedSettingsCategory;
+                this.adminSettings = await window.API.getAdminSettings(cat);
+            } catch (err) {
+                this.showToast(`Settings load error: ${err.message}`, "error");
+            }
+        },
+
+        async saveAdminSettings() {
+            try {
+                const map = {};
+                this.adminSettings.forEach(s => map[s.setting_key] = s.setting_value);
+                await window.API.updateAdminSettings({ settings: map, reason: "Administrative console update" });
+                this.showToast("System settings saved and applied successfully!", "success");
+                await this.loadAdminSettings();
+            } catch (err) {
+                this.showToast(`Save settings error: ${err.message}`, "error");
+            }
+        },
+
+        async openSettingsHistory() {
+            try {
+                this.adminSettingsHistory = await window.API.getAdminSettingsHistory(50);
+                this.adminSettingsHistoryModalOpen = true;
+            } catch (err) {
+                this.showToast(`Failed to load history: ${err.message}`, "error");
+            }
+        },
+
+        async loadAdminUsers(page = 1) {
+            try {
+                this.adminUsersPage = page;
+                const params = {
+                    page: this.adminUsersPage,
+                    page_size: 20
+                };
+                if (this.adminUsersSearch) params.search = this.adminUsersSearch;
+                if (this.adminUsersRoleFilter) params.role = this.adminUsersRoleFilter;
+                const res = await window.API.getAdminUsers(params);
+                this.adminUsersList = res.items || [];
+                this.adminUsersTotal = res.total || 0;
+            } catch (err) {
+                this.showToast(`Users load error: ${err.message}`, "error");
+            }
+        },
+
+        async openAdminUserDetail(u) {
+            try {
+                this.selectedAdminUser = await window.API.getAdminUserDetail(u.id);
+                this.adminUserDetailModalOpen = true;
+            } catch (err) {
+                this.showToast(`Failed to load user: ${err.message}`, "error");
+            }
+        },
+
+        async toggleAdminUserStatus(u) {
+            const nextStatus = !u.is_active;
+            const actionText = nextStatus ? "activate" : "deactivate";
+            if (!confirm(`Are you sure you want to ${actionText} user account '${u.username}'?`)) return;
+            try {
+                await window.API.updateAdminUserStatus(u.id, { is_active: nextStatus, reason: `Admin ${actionText}` });
+                this.showToast(`User '${u.username}' ${actionText}d successfully.`, "success");
+                await this.loadAdminUsers(this.adminUsersPage);
+            } catch (err) {
+                this.showToast(`Status update failed: ${err.message}`, "error");
+            }
+        },
+
+        openAdminUserRoles(u) {
+            this.selectedAdminUser = u;
+            this.editingUserRoles = [...(u.roles || [])];
+            this.adminUserRolesModalOpen = true;
+        },
+
+        async saveAdminUserRoles() {
+            if (!this.selectedAdminUser) return;
+            if (this.editingUserRoles.length === 0) {
+                this.showToast("User must have at least one assigned role.", "warning");
+                return;
+            }
+            try {
+                await window.API.updateAdminUserRoles(this.selectedAdminUser.id, {
+                    roles: this.editingUserRoles,
+                    reason: "Admin role adjustment"
+                });
+                this.showToast("Roles updated successfully!", "success");
+                this.adminUserRolesModalOpen = false;
+                await this.loadAdminUsers(this.adminUsersPage);
+            } catch (err) {
+                this.showToast(`Role assignment error: ${err.message}`, "error");
+            }
+        },
+
+        openAdminPasswordReset(u) {
+            this.selectedAdminUser = u;
+            this.adminResetPasswordData = { temporary_password: '', reason: 'Administrative password reset' };
+            this.adminPasswordResetModalOpen = true;
+        },
+
+        async executeAdminPasswordReset() {
+            if (!this.selectedAdminUser) return;
+            try {
+                const res = await window.API.adminResetPassword(this.selectedAdminUser.id, this.adminResetPasswordData);
+                this.showToast(`Password reset! New password: ${res.temporary_password}`, "success");
+                this.adminPasswordResetModalOpen = false;
+            } catch (err) {
+                this.showToast(`Password reset error: ${err.message}`, "error");
+            }
+        },
+
+        async loadAdminRolesAndPermissions() {
+            try {
+                this.adminRolesList = await window.API.getAdminRoles();
+                this.adminPermissionsList = await window.API.getAdminPermissions();
+            } catch (err) {
+                console.error("Failed to load roles and permissions:", err);
+            }
+        },
+
+        openRolePermissionsModal(r) {
+            this.selectedRoleForPermissions = r;
+            this.editingRolePermissions = [...(r.permissions || [])];
+            this.adminRolePermissionsModalOpen = true;
+        },
+
+        async saveRolePermissions() {
+            if (!this.selectedRoleForPermissions) return;
+            try {
+                await window.API.updateRolePermissions(this.selectedRoleForPermissions.id, {
+                    permission_names: this.editingRolePermissions,
+                    reason: "Permissions reconfigured via Admin Portal"
+                });
+                this.showToast("Role permissions updated successfully!", "success");
+                this.adminRolePermissionsModalOpen = false;
+                await this.loadAdminRolesAndPermissions();
+            } catch (err) {
+                this.showToast(`Error: ${err.message}`, "error");
+            }
+        },
+
+        async loadAdminAuditLogs(page = 1) {
+            try {
+                this.adminAuditLogsPage = page;
+                const params = {
+                    page: this.adminAuditLogsPage,
+                    page_size: 25
+                };
+                if (this.adminAuditLogsSearch) params.search = this.adminAuditLogsSearch;
+                if (this.adminAuditLogsActionFilter) params.action = this.adminAuditLogsActionFilter;
+                if (this.adminAuditLogsModuleFilter) params.module = this.adminAuditLogsModuleFilter;
+                if (this.adminAuditLogsStartDate) params.start_date = this.adminAuditLogsStartDate;
+                if (this.adminAuditLogsEndDate) params.end_date = this.adminAuditLogsEndDate;
+                const res = await window.API.getAdminAuditLogs(params);
+                this.adminAuditLogsList = res.items || [];
+                this.adminAuditLogsTotal = res.total || 0;
+            } catch (err) {
+                this.showToast(`Audit log load error: ${err.message}`, "error");
+            }
+        },
+
+        openAuditLogDetail(l) {
+            this.selectedAuditLog = l;
+            this.adminAuditLogDetailModalOpen = true;
+        },
+
+        exportAuditLogsCsv() {
+            const params = {};
+            if (this.adminAuditLogsSearch) params.search = this.adminAuditLogsSearch;
+            if (this.adminAuditLogsActionFilter) params.action = this.adminAuditLogsActionFilter;
+            if (this.adminAuditLogsModuleFilter) params.module = this.adminAuditLogsModuleFilter;
+            if (this.adminAuditLogsStartDate) params.start_date = this.adminAuditLogsStartDate;
+            if (this.adminAuditLogsEndDate) params.end_date = this.adminAuditLogsEndDate;
+            const url = window.API.getAdminAuditLogsExportUrl(params);
+            window.open(url, "_blank");
+            this.showToast("Audit logs RFC 4180 CSV export initiated.", "info");
+        },
+
+        async loadAdminBackups() {
+            try {
+                this.adminBackupsList = await window.API.listBackups();
+            } catch (err) {
+                console.error("Failed to load backups:", err);
+            }
+        },
+
+        async createBackupAction() {
+            try {
+                const res = await window.API.createBackup(this.backupNote);
+                this.showToast(`Database backup created: ${res.filename} (${(res.size_bytes / 1024).toFixed(1)} KB)`, "success");
+                this.backupNote = '';
+                await this.loadAdminBackups();
+            } catch (err) {
+                this.showToast(`Backup error: ${err.message}`, "error");
+            }
+        },
+
+        async restoreBackupAction(filename) {
+            if (!confirm(`CAUTION: Are you sure you want to restore database from snapshot '${filename}'? Current data will be replaced (a pre-restore snapshot will be saved automatically).`)) {
+                return;
+            }
+            try {
+                const res = await window.API.restoreBackup(filename);
+                this.showToast(res.message || "Database restored successfully!", "success");
+                await this.loadAdminBackups();
+            } catch (err) {
+                this.showToast(`Restore error: ${err.message}`, "error");
+            }
+        }
     }));
 });
+
