@@ -138,6 +138,25 @@ const API = {
     /**
      * Fetch current user identity.
      */
+        /**
+     * Switch active role for accounts with multiple authorized roles.
+     */
+    async switchRole(role) {
+        const response = await fetch(`${this.baseUrl}/api/v1/auth/switch-role`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ role })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.detail || "Unauthorized role switch request.");
+        }
+        if (data.access_token) {
+            this.setToken(data.access_token);
+        }
+        return data;
+    },
+
     async getMe() {
         const response = await fetch(`${this.baseUrl}/api/v1/auth/me`, {
             headers: this.getHeaders(),

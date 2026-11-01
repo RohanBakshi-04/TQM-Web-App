@@ -185,15 +185,15 @@
                     <p class="text-[11px] text-slate-400">Try searching by partial name, enrollment ID, room number, or hostel code</p>
                 </div>
 
-                <!-- Empty Query Default: Role Presets -->
+                <!-- Empty Query Default: Quick Navigation -->
                 <div x-show="!searchQuery" class="text-xs text-slate-400 space-y-3 pt-1">
-                    <div class="font-bold uppercase tracking-wider text-[10px] text-slate-500">Quick Switch to Role Dashboard</div>
+                    <div class="font-bold uppercase tracking-wider text-[10px] text-slate-500">Quick Navigation</div>
                     <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        <template x-for="preset in rolePresets" :key="preset.role">
-                            <button type="button" @click="switchRoleDashboard(preset.role); searchModalOpen = false;"
+                        <template x-for="item in authorizedNavItems" :key="item.id">
+                            <button type="button" @click="navigateTo(item.id); searchModalOpen = false;"
                                     class="p-2.5 text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center space-x-2 text-slate-700 dark:text-slate-200 transition border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
-                                <i :class="'fa-solid ' + preset.icon + ' text-brand-600 text-xs'"></i>
-                                <span class="truncate text-xs font-semibold" x-text="preset.label"></span>
+                                <i :class="'fa-solid ' + item.icon + ' text-brand-600 text-xs'"></i>
+                                <span class="truncate text-xs font-semibold" x-text="item.label"></span>
                             </button>
                         </template>
                     </div>
@@ -1094,22 +1094,7 @@
                     </template>
                 </div>
 
-                <!-- Evaluator Demo Switcher (Only visible to Super Admin or when evaluating) -->
-                <div x-show="isAuthenticated && (hasRole('super_admin') || hasRole('auditor'))" class="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
-                    <div x-show="!sidebarCollapsed" class="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 flex items-center justify-between">
-                        <span>Demo Stakeholder Views</span>
-                        <span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 font-bold">Audit</span>
-                    </div>
 
-                    <div class="space-y-0.5">
-                        <select @change="switchRoleDashboard($event.target.value)" :value="activeRoleView"
-                                class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-[11px] font-semibold text-slate-700 dark:text-slate-200 outline-none">
-                            <template x-for="preset in rolePresets" :key="preset.role">
-                                <option :value="preset.role" x-text="preset.label" :selected="activeRoleView === preset.role"></option>
-                            </template>
-                        </select>
-                    </div>
-                </div>
 
             </div>
 
@@ -1243,11 +1228,24 @@
                                 </div>
                             </div>
                             <div class="space-y-1 text-xs">
-                                <button type="button" @click="switchRoleDashboard(currentUser.roles[0]); userMenuOpen = false;"
+                                <button type="button" @click="navigateTo('dashboard'); userMenuOpen = false;"
                                         class="w-full text-left px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center space-x-2">
-                                    <i class="fa-solid fa-user-circle text-slate-400"></i>
-                                    <span>My Primary Role</span>
+                                    <i class="fa-solid fa-gauge-high text-slate-400"></i>
+                                    <span>My Dashboard</span>
                                 </button>
+                                <template x-if="userRoles && userRoles.length > 1">
+                                    <div class="pt-1.5 pb-1 border-t border-slate-100 dark:border-slate-800 space-y-1">
+                                        <div class="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Assigned Roles</div>
+                                        <template x-for="r in userRoles" :key="r">
+                                            <button type="button" @click="handleSwitchRole(r); userMenuOpen = false;"
+                                                    :class="activeRoleView === r ? 'font-bold text-brand-600 bg-brand-50 dark:bg-brand-950' : 'text-slate-700 dark:text-slate-300'"
+                                                    class="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between">
+                                                <span x-text="rolePresets.find(p => p.role === r)?.label || r"></span>
+                                                <i x-show="activeRoleView === r" class="fa-solid fa-check text-[10px] text-emerald-600"></i>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </template>
                                 <button type="button" @click="handleLogout"
                                         class="w-full text-left px-3 py-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center space-x-2 font-semibold">
                                     <i class="fa-solid fa-right-from-bracket"></i>
@@ -1510,16 +1508,18 @@
                             </div>
                         </div>
 
-                        <!-- Active Stakeholder Selector Dropdown -->
-                        <div class="flex items-center space-x-3">
-                            <label class="text-xs text-slate-500 font-semibold hidden sm:block">Switch View:</label>
-                            <select @change="switchRoleDashboard($event.target.value)" :value="activeRoleView"
-                                    class="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-brand-600 shadow-xs">
-                                <template x-for="preset in rolePresets" :key="preset.role">
-                                    <option :value="preset.role" x-text="preset.label" :selected="activeRoleView === preset.role"></option>
-                                </template>
-                            </select>
-                        </div>
+                        <!-- Multi-Role Switcher (ONLY rendered if account possesses multiple authorized roles) -->
+                        <template x-if="userRoles && userRoles.length > 1">
+                            <div class="flex items-center space-x-2">
+                                <label class="text-xs text-slate-500 font-semibold hidden sm:block">Active Role:</label>
+                                <select @change="handleSwitchRole($event.target.value)" :value="activeRoleView"
+                                        class="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-brand-600 shadow-xs">
+                                    <template x-for="r in userRoles" :key="r">
+                                        <option :value="r" x-text="rolePresets.find(p => p.role === r)?.label || r" :selected="activeRoleView === r"></option>
+                                    </template>
+                                </select>
+                            </div>
+                        </template>
                     </div>
 
                     <!-- ========================================== -->

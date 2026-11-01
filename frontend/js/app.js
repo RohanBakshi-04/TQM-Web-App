@@ -891,34 +891,52 @@ selectPreset(preset) {
             return this.userPermissions.includes(permName) || this.userRoles.includes("super_admin");
         },
 
-        switchRoleDashboard(roleKey) {
-            // Super Admin can inspect all 12 dashboards, other users only switch if they possess the role
-            if (this.hasRole("super_admin") || this.userRoles.includes(roleKey)) {
-                this.activeRoleView = roleKey;
-                this.activeSection = "dashboard";
-                this.loadDashboardStats();
-                if (roleKey === "student") {
-                    this.loadMyStudentProfile();
-                    this.loadMyComplaints();
-                } else if (roleKey === "maintenance_staff") {
-                    this.loadMaintenanceTasks();
-                } else if (roleKey === "warden" || roleKey === "assistant_warden") {
-                    this.loadStaffAvailability();
-                    this.loadMaintenanceTasks();
-                    this.loadWardenComplaints();
-                    this.loadComplaintAnalytics();
-                } else if (roleKey === "super_admin" || roleKey === "hostel_admin") {
-                    this.loadUsers();
-                    this.loadStaffAvailability();
-                    this.loadMaintenanceTasks();
-                    this.loadWardenComplaints();
-                    this.loadComplaintAnalytics();
-                }
-                const preset = this.rolePresets.find(p => p.role === roleKey);
-                this.showToast(`Switched view to ${preset?.label || roleKey}`, "info");
-            } else {
-                this.showToast("Access Denied: You do not possess this stakeholder role", "error");
+        async handleSwitchRole(roleKey) {
+            // Strictly reject if target role is not assigned to current authenticated user
+            if (!this.userRoles || !this.userRoles.includes(roleKey)) {
+                this.showToast(`Access Denied: Role '${roleKey}' is not assigned to your account.`, "error");
+                return;
             }
+            try {
+                // Backend verification and session rotation
+                const res = await window.API.switchRole(roleKey);
+                if (res && res.success) {
+                    this.activeRoleView = res.active_role;
+                    if (res.permissions) {
+                        this.userPermissions = res.permissions;
+                    }
+                    if (this.currentUser) {
+                        this.currentUser.active_role = res.active_role;
+                    }
+                    this.activeSection = "dashboard";
+                    this.loadDashboardStats();
+                    if (roleKey === "student") {
+                        this.loadMyStudentProfile();
+                        this.loadMyComplaints();
+                    } else if (roleKey === "maintenance_staff") {
+                        this.loadMaintenanceTasks();
+                    } else if (roleKey === "warden" || roleKey === "assistant_warden") {
+                        this.loadStaffAvailability();
+                        this.loadMaintenanceTasks();
+                        this.loadWardenComplaints();
+                        this.loadComplaintAnalytics();
+                    } else if (roleKey === "super_admin" || roleKey === "hostel_admin") {
+                        this.loadUsers();
+                        this.loadStaffAvailability();
+                        this.loadMaintenanceTasks();
+                        this.loadWardenComplaints();
+                        this.loadComplaintAnalytics();
+                    }
+                    const preset = this.rolePresets.find(p => p.role === roleKey);
+                    this.showToast(`Active role switched to ${preset?.label || roleKey}`, "success");
+                }
+            } catch (err) {
+                this.showToast(err.message || "Failed to switch active role", "error");
+            }
+        },
+
+        switchRoleDashboard(roleKey) {
+            return this.handleSwitchRole(roleKey);
         },
 
         async loadUsers() {
@@ -1238,11 +1256,9 @@ selectPreset(preset) {
             if (item.category === 'allocations') {
                 this.navigateTo('allocations');
             } else if (item.category === 'hostels' || item.category === 'rooms') {
-                this.navigateTo('dashboard');
-                this.switchRoleDashboard('hostel_admin');
+                this.navigateTo('allocations');
             } else if (item.category === 'students') {
-                this.navigateTo('dashboard');
-                this.switchRoleDashboard('super_admin');
+                this.navigateTo('allocations');
             } else if (item.category === 'complaints') {
                 this.openComplaintDetails(item.entity_id);
             } else {
