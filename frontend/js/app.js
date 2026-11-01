@@ -113,6 +113,30 @@ document.addEventListener("alpine:init", () => {
             password: "Password123!"
         },
 
+        // Registration State
+        authTab: 'login', // 'login' or 'register'
+        registerLoading: false,
+        registerError: '',
+        registerForm: {
+            first_name: '',
+            last_name: '',
+            email: '',
+            phone: '',
+            username: '',
+            password: '',
+            confirmPassword: '',
+            role: 'student', // student, staff, parent_guardian
+            enrollment_no: '',
+            branch: 'CSE',
+            specialization: 'electrician'
+        },
+
+        // Personal Student Attendance State
+        myAttendanceData: null,
+        myAttendanceLoading: false,
+        myAttendanceTodayStatus: 'Not Marked',
+        myAttendanceFilter: 'all',
+
         // System Health & Telemetry State
         systemHealth: {
             status: "connecting",
@@ -122,20 +146,13 @@ document.addEventListener("alpine:init", () => {
         },
         healthCheckInterval: null,
 
-        // Quick login presets for testing all 12 roles
+        // Primary Core Stakeholders (Simplified for clear operational governance)
         rolePresets: [
-            { role: "super_admin", username: "superadmin", label: "Super Admin", icon: "fa-shield-halved", desc: "Global system control" },
-            { role: "hostel_admin", username: "hosteladmin", label: "Hostel Admin", icon: "fa-hotel", desc: "Campus facilities oversight" },
-            { role: "warden", username: "warden", label: "Chief Warden", icon: "fa-user-tie", desc: "Student welfare & discipline" },
-            { role: "assistant_warden", username: "asstwarden", label: "Asst Warden", icon: "fa-clipboard-user", desc: "Daily operational rounds" },
-            { role: "student", username: "rohan", label: "Student", icon: "fa-graduation-cap", desc: "Resident self-service portal" },
-            { role: "accountant", username: "accountant", label: "Accountant", icon: "fa-calculator", desc: "Fee invoices & billing" },
-            { role: "mess_manager", username: "messmanager", label: "Mess Manager", icon: "fa-utensils", desc: "Dietary plans & meal attendance" },
-            { role: "maintenance_staff", username: "maintenance", label: "Maintenance", icon: "fa-wrench", desc: "Facility repairs & tasks" },
-            { role: "security_guard", username: "security", label: "Security", icon: "fa-id-badge", desc: "Gate passes & visitor logs" },
-            { role: "admission_officer", username: "admission", label: "Admissions", icon: "fa-file-signature", desc: "Applications & verification" },
-            { role: "parent_guardian", username: "parent", label: "Parent/Guardian", icon: "fa-people-roof", desc: "Ward academic & fee tracking" },
-            { role: "auditor", username: "evaluator", label: "Auditor", icon: "fa-chart-line", desc: "Compliance & audit review" }
+            { role: "super_admin", username: "superadmin", label: "Administrator", icon: "fa-shield-halved", badge: "Governance", desc: "Institutional oversight, room allocations, student admissions, finance & system settings" },
+            { role: "warden", username: "warden", label: "Hostel Warden", icon: "fa-user-tie", badge: "Welfare & Discipline", desc: "Student welfare, daily roll-calls, leaves, digital gate outpasses & discipline" },
+            { role: "maintenance_staff", username: "maintenance", label: "Staff Member", icon: "fa-user-gear", badge: "Operations", desc: "Maintenance tasks (electrician, plumber, carpentry), mess operations & gate check-ins" },
+            { role: "student", username: "rohan", label: "Student Resident", icon: "fa-graduation-cap", badge: "Resident Portal", desc: "Personal room details, daily attendance [Present/Absent], leave requests & grievances" },
+            { role: "parent_guardian", username: "parent", label: "Parent / Guardian", icon: "fa-people-roof", badge: "Family Portal", desc: "Ward daily attendance status, fee dues, payment receipts & warden communication" }
         ],
         // Role-Specific Navigation Mappings
         roleNavigationMap: {
@@ -850,9 +867,10 @@ selectPreset(preset) {
                 this.activeRoleView = "student";
             }
 
-            if (this.activeRoleView === "student" && user.linked_student_id) {
+            if (this.activeRoleView === "student") {
                 this.loadMyStudentProfile();
                 this.loadMyComplaints();
+                this.loadMyAttendance();
             } else if (this.activeRoleView === "super_admin" || this.activeRoleView === "hostel_admin") {
                 this.loadUsers();
             }
@@ -881,6 +899,68 @@ selectPreset(preset) {
             this.userMenuOpen = false;
             this.activeSection = "welcome";
             this.showToast("Signed out successfully", "info");
+        },
+
+        async handleRegister() {
+            this.registerError = '';
+            if (this.registerForm.password !== this.registerForm.confirmPassword) {
+                this.registerError = 'Passwords do not match. Please re-enter.';
+                this.showToast(this.registerError, 'error');
+                return;
+            }
+            if (this.registerForm.password.length < 6) {
+                this.registerError = 'Password must be at least 6 characters.';
+                this.showToast(this.registerError, 'error');
+                return;
+            }
+            this.registerLoading = true;
+            try {
+                const payload = {
+                    username: this.registerForm.username,
+                    email: this.registerForm.email,
+                    password: this.registerForm.password,
+                    first_name: this.registerForm.first_name,
+                    last_name: this.registerForm.last_name,
+                    phone: this.registerForm.phone || null,
+                    role: this.registerForm.role,
+                    enrollment_no: this.registerForm.role === 'student' ? (this.registerForm.enrollment_no || null) : null,
+                    branch: this.registerForm.role === 'student' ? this.registerForm.branch : null,
+                    specialization: this.registerForm.role === 'staff' ? this.registerForm.specialization : null
+                };
+                const authData = await window.API.register(payload);
+                this.onAuthenticated(authData.user);
+                this.activeSection = 'dashboard';
+                this.showToast(`Account created successfully! Welcome, ${authData.user.first_name}!`, 'success');
+                // Reset form
+                this.registerForm.password = '';
+                this.registerForm.confirmPassword = '';
+            } catch (err) {
+                this.registerError = err.message || 'Registration failed.';
+                this.showToast(this.registerError, 'error');
+            } finally {
+                this.registerLoading = false;
+            }
+        },
+
+        async loadMyAttendance() {
+            this.myAttendanceLoading = true;
+            try {
+                const data = await window.API.getMyAttendance();
+                this.myAttendanceData = data;
+                if (data.today_status) {
+                    this.myAttendanceTodayStatus = data.today_status;
+                } else if (data.history && data.history.length > 0) {
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const todayRec = data.history.find(h => h.date === todayStr);
+                    this.myAttendanceTodayStatus = todayRec ? todayRec.status : 'Not Marked';
+                } else {
+                    this.myAttendanceTodayStatus = 'Not Marked';
+                }
+            } catch (err) {
+                console.warn('Could not load student personal attendance:', err.message);
+            } finally {
+                this.myAttendanceLoading = false;
+            }
         },
 
         hasRole(roleName) {

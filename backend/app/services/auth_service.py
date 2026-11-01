@@ -495,3 +495,127 @@ class AuthService:
             }
         finally:
             conn.close()
+
+    @classmethod
+    def register_user(
+        cls,
+        payload: Any,
+        ip_address: str = "",
+        user_agent: str = "",
+        conn: Optional[sqlite3.Connection] = None
+    ) -> Dict[str, Any]:
+        """Register a new user (Student, Staff, or Parent), issue token pair, and create linked profiles."""
+        should_close = False
+        if conn is None:
+            conn = get_db_connection()
+            should_close = True
+        try:
+            cursor = conn.cursor()
+            uname = payload.username.strip().lower()
+            email = payload.email.strip().lower()
+            first_name = payload.first_name.strip()
+            last_name = payload.last_name.strip()
+            phone = (payload.phone or "").strip()
+
+            # Disallow administrative role self-registration
+            requested_role = (payload.role or "student").strip().lower()
+            if requested_role in ("super_admin", "admin", "hostel_admin", "auditor"):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Administrative accounts cannot be self-registered. Contact system administration."
+                )
+
+            # Map generic staff roles into specialist staff categories
+            if requested_role in ("staff", "staff_member"):
+                spec = (payload.specialization or "").strip().lower()
+                if any(k in spec for k in ("mess", "chef", "cook", "kitchen", "dining")):
+                    target_role = "mess_manager"
+                elif any(k in spec for k in ("security", "guard", "gate")):
+                    target_role = "security_guard"
+                elif any(k in spec for k in ("account", "finance", "billing")):
+                    target_role = "accountant"
+                else:
+                    target_role = "maintenance_staff"
+            elif requested_role in ("student", "parent_guardian", "warden", "assistant_warden"):
+                target_role = requested_role
+            else:
+                target_role = "student"
+
+            # Check if username already exists
+            cursor.execute("SELECT id FROM users WHERE username = ?;", (uname,))
+            if cursor.fetchone():
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username is already taken.")
+
+            # Check if email already exists in users
+            cursor.execute("SELECT id FROM users WHERE email = ?;", (email,))
+            if cursor.fetchone():
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email is already registered.")
+
+            # Hash password
+            pwd_hash = hash_password(payload.password)
+
+            # Create User record
+            cursor.execute("""
+                INSERT INTO users (username, email, password_hash, salt, first_name, last_name, phone, is_active)
+                VALUES (?, ?, ?, '', ?, ?, ?, 1);
+            """, (uname, email, pwd_hash, first_name, last_name, phone))
+            user_id = cursor.lastrowid
+
+            # Resolve Role ID
+            cursor.execute("SELECT id FROM roles WHERE name = ?;", (target_role,))
+            role_row = cursor.fetchone()
+            if not role_row:
+                cursor.execute("SELECT id FROM roles WHERE name = 'student';")
+                role_row = cursor.fetchone()
+                target_role = "student"
+            role_id = role_row["id"] if isinstance(role_row, sqlite3.Row) else role_row[0]
+
+            # Assign Role in user_roles
+            cursor.execute("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?);", (user_id, role_id))
+
+            # If Student: create linked student record
+            if target_role == "student":
+                enrollment = (payload.enrollment_no or "").strip() or f"STU-{datetime.now().strftime('%Y%m')}-{user_id:04d}"
+                gender = payload.gender if payload.gender in ("Male", "Female", "Other") else "Male"
+                branch = (payload.branch or "General").strip()
+
+                cursor.execute("SELECT id FROM students WHERE student_id = ?;", (enrollment,))
+                if cursor.fetchone():
+                    enrollment = f"{enrollment}-{user_id}"
+
+                cursor.execute("""
+                    INSERT INTO students (
+                        student_id, user_id, first_name, last_name, email, phone,
+                        gender, branch, academic_year, admission_date, status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '1st Year', date('now'), 'Active');
+                """, (enrollment, user_id, first_name, last_name, email, phone, gender, branch))
+                linked_student_id = cursor.lastrowid
+                cursor.execute("UPDATE users SET linked_student_id = ? WHERE id = ?;", (linked_student_id, user_id))
+
+            # Audit Log
+            cursor.execute("""
+                INSERT INTO audit_logs (user_id, username, action, entity_name, entity_id, details, ip_address, latency_ms)
+                VALUES (?, ?, 'USER_REGISTRATION', 'users', ?, ?, ?, 0.0);
+            """, (user_id, uname, str(user_id), f"User self-registered with role {target_role}", ip_address))
+
+            conn.commit()
+
+            # Fetch roles and permissions for user dict
+            roles, permissions = cls.get_user_roles_and_permissions(conn, user_id)
+            user_dict = {
+                'id': user_id,
+                'username': uname,
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'phone': phone,
+                'roles': roles,
+                'permissions': sorted(list(permissions)),
+                'active_role': target_role,
+                'linked_student_id': linked_student_id if target_role == 'student' else None,
+                'linked_hostel_id': None
+            }
+            return cls.issue_token_pair(user=user_dict, ip_address=ip_address, device_info=user_agent, conn=conn)
+        finally:
+            if should_close:
+                conn.close()

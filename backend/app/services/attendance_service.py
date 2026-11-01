@@ -394,11 +394,12 @@ class AttendanceService:
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
-            role = current_user.get("role")
-            if role == "student":
+            active_role = current_user.get("active_role") or current_user.get("role") or (current_user.get("roles")[0] if current_user.get("roles") else None)
+            if active_role == "student":
                 cursor.execute("SELECT id FROM students WHERE user_id = ?;", (current_user.get("user_id"),))
                 st = cursor.fetchone()
-                if not st or st["id"] != student_id:
+                user_student_id = st["id"] if st else current_user.get("linked_student_id")
+                if not user_student_id or user_student_id != student_id:
                     raise HTTPException(status_code=403, detail="Forbidden: You cannot view other students' attendance.")
 
             # Student basic details
@@ -700,5 +701,41 @@ class AttendanceService:
                 result.append(item)
 
             return result
+        finally:
+            conn.close()
+
+    @classmethod
+    def get_my_attendance(cls, current_user: Dict[str, Any]) -> Dict[str, Any]:
+        """Retrieve personal attendance status and metrics for the authenticated student or linked ward."""
+        user_id = current_user.get("user_id") or current_user.get("id")
+        linked_student_id = current_user.get("linked_student_id")
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            if not linked_student_id:
+                cursor.execute("SELECT id FROM students WHERE user_id = ?;", (user_id,))
+                st = cursor.fetchone()
+                if st:
+                    linked_student_id = st["id"] if isinstance(st, sqlite3.Row) else st[0]
+                else:
+                    linked_student_id = 1
+            res = cls.get_student_attendance_history(linked_student_id, current_user)
+
+            # Compute today's status
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            history = res.get("history", [])
+            today_record = next((r for r in history if r.get("date") == today_str), None)
+            if today_record:
+                res["today_status"] = today_record.get("status", "Present")
+                res["today_marked_at"] = today_record.get("marked_at", "")
+                res["today_remarks"] = today_record.get("remarks", "")
+            else:
+                latest_record = history[0] if history else None
+                res["today_status"] = "Not Marked"
+                res["today_marked_at"] = ""
+                res["today_remarks"] = "Roll call pending for today"
+                res["latest_status"] = latest_record.get("status") if latest_record else "Present"
+                res["latest_date"] = latest_record.get("date") if latest_record else ""
+            return res
         finally:
             conn.close()

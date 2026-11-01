@@ -14,6 +14,20 @@ class LoginRequest(BaseModel):
     device_info: Optional[str] = "Web Browser"
 
 
+class RegisterRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50, description="Unique username")
+    email: str = Field(..., min_length=5, max_length=100, description="Valid email address")
+    password: str = Field(..., min_length=6, max_length=100, description="Plaintext password")
+    first_name: str = Field(..., min_length=1, max_length=50)
+    last_name: str = Field(..., min_length=1, max_length=50)
+    phone: Optional[str] = Field(None, max_length=20)
+    role: str = Field("student", description="Account type: student, staff, or parent_guardian")
+    enrollment_no: Optional[str] = Field(None, max_length=50)
+    branch: Optional[str] = Field(None, max_length=50)
+    gender: Optional[str] = Field("Male", max_length=20)
+    specialization: Optional[str] = Field(None, max_length=50, description="Staff specialty: electrician, plumber, maintenance, mess, security")
+
+
 class RefreshTokenRequest(BaseModel):
     refresh_token: Optional[str] = Field(None, description="Raw refresh token (optional if sent via cookie)")
 

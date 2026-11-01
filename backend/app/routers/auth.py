@@ -13,6 +13,7 @@ from backend.app.models.auth_dto import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
     LoginRequest,
+    RegisterRequest,
     MessageResponse,
     RefreshTokenRequest,
     ResetPasswordRequest,
@@ -74,6 +75,23 @@ def login(login_dto: LoginRequest, request: Request, response: Response) -> Dict
     )
 
     return token_data
+
+
+@router.post("/auth/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
+def register(register_dto: RegisterRequest, request: Request, response: Response) -> Dict[str, Any]:
+    """Register a new user account (Student, Staff, or Parent), issue token pair, and set HttpOnly cookie."""
+    ip, ua = get_client_ip_and_ua(request)
+    auth_data = AuthService.register_user(register_dto, ip, ua)
+
+    # Set secure HttpOnly cookie for refresh token rotation
+    response.set_cookie(
+        key="refresh_token",
+        value=auth_data["refresh_token"],
+        httponly=True,
+        samesite="lax",
+        max_age=7 * 24 * 3600  # 7 days
+    )
+    return auth_data
 
 
 @router.post("/auth/refresh", response_model=AuthResponse)

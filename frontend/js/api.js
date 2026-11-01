@@ -94,6 +94,27 @@ const API = {
     },
 
     /**
+     * Register a new user account (Student, Staff, Parent).
+     */
+    async register(registrationData) {
+        const response = await fetch(`${this.baseUrl}/api/v1/auth/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Accept": "application/json" },
+            credentials: "include",
+            body: JSON.stringify(registrationData)
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.detail || "Registration failed.");
+        }
+
+        this.setToken(data.access_token);
+        return data;
+    },
+
+
+    /**
      * Rotate refresh token and update access token.
      */
     async refreshToken() {
@@ -809,7 +830,16 @@ const API = {
         return await response.json();
     },
 
-    async getStudentAttendanceHistory(studentId) {
+
+    async getMyAttendance() {
+        const response = await fetch(`${this.baseUrl}/api/v1/attendance/my-attendance`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error("Failed to load personal attendance record.");
+        return await response.json();
+    },
+
+        async getStudentAttendanceHistory(studentId) {
         const response = await fetch(`${this.baseUrl}/api/v1/attendance/student/${studentId}`, {
             headers: this.getHeaders()
         });

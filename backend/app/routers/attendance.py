@@ -97,6 +97,14 @@ def get_attendance_reports(
     return AttendanceService.get_attendance_reports(start_date, end_date, hostel_id, current_user)
 
 
+@router.get("/my-attendance", status_code=status.HTTP_200_OK)
+def get_my_attendance(
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Retrieve personal attendance status, today's roll-call, and history for the logged-in student."""
+    return AttendanceService.get_my_attendance(current_user)
+
+
 @router.get("/student/{student_id}", status_code=status.HTTP_200_OK)
 def get_student_attendance_history(
     student_id: int,

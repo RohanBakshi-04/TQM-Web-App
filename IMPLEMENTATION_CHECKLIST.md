@@ -572,3 +572,29 @@
 ### 4. Automated Security Verification
 - [x] 36 automated unit and security tests in `backend/tests/test_role_dashboards_and_auth.py`
 - [x] Total project test suite: 167 / 167 PASS (100% success rate)
+
+---
+
+## Simplified 5 Stakeholders, User Registration & Student Attendance Telemetry
+
+### 1. 5 Core Stakeholder Workspaces
+- [x] Consolidated UI role presets and landing page into 5 primary stakeholders: Administrator, Hostel Warden, Staff Member (Electrician/Plumber/Mess/Gate), Student Resident, Parent/Guardian
+- [x] Unified staff member operations (electrical, plumbing, facility tasks, mess dining, visitor passes) under a single Staff Member workspace
+
+### 2. User Self-Registration System
+- [x] Backend endpoint `POST /api/v1/auth/register`
+- [x] Registration form validation and bcrypt password hashing
+- [x] Auto-generation of student profile and linkage to student role
+- [x] Staff specialization routing (electrician, plumber, mess, security)
+- [x] Dual-tab Sign In / Register interface with direct navigation link in header
+
+### 3. Student Personal Attendance Telemetry
+- [x] Backend endpoint `GET /api/v1/attendance/my-attendance`
+- [x] Prominent Today's Status badge: Present, Absent, On Leave, Roll Call Pending
+- [x] Personal attendance metrics: Present Days, Absent Days, Leave Days, Attendance %
+- [x] Daily roll-call history table with colored status badges, session tags, and remarks
+- [x] Distinct separation between student personal attendance and administrative roll-call marking
+
+### 4. Testing
+- [x] 41 tests passing in `test_role_dashboards_and_auth.py`
+- [x] 172 / 172 total tests passing across full test suite (100% OK)

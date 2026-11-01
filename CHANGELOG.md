@@ -229,6 +229,33 @@ All notable changes to this project are documented in this file, adhering to Sem
 
 ---
 
+## [1.2.0] - 2026-11-01 (Simplified 5 Core Stakeholders, User Registration & Personal Attendance Telemetry)
+
+### Added
+- **5 Core Stakeholder Workspaces (Consolidated Architecture):**
+  - Streamlined presentation from 12 separate roles into 5 clear, high-impact stakeholder workspaces:
+    1. **Administrator** (`super_admin`): Institutional governance, allocations, admissions, finances & system settings.
+    2. **Hostel Warden** (`warden`): Student welfare, daily roll-calls, leaves/outpasses & disciplinary oversight.
+    3. **Staff Member** (`maintenance_staff`): Unified operational workspace encompassing facility repairs (electrician, plumber, carpentry), mess/kitchen dining operations, and campus security gate logs.
+    4. **Student Resident** (`student`): Resident self-service portal for room details, attendance telemetry, leave requests & grievances.
+    5. **Parent / Guardian** (`parent_guardian`): Family portal for ward attendance, fee dues, payment receipts & warden communication.
+- **User Self-Registration System:**
+  - Added backend endpoint `POST /api/v1/auth/register` with validation, bcrypt password hashing, automatic student profile generation, and immediate JWT session issuance.
+  - Added dual-tab auth modal (`Sign In` / `Register`) and direct "Register" button in top navigation bar.
+  - Supports registration as Student (with branch/enrollment options), Staff Member (with specialization options: electrician, plumber, mess, security), and Parent/Guardian.
+  - Strict security guardrail blocking self-registration into administrative roles (HTTP 403 Forbidden).
+- **Personal Student Attendance Telemetry:**
+  - Added dedicated endpoint `GET /api/v1/attendance/my-attendance` returning authenticated student's attendance metrics and status.
+  - Replaced administrative roll-call table with a dedicated **Student Attendance Portal**:
+    - High-visibility Today's Roll-Call Status Hero Card: `🟢 PRESENT`, `🔴 ABSENT`, `🟡 ON LEAVE`, or `⚪ ROLL CALL PENDING`.
+    - Key Metrics: Days Present, Days Absent, Approved Leaves, and Attendance Compliance Percentage.
+    - Personal Roll-Call History Log: Date-by-date chronological table with status badges (`Present`, `Absent`, `On Leave`).
+- **Automated Verification:**
+  - Added 5 new automated tests in `backend/tests/test_role_dashboards_and_auth.py`.
+  - Expanded total automated test suite to **172 / 172 tests passing (100% success rate)**.
+
+---
+
 ## [1.1.0] - 2026-11-01 (RBAC Security Audit, Role Isolation & Unauthorized Role Switching Elimination)
 
 ### Security Fixes

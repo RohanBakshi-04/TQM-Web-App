@@ -395,6 +395,89 @@ class TestRoleDashboardsAndAuth(unittest.TestCase):
         resp = self.client.post("/api/v1/leave/1/approve", json={"remarks": "Approved by accountant"}, headers=self._headers("accountant"))
         self.assertEqual(resp.status_code, 403)
 
+    # =========================================================================
+    # 5. USER REGISTRATION & PERSONAL ATTENDANCE TESTS
+    # =========================================================================
+
+    def test_student_registration_creates_account_and_profile(self):
+        """Self-registration as a student creates user account, student record, and issues token."""
+        import uuid
+        uid = uuid.uuid4().hex[:6]
+        uname = f"reg_stu_{uid}"
+        uemail = f"reg_stu_{uid}@univ.edu"
+        resp = self.client.post("/api/v1/auth/register", json={
+            "username": uname,
+            "email": uemail,
+            "password": "Password123!",
+            "first_name": "Kavita",
+            "last_name": "Rao",
+            "phone": "9811223399",
+            "role": "student",
+            "branch": "CSE"
+        })
+        self.assertEqual(resp.status_code, 201)
+        data = resp.json()
+        self.assertIn("access_token", data)
+        self.assertEqual(data["user"]["username"], uname)
+        self.assertEqual(data["user"]["roles"], ["student"])
+        self.assertIsNotNone(data["user"]["linked_student_id"])
+
+    def test_staff_registration_with_specialization(self):
+        """Self-registration as staff maps specialization (e.g. electrician) to maintenance_staff."""
+        import uuid
+        uid = uuid.uuid4().hex[:6]
+        uname = f"reg_elec_{uid}"
+        uemail = f"reg_elec_{uid}@univ.edu"
+        resp = self.client.post("/api/v1/auth/register", json={
+            "username": uname,
+            "email": uemail,
+            "password": "Password123!",
+            "first_name": "Ramesh",
+            "last_name": "Kumar",
+            "phone": "9822334499",
+            "role": "staff",
+            "specialization": "electrician"
+        })
+        self.assertEqual(resp.status_code, 201)
+        data = resp.json()
+        self.assertEqual(data["user"]["username"], uname)
+        self.assertIn("maintenance_staff", data["user"]["roles"])
+
+    def test_administrative_role_self_registration_forbidden(self):
+        """Attempting to self-register as super_admin or admin is rejected with HTTP 403."""
+        resp = self.client.post("/api/v1/auth/register", json={
+            "username": "hacker_admin",
+            "email": "hacker@univ.edu",
+            "password": "Password123!",
+            "first_name": "Malicious",
+            "last_name": "Actor",
+            "role": "super_admin"
+        })
+        self.assertEqual(resp.status_code, 403)
+
+    def test_duplicate_registration_rejected(self):
+        """Registering with an existing username returns HTTP 409 Conflict."""
+        resp = self.client.post("/api/v1/auth/register", json={
+            "username": "superadmin",
+            "email": "superadmin_new@univ.edu",
+            "password": "Password123!",
+            "first_name": "Duplicate",
+            "last_name": "User",
+            "role": "student"
+        })
+        self.assertEqual(resp.status_code, 409)
+
+    def test_my_attendance_endpoint_returns_personal_status(self):
+        """Student Rohan accessing /api/v1/attendance/my-attendance receives personal metrics & today status."""
+        resp = self.client.get("/api/v1/attendance/my-attendance", headers=self._headers("rohan"))
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("today_status", data)
+        self.assertIn("present_days", data)
+        self.assertIn("absent_days", data)
+        self.assertIn("attendance_percentage", data)
+        self.assertIn("history", data)
+
 
 if __name__ == "__main__":
     unittest.main()

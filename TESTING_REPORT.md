@@ -374,10 +374,10 @@ Every single operation and endpoint in the Hostel Management System operates bel
 ## 20. RBAC Security Audit, Role Isolation & Unauthorized Role Switching Elimination
 
 **Execution Date:** November 1, 2026  
-**Total Tests in Test Suite:** 167 Automated Unit & Integration Tests  
-**Result:** 167 / 167 PASS (100% Success Rate) | Duration: 15.52s  
+**Total Tests in Test Suite:** 172 Automated Unit & Integration Tests  
+**Result:** 172 / 172 PASS (100% Success Rate) | Duration: 12.91s  
 
-### Security Test Results Breakdown (`backend/tests/test_role_dashboards_and_auth.py` - 36 Tests):
+### Security & Feature Test Results Breakdown (`backend/tests/test_role_dashboards_and_auth.py` - 41 Tests):
 
 | Test Identifier | Category | Verification Objective | Result |
 | :--- | :--- | :--- | :---: |
@@ -406,3 +406,8 @@ Every single operation and endpoint in the Hostel Management System operates bel
 | **TEST-RBAC-ISOL-05** | Functional RBAC | Security Guard blocked from accessing billing invoices and financial data (HTTP 403) | 🟢 PASS |
 | **TEST-RBAC-ISOL-06** | Read-Only Invariant | Auditor blocked from mutating administrative records or data (HTTP 403) | 🟢 PASS |
 | **TEST-RBAC-ISOL-07** | Role Context Integrity| Switching active role updates JWT token payload and dynamic permissions cleanly | 🟢 PASS |
+| **TEST-REG-STU-01** | User Registration | Student self-registration creates user, student record, and issues token | 🟢 PASS |
+| **TEST-REG-STF-01** | User Registration | Staff self-registration with specialization (electrician) assigns maintenance_staff role | 🟢 PASS |
+| **TEST-REG-SEC-01** | Security Barrier | Self-registration into administrative roles is rejected (HTTP 403) | 🟢 PASS |
+| **TEST-REG-UNQ-01** | Data Integrity | Duplicate registration with existing username returns HTTP 409 Conflict | 🟢 PASS |
+| **TEST-ATT-MY-01** | Student Telemetry | `GET /attendance/my-attendance` returns personal metrics and today roll-call status | 🟢 PASS |

@@ -1209,11 +1209,18 @@
                         </template>
 
                         <template x-if="!isAuthenticated">
-                            <button type="button" @click="activeSection = 'login'"
-                                    class="px-3.5 py-1.5 rounded-xl bg-brand-900 hover:bg-brand-800 text-white font-bold text-xs transition shadow-xs flex items-center space-x-1.5">
-                                <i class="fa-solid fa-right-to-bracket text-xs"></i>
-                                <span>Sign In</span>
-                            </button>
+                            <div class="flex items-center space-x-2">
+                                <button type="button" @click="authTab = 'login'; activeSection = 'login'"
+                                        class="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs transition shadow-xs flex items-center space-x-1.5">
+                                    <i class="fa-solid fa-right-to-bracket text-xs"></i>
+                                    <span>Sign In</span>
+                                </button>
+                                <button type="button" @click="authTab = 'register'; activeSection = 'login'"
+                                        class="px-3.5 py-1.5 rounded-xl bg-brand-900 hover:bg-brand-800 text-white font-bold text-xs transition shadow-xs flex items-center space-x-1.5">
+                                    <i class="fa-solid fa-user-plus text-xs"></i>
+                                    <span>Register</span>
+                                </button>
+                            </div>
                         </template>
 
                         <!-- User Profile Flyout Dropdown -->
@@ -1373,7 +1380,7 @@
                             </button>
                         </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3.5">
                             <template x-for="preset in rolePresets" :key="preset.role">
                                 <button type="button" @click="quickDemoLogin(preset.role)"
                                         class="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-brand-600 hover:shadow-md transition text-left space-y-2 group">
@@ -1397,69 +1404,244 @@
 
                 </section>
 
-                <!-- 2. STAKEHOLDER SIGN IN SECTION -->
+                <!-- 2. STAKEHOLDER AUTHENTICATION & REGISTRATION SECTION -->
                 <section x-show="activeSection === 'login'" class="animate-fade-in max-w-2xl mx-auto py-4">
-                    <div class="bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 p-8 space-y-6">
-                        <div class="text-center space-y-1">
-                            <div class="inline-flex p-3 rounded-2xl bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 mb-2">
-                                <i class="fa-solid fa-shield-cat text-2xl"></i>
-                            </div>
-                            <h2 class="text-2xl font-extrabold text-slate-900 dark:text-white">Stakeholder Sign In</h2>
-                            <p class="text-xs text-slate-500 dark:text-slate-400">Sign in with your institutional credentials or select a quick role preset</p>
-                        </div>
-
-                        <!-- 12-Role Quick Preset Selector -->
-                        <div>
-                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-2">
-                                <i class="fa-solid fa-bolt text-amber-500 mr-1"></i> Quick Demo Role Selector
-                            </label>
-                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                                <template x-for="preset in rolePresets" :key="preset.username">
-                                    <button type="button" @click="selectPreset(preset)"
-                                            :class="loginCredentials.username === preset.username ? 'border-brand-600 bg-brand-50 dark:bg-brand-950/60 text-brand-900 dark:text-brand-200 font-bold ring-1 ring-brand-600' : 'border-slate-200 dark:border-slate-750 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'"
-                                            class="p-2 border rounded-xl transition text-left flex items-center space-x-2">
-                                        <i :class="'fa-solid ' + preset.icon + ' text-slate-400 text-xs'"></i>
-                                        <span class="truncate" x-text="preset.label"></span>
-                                    </button>
-                                </template>
-                            </div>
-                        </div>
-
-                        <!-- Credential Input Form -->
-                        <form @submit.prevent="handleLogin" class="space-y-4 text-sm">
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Username or Institutional Email</label>
-                                <div class="relative">
-                                    <i class="fa-solid fa-user absolute left-3.5 top-3.5 text-slate-400 text-xs"></i>
-                                    <input type="text" x-model="loginCredentials.username" required
-                                           class="w-full pl-9 pr-3.5 py-2.5 border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 rounded-xl outline-none focus:border-brand-600 focus:ring-1 focus:ring-brand-600 text-sm dark:text-white">
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Password</label>
-                                <div class="relative">
-                                    <i class="fa-solid fa-lock absolute left-3.5 top-3.5 text-slate-400 text-xs"></i>
-                                    <input type="password" x-model="loginCredentials.password" required
-                                           class="w-full pl-9 pr-3.5 py-2.5 border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 rounded-xl outline-none focus:border-brand-600 focus:ring-1 focus:ring-brand-600 text-sm dark:text-white">
-                                </div>
-                            </div>
-
-                            <!-- Notice & Error Messages -->
-                            <div x-show="loginNotice" x-text="loginNotice" class="text-xs p-3 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-900"></div>
-                            <div x-show="loginError" x-text="loginError" class="text-xs p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-200 border border-rose-200 dark:border-rose-900"></div>
-
-                            <button type="submit" :disabled="loginLoading"
-                                    class="w-full py-2.5 bg-brand-900 hover:bg-brand-800 text-white font-bold rounded-xl text-sm transition shadow-sm flex items-center justify-center space-x-2 disabled:opacity-50">
-                                <template x-if="loginLoading">
-                                    <i class="fa-solid fa-circle-notch fa-spin text-xs"></i>
-                                </template>
-                                <span x-text="loginLoading ? 'Authenticating...' : 'Sign In to Portal'"></span>
-                                <template x-if="!loginLoading">
-                                    <i class="fa-solid fa-arrow-right text-xs"></i>
-                                </template>
+                    <div class="bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 space-y-6">
+                        
+                        <!-- Segmented Switcher: Sign In vs Register -->
+                        <div class="flex items-center justify-center p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl max-w-xs mx-auto text-xs font-bold">
+                            <button type="button" @click="authTab = 'login'"
+                                    :class="authTab === 'login' ? 'bg-white dark:bg-slate-900 text-brand-900 dark:text-white shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'"
+                                    class="flex-1 py-2 rounded-xl transition text-center flex items-center justify-center space-x-1.5">
+                                <i class="fa-solid fa-right-to-bracket text-xs"></i>
+                                <span>Sign In</span>
                             </button>
-                        </form>
+                            <button type="button" @click="authTab = 'register'"
+                                    :class="authTab === 'register' ? 'bg-white dark:bg-slate-900 text-brand-900 dark:text-white shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'"
+                                    class="flex-1 py-2 rounded-xl transition text-center flex items-center justify-center space-x-1.5">
+                                <i class="fa-solid fa-user-plus text-xs"></i>
+                                <span>Register</span>
+                            </button>
+                        </div>
+
+                        <!-- ============================================== -->
+                        <!-- TAB A: SIGN IN FORM                            -->
+                        <!-- ============================================== -->
+                        <div x-show="authTab === 'login'" class="space-y-6">
+                            <div class="text-center space-y-1">
+                                <div class="inline-flex p-3 rounded-2xl bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 mb-1">
+                                    <i class="fa-solid fa-shield-halved text-2xl"></i>
+                                </div>
+                                <h2 class="text-2xl font-extrabold text-slate-900 dark:text-white">Portal Sign In</h2>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">Sign in with your institutional credentials or select a quick demo role</p>
+                            </div>
+
+                            <!-- 5-Core Role Quick Preset Selector -->
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-2">
+                                    <i class="fa-solid fa-bolt text-amber-500 mr-1"></i> Quick Demo Access (5 Core Roles)
+                                </label>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                                    <template x-for="preset in rolePresets" :key="preset.username">
+                                        <button type="button" @click="selectPreset(preset)"
+                                                :class="loginCredentials.username === preset.username ? 'border-brand-600 bg-brand-50 dark:bg-brand-950/60 text-brand-900 dark:text-brand-200 font-bold ring-1 ring-brand-600' : 'border-slate-200 dark:border-slate-750 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'"
+                                                class="p-2 border rounded-xl transition text-left flex items-center space-x-2">
+                                            <i :class="'fa-solid ' + preset.icon + ' text-slate-400 text-xs'"></i>
+                                            <span class="truncate" x-text="preset.label"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <!-- Credential Input Form -->
+                            <form @submit.prevent="handleLogin" class="space-y-4 text-sm">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Username or Institutional Email</label>
+                                    <div class="relative">
+                                        <i class="fa-solid fa-user absolute left-3.5 top-3.5 text-slate-400 text-xs"></i>
+                                        <input type="text" x-model="loginCredentials.username" required
+                                               class="w-full pl-9 pr-3.5 py-2.5 border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 rounded-xl outline-none focus:border-brand-600 focus:ring-1 focus:ring-brand-600 text-sm dark:text-white">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Password</label>
+                                    <div class="relative">
+                                        <i class="fa-solid fa-lock absolute left-3.5 top-3.5 text-slate-400 text-xs"></i>
+                                        <input type="password" x-model="loginCredentials.password" required
+                                               class="w-full pl-9 pr-3.5 py-2.5 border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 rounded-xl outline-none focus:border-brand-600 focus:ring-1 focus:ring-brand-600 text-sm dark:text-white">
+                                    </div>
+                                </div>
+
+                                <div x-show="loginNotice" x-text="loginNotice" class="text-xs p-3 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-900"></div>
+                                <div x-show="loginError" x-text="loginError" class="text-xs p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-200 border border-rose-200 dark:border-rose-900"></div>
+
+                                <button type="submit" :disabled="loginLoading"
+                                        class="w-full py-2.5 bg-brand-900 hover:bg-brand-800 text-white font-bold rounded-xl text-sm transition shadow-sm flex items-center justify-center space-x-2 disabled:opacity-50">
+                                    <template x-if="loginLoading">
+                                        <i class="fa-solid fa-circle-notch fa-spin text-xs"></i>
+                                    </template>
+                                    <span x-text="loginLoading ? 'Authenticating...' : 'Sign In to Portal'"></span>
+                                    <template x-if="!loginLoading">
+                                        <i class="fa-solid fa-arrow-right text-xs"></i>
+                                    </template>
+                                </button>
+                            </form>
+
+                            <div class="text-center pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500">
+                                Don't have an account yet?
+                                <button type="button" @click="authTab = 'register'" class="font-bold text-brand-600 dark:text-brand-400 hover:underline ml-1">
+                                    Register here
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- ============================================== -->
+                        <!-- TAB B: USER REGISTRATION FORM                  -->
+                        <!-- ============================================== -->
+                        <div x-show="authTab === 'register'" class="space-y-5">
+                            <div class="text-center space-y-1">
+                                <div class="inline-flex p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 mb-1">
+                                    <i class="fa-solid fa-user-plus text-2xl"></i>
+                                </div>
+                                <h2 class="text-2xl font-extrabold text-slate-900 dark:text-white">Create Account</h2>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">Register as a Student Resident, Staff Member, or Parent/Guardian</p>
+                            </div>
+
+                            <form @submit.prevent="handleRegister" class="space-y-4 text-xs">
+                                <!-- Role Type Selector -->
+                                <div>
+                                    <label class="block font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">I am registering as:</label>
+                                    <div class="grid grid-cols-3 gap-2">
+                                        <button type="button" @click="registerForm.role = 'student'"
+                                                :class="registerForm.role === 'student' ? 'border-brand-600 bg-brand-50 dark:bg-brand-950/60 text-brand-900 dark:text-brand-200 font-bold ring-1 ring-brand-600' : 'border-slate-200 dark:border-slate-750 text-slate-600 dark:text-slate-300'"
+                                                class="p-2.5 border rounded-xl text-center transition space-y-1">
+                                            <i class="fa-solid fa-graduation-cap text-base block text-brand-600"></i>
+                                            <div class="text-[11px] font-bold">Student</div>
+                                        </button>
+                                        <button type="button" @click="registerForm.role = 'staff'"
+                                                :class="registerForm.role === 'staff' ? 'border-brand-600 bg-brand-50 dark:bg-brand-950/60 text-brand-900 dark:text-brand-200 font-bold ring-1 ring-brand-600' : 'border-slate-200 dark:border-slate-750 text-slate-600 dark:text-slate-300'"
+                                                class="p-2.5 border rounded-xl text-center transition space-y-1">
+                                            <i class="fa-solid fa-user-gear text-base block text-amber-500"></i>
+                                            <div class="text-[11px] font-bold">Staff Member</div>
+                                        </button>
+                                        <button type="button" @click="registerForm.role = 'parent_guardian'"
+                                                :class="registerForm.role === 'parent_guardian' ? 'border-brand-600 bg-brand-50 dark:bg-brand-950/60 text-brand-900 dark:text-brand-200 font-bold ring-1 ring-brand-600' : 'border-slate-200 dark:border-slate-750 text-slate-600 dark:text-slate-300'"
+                                                class="p-2.5 border rounded-xl text-center transition space-y-1">
+                                            <i class="fa-solid fa-people-roof text-base block text-indigo-500"></i>
+                                            <div class="text-[11px] font-bold">Parent</div>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- First & Last Name -->
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">First Name *</label>
+                                        <input type="text" x-model="registerForm.first_name" required placeholder="e.g. Rahul"
+                                               class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none focus:border-brand-600 dark:text-white">
+                                    </div>
+                                    <div>
+                                        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Last Name *</label>
+                                        <input type="text" x-model="registerForm.last_name" required placeholder="e.g. Verma"
+                                               class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none focus:border-brand-600 dark:text-white">
+                                    </div>
+                                </div>
+
+                                <!-- Email & Phone -->
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Email Address *</label>
+                                        <input type="email" x-model="registerForm.email" required placeholder="name@univ.edu"
+                                               class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none focus:border-brand-600 dark:text-white">
+                                    </div>
+                                    <div>
+                                        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Phone Number</label>
+                                        <input type="text" x-model="registerForm.phone" placeholder="e.g. 9811223344"
+                                               class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none focus:border-brand-600 dark:text-white">
+                                    </div>
+                                </div>
+
+                                <!-- Conditional Fields: Student -->
+                                <template x-if="registerForm.role === 'student'">
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-brand-50/50 dark:bg-brand-950/30 rounded-xl border border-brand-200 dark:border-brand-900/50">
+                                        <div>
+                                            <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Enrollment / Roll No (Optional)</label>
+                                            <input type="text" x-model="registerForm.enrollment_no" placeholder="Leave blank for auto-ID"
+                                                   class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
+                                        </div>
+                                        <div>
+                                            <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Department / Branch</label>
+                                            <select x-model="registerForm.branch" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
+                                                <option value="CSE">Computer Science (CSE)</option>
+                                                <option value="ECE">Electronics (ECE)</option>
+                                                <option value="ME">Mechanical (ME)</option>
+                                                <option value="CE">Civil (CE)</option>
+                                                <option value="IT">Information Tech (IT)</option>
+                                                <option value="Management">Management (MBA/BBA)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- Conditional Fields: Staff -->
+                                <template x-if="registerForm.role === 'staff'">
+                                    <div class="p-3 bg-amber-50/50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-900/50">
+                                        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Staff Specialization / Role</label>
+                                        <select x-model="registerForm.specialization" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
+                                            <option value="electrician">Electrician (Electrical Systems)</option>
+                                            <option value="plumber">Plumber (Water & Sanitation)</option>
+                                            <option value="maintenance_staff">General Facility & Carpentry</option>
+                                            <option value="mess_manager">Chef / Mess Dining Operations</option>
+                                            <option value="security_guard">Campus Gate Security Guard</option>
+                                            <option value="accountant">Accounts & Billing Clerk</option>
+                                        </select>
+                                    </div>
+                                </template>
+
+                                <!-- Username & Password -->
+                                <div>
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Choose Username *</label>
+                                    <input type="text" x-model="registerForm.username" required placeholder="Choose a unique username"
+                                           class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none focus:border-brand-600 dark:text-white">
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Password (min 6 chars) *</label>
+                                        <input type="password" x-model="registerForm.password" required minlength="6" placeholder="••••••••"
+                                               class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none focus:border-brand-600 dark:text-white">
+                                    </div>
+                                    <div>
+                                        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Confirm Password *</label>
+                                        <input type="password" x-model="registerForm.confirmPassword" required minlength="6" placeholder="••••••••"
+                                               class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none focus:border-brand-600 dark:text-white">
+                                    </div>
+                                </div>
+
+                                <div x-show="registerError" x-text="registerError" class="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-200 border border-rose-200 dark:border-rose-900"></div>
+
+                                <button type="submit" :disabled="registerLoading"
+                                        class="w-full py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white font-bold rounded-xl text-sm transition shadow-sm flex items-center justify-center space-x-2 disabled:opacity-50">
+                                    <template x-if="registerLoading">
+                                        <i class="fa-solid fa-circle-notch fa-spin text-xs"></i>
+                                    </template>
+                                    <span x-text="registerLoading ? 'Creating Account...' : 'Complete Registration & Sign In'"></span>
+                                    <template x-if="!registerLoading">
+                                        <i class="fa-solid fa-arrow-right text-xs"></i>
+                                    </template>
+                                </button>
+                            </form>
+
+                            <div class="text-center pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500">
+                                Already have an account?
+                                <button type="button" @click="authTab = 'login'" class="font-bold text-brand-600 dark:text-brand-400 hover:underline ml-1">
+                                    Sign In here
+                                </button>
+                            </div>
+                        </div>
+
                     </div>
+                </section>
+
                 </section>
 
                 <!-- 3. ROLE-BASED DASHBOARD SECTION (FOR ALL 12 ROLES) -->
@@ -2633,7 +2815,193 @@
 
                 <!-- ATTENDANCE MANAGEMENT SECTION -->
                 <section x-show="activeSection === 'attendance'" class="animate-fade-in space-y-6">
-                    <!-- Header & Sub-navigation -->
+
+                    <!-- ============================================================== -->
+                    <!-- 1. STUDENT PERSONAL ATTENDANCE VIEW (PRESENT / ABSENT TELEMETRY) -->
+                    <!-- ============================================================== -->
+                    <template x-if="activeRoleView === 'student' || (currentUser && currentUser.roles && currentUser.roles.includes('student') && !currentUser.roles.some(r => ['super_admin','hostel_admin','warden','assistant_warden','security_guard','accountant','mess_manager','maintenance_staff'].includes(r)))">
+                        <div class="space-y-6">
+                            <!-- Header Banner -->
+                            <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-12 h-12 rounded-2xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-300 flex items-center justify-center text-xl font-bold border border-brand-100 dark:border-brand-900">
+                                        <i class="fa-solid fa-clipboard-user"></i>
+                                    </div>
+                                    <div>
+                                        <h2 class="text-xl font-extrabold text-slate-900 dark:text-white">My Attendance Telemetry</h2>
+                                        <p class="text-xs text-slate-500 dark:text-slate-400">Daily verification status, room presence roll-call, and compliance records</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <button type="button" @click="loadMyAttendance()"
+                                            class="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs hover:bg-slate-100 transition flex items-center space-x-1.5">
+                                        <i class="fa-solid fa-rotate text-xs"></i>
+                                        <span>Refresh Status</span>
+                                    </button>
+                                    <button type="button" @click="activeSection = 'leaves'"
+                                            class="px-3.5 py-1.5 rounded-xl bg-brand-900 hover:bg-brand-800 text-white font-bold text-xs transition shadow-xs flex items-center space-x-1.5">
+                                        <i class="fa-solid fa-calendar-plus text-xs"></i>
+                                        <span>Apply for Leave</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- HERO CARD: TODAY'S ROLL-CALL STATUS -->
+                            <div class="p-6 rounded-3xl border shadow-sm space-y-4"
+                                 :class="{
+                                     'bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border-emerald-500/30': myAttendanceTodayStatus === 'Present',
+                                     'bg-gradient-to-r from-rose-500/10 via-rose-500/5 to-transparent border-rose-500/30': myAttendanceTodayStatus === 'Absent',
+                                     'bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border-amber-500/30': myAttendanceTodayStatus === 'On Leave' || myAttendanceTodayStatus === 'On_Leave',
+                                     'bg-gradient-to-r from-slate-500/10 via-slate-500/5 to-transparent border-slate-300 dark:border-slate-700': myAttendanceTodayStatus === 'Not Marked'
+                                 }">
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div class="flex items-center space-x-4">
+                                        <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black shadow-xs"
+                                             :class="{
+                                                 'bg-emerald-600 text-white': myAttendanceTodayStatus === 'Present',
+                                                 'bg-rose-600 text-white': myAttendanceTodayStatus === 'Absent',
+                                                 'bg-amber-500 text-white': myAttendanceTodayStatus === 'On Leave' || myAttendanceTodayStatus === 'On_Leave',
+                                                 'bg-slate-400 text-white': myAttendanceTodayStatus === 'Not Marked'
+                                             }">
+                                            <template x-if="myAttendanceTodayStatus === 'Present'">
+                                                <i class="fa-solid fa-circle-check"></i>
+                                            </template>
+                                            <template x-if="myAttendanceTodayStatus === 'Absent'">
+                                                <i class="fa-solid fa-circle-xmark"></i>
+                                            </template>
+                                            <template x-if="myAttendanceTodayStatus === 'On Leave' || myAttendanceTodayStatus === 'On_Leave'">
+                                                <i class="fa-solid fa-plane-departure"></i>
+                                            </template>
+                                            <template x-if="myAttendanceTodayStatus === 'Not Marked'">
+                                                <i class="fa-solid fa-clock"></i>
+                                            </template>
+                                        </div>
+                                        <div>
+                                            <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Today's Hostel Attendance Status</div>
+                                            <div class="text-2xl font-black mt-0.5"
+                                                 :class="{
+                                                     'text-emerald-700 dark:text-emerald-400': myAttendanceTodayStatus === 'Present',
+                                                     'text-rose-700 dark:text-rose-400': myAttendanceTodayStatus === 'Absent',
+                                                     'text-amber-700 dark:text-amber-400': myAttendanceTodayStatus === 'On Leave' || myAttendanceTodayStatus === 'On_Leave',
+                                                     'text-slate-700 dark:text-slate-300': myAttendanceTodayStatus === 'Not Marked'
+                                                 }"
+                                                 x-text="myAttendanceTodayStatus === 'Present' ? 'PRESENT' : (myAttendanceTodayStatus === 'Absent' ? 'ABSENT' : (myAttendanceTodayStatus === 'On Leave' ? 'ON LEAVE' : 'ROLL CALL PENDING'))">
+                                            </div>
+                                            <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                                <span x-text="myAttendanceTodayStatus === 'Present' ? 'Verified present during daily hostel rounds.' : (myAttendanceTodayStatus === 'Absent' ? 'Marked absent during roll-call. Contact your hostel warden.' : (myAttendanceTodayStatus === 'On Leave' ? 'You have an active approved outpass today.' : 'Evening roll-call commences at 09:00 PM.'))"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Date & Room Info -->
+                                    <div class="text-right sm:border-l sm:border-slate-200 dark:sm:border-slate-700 sm:pl-6 text-xs space-y-1">
+                                        <div class="text-slate-400 font-semibold">Today's Date:</div>
+                                        <div class="font-extrabold text-slate-800 dark:text-white font-mono text-sm" x-text="new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })"></div>
+                                        <div class="text-[11px] text-slate-500">
+                                            Resident: <strong class="text-slate-800 dark:text-slate-200" x-text="myAttendanceData?.student_name || (currentUser?.first_name + ' ' + currentUser?.last_name)"></strong>
+                                        </div>
+                                        <div class="text-[11px] text-slate-500">
+                                            Hostel Room: <strong class="text-brand-600 dark:text-brand-400" x-text="myAttendanceData?.room_number ? ('Room ' + myAttendanceData.room_number) : (studentProfile?.allocation ? ('Room ' + studentProfile.allocation.room_number) : 'Assigned')"></strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 4 METRIC CARDS -->
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Days Present</div>
+                                    <div class="text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1" x-text="myAttendanceData ? myAttendanceData.present_days : 0"></div>
+                                    <div class="text-[11px] text-slate-500 mt-1">Verified room presence</div>
+                                </div>
+                                <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Days Absent</div>
+                                    <div class="text-3xl font-black text-rose-600 dark:text-rose-400 mt-1" x-text="myAttendanceData ? myAttendanceData.absent_days : 0"></div>
+                                    <div class="text-[11px] text-slate-500 mt-1">Unexcused absences</div>
+                                </div>
+                                <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Approved Leaves</div>
+                                    <div class="text-3xl font-black text-amber-600 dark:text-amber-400 mt-1" x-text="myAttendanceData ? myAttendanceData.on_leave_days : 0"></div>
+                                    <div class="text-[11px] text-slate-500 mt-1">Outpass authorized</div>
+                                </div>
+                                <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Attendance Rate</div>
+                                    <div class="text-3xl font-black mt-1"
+                                         :class="(myAttendanceData?.attendance_percentage || 100) >= 75 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-600'"
+                                         x-text="(myAttendanceData ? myAttendanceData.attendance_percentage : 100) + '%'"></div>
+                                    <div class="text-[11px] text-slate-500 mt-1">Min threshold: 75% required</div>
+                                </div>
+                            </div>
+
+                            <!-- RECENT ATTENDANCE HISTORY LOG TABLE -->
+                            <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+                                    <div>
+                                        <h3 class="font-extrabold text-slate-900 dark:text-white text-base flex items-center space-x-2">
+                                            <i class="fa-solid fa-clock-rotate-left text-brand-600"></i>
+                                            <span>My Roll-Call History Log</span>
+                                        </h3>
+                                        <p class="text-xs text-slate-500 dark:text-slate-400">Verified audit trail of daily roll-calls with status badges</p>
+                                    </div>
+                                </div>
+
+                                <!-- Table -->
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-xs text-left">
+                                        <thead class="bg-slate-50 dark:bg-slate-800/60 uppercase text-[10px] font-bold text-slate-400 tracking-wider">
+                                            <tr>
+                                                <th class="py-3 px-4">Date</th>
+                                                <th class="py-3 px-4">Session / Event</th>
+                                                <th class="py-3 px-4">Attendance Status</th>
+                                                <th class="py-3 px-4">Verified By</th>
+                                                <th class="py-3 px-4">Remarks</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                                            <template x-if="!myAttendanceData || !myAttendanceData.history || myAttendanceData.history.length === 0">
+                                                <tr>
+                                                    <td colspan="5" class="py-8 text-center text-slate-400">
+                                                        <i class="fa-solid fa-calendar-xmark text-2xl mb-2 block"></i>
+                                                        <span>No attendance history records logged yet.</span>
+                                                    </td>
+                                                </tr>
+                                            </template>
+
+                                            <template x-for="rec in (myAttendanceData?.history || [])" :key="rec.id">
+                                                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+                                                    <td class="py-3 px-4 font-bold text-slate-800 dark:text-white font-mono" x-text="rec.date"></td>
+                                                    <td class="py-3 px-4 text-slate-500">
+                                                        <span class="inline-flex items-center space-x-1">
+                                                            <i class="fa-solid fa-moon text-slate-400 text-[10px]"></i>
+                                                            <span>Night Roll-Call</span>
+                                                        </span>
+                                                    </td>
+                                                    <td class="py-3 px-4">
+                                                        <span class="px-2.5 py-1 rounded-full text-[11px] font-bold"
+                                                              :class="{
+                                                                  'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300': rec.status === 'Present',
+                                                                  'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300': rec.status === 'Absent',
+                                                                  'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300': rec.status === 'On Leave' || rec.status === 'On_Leave'
+                                                              }"
+                                                              x-text="rec.status"></span>
+                                                    </td>
+                                                    <td class="py-3 px-4 text-slate-500" x-text="rec.marked_by_name || 'Hostel Staff'"></td>
+                                                    <td class="py-3 px-4 text-slate-500 italic" x-text="rec.remarks || 'Regular roll-call verification'"></td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- ============================================================== -->
+                    <!-- 2. WARDEN / ADMIN / STAFF ADMINISTRATIVE ROLL CALL MANAGEMENT   -->
+                    <!-- ============================================================== -->
+                    <template x-if="activeRoleView !== 'student' && !(currentUser && currentUser.roles && currentUser.roles.includes('student') && !currentUser.roles.some(r => ['super_admin','hostel_admin','warden','assistant_warden','security_guard','accountant','mess_manager','maintenance_staff'].includes(r)))">
+                        <div class="space-y-6">
+<!-- Header & Sub-navigation -->
                     <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                         <div>
                             <div class="flex items-center space-x-3">
@@ -3165,6 +3533,9 @@
                             </div>
                         </div>
                     </div>
+                        </div>
+                    </template>
+
                 </section>
 
                 <!-- ATTENDANCE CORRECTION MODAL -->
