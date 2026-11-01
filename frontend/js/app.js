@@ -651,6 +651,10 @@ document.addEventListener("alpine:init", () => {
                 crumbs.push({ label: "Mess & Dining", section: "mess" });
             } else if (this.activeSection === "inventory") {
                 crumbs.push({ label: "Inventory & Stock", section: "inventory" });
+            } else if (this.activeSection === "announcements") {
+                crumbs.push({ label: "Announcements", section: "announcements" });
+            } else if (this.activeSection === "admin") {
+                crumbs.push({ label: "System Administration", section: "admin" });
             }
             return crumbs;
         },

@@ -241,7 +241,117 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
             (cat_id,)
         )
 
-        # 11. Seed System Settings
+        # 11. Seed Additional Comprehensive Demo Modules (Prompt 15 Readiness)
+        # Admissions
+        cursor.execute(
+            """INSERT OR IGNORE INTO admission_applications (application_number, applicant_name, email, phone, gender, branch, academic_year, preferred_room_type, application_status, applied_at, reviewed_by, reviewed_at, remarks)
+               VALUES ('ADM-2026-001', 'Kavita Sundaram', 'kavita.s@univ.edu', '9810301099', 'Female', 'CSE', '1st Year', 'Single', 'Approved', '2026-07-15 10:00:00', 1, '2026-07-16 11:30:00', 'Merit quota allocation approved');"""
+        )
+        cursor.execute(
+            """INSERT OR IGNORE INTO admission_applications (application_number, applicant_name, email, phone, gender, branch, academic_year, preferred_room_type, application_status, applied_at, remarks)
+               VALUES ('ADM-2026-002', 'Vikramaditya Rao', 'vikram.rao@univ.edu', '9810301098', 'Male', 'ECE', '1st Year', 'Double', 'Pending', '2026-08-01 14:20:00', 'Awaiting document verification');"""
+        )
+
+        # Attendance for resident students
+        cursor.execute(
+            """INSERT OR IGNORE INTO attendance (student_id, date, status, marked_by, remarks)
+               VALUES (?, '2026-10-31', 'Present', 3, 'Regular morning roll-call');""",
+            (s_rohan,)
+        )
+        cursor.execute(
+            """INSERT OR IGNORE INTO attendance (student_id, date, status, marked_by, remarks)
+               VALUES (?, '2026-11-01', 'Present', 3, 'Biometric biometric gate punch');""",
+            (s_rohan,)
+        )
+
+        # Leave & Outpass
+        cursor.execute(
+            """INSERT OR IGNORE INTO leave_requests (id, student_id, leave_type, start_date, end_date, departure_time, expected_return_time, reason, destination, emergency_contact, guardian_contact, status, approved_by, reviewed_at, remarks)
+               VALUES (1001, ?, 'Weekend', '2026-11-07', '2026-11-09', '17:00', '20:00', 'Visiting hometown family', 'New Delhi', '9810301057', '9810309999', 'Approved', 3, '2026-11-01 09:00:00', 'Warden verified with parent');""",
+            (s_rohan,)
+        )
+        cursor.execute(
+            """INSERT OR IGNORE INTO outpasses (outpass_number, leave_request_id, student_id, status, expected_exit_time, expected_return_time)
+               VALUES ('OP-202611-0001', 1001, ?, 'Approved', '2026-11-07 17:00:00', '2026-11-09 20:00:00');""",
+            (s_rohan,)
+        )
+
+        # Visitors & Active Gate Pass
+        cursor.execute(
+            """INSERT OR IGNORE INTO visitors (id, name, phone, id_proof_type, id_proof_number, address)
+               VALUES (101, 'Sunil Bakshi', '9810309999', 'Aadhaar Card', 'XXXX-XXXX-4589', 'D-42 Hauz Khas, New Delhi');"""
+        )
+        cursor.execute(
+            """INSERT OR IGNORE INTO visitor_logs (pass_number, visitor_id, student_id, hostel_id, room_id, check_in_time, expected_exit_time, purpose, approval_status, status, approved_by)
+               VALUES ('VP-202611-0001', 101, ?, ?, ?, '2026-11-01 14:00:00', '2026-11-01 18:00:00', 'Parent semester fee discussion', 'Approved', 'Checked_In', 3);""",
+            (s_rohan, hostel_id, r101)
+        )
+
+        # Maintenance Task for the complaint
+        cursor.execute(
+            """INSERT OR IGNORE INTO maintenance_tasks (task_code, complaint_id, category, title, description, priority, status, assigned_to, scheduled_date)
+               VALUES ('TSK-2026-001', ?, 'Electrical', 'Repair Table Socket', 'Replace damaged 16A modular switch socket in Room 101', 'Medium', 'In_Progress', ?, '2026-11-02');""",
+            (cmp_id, maintenance_user_id)
+        )
+
+        # Mess Subscriptions & Meal Attendance
+        cursor.execute(
+            """INSERT OR IGNORE INTO mess_subscriptions (subscription_reference, student_id, hostel_id, plan_type, diet_type, start_date, end_date, monthly_fee, total_fee, status)
+               VALUES ('SUB-202611-0001', ?, ?, 'Semester', 'Veg', '2026-08-01', '2026-12-31', 3500.0, 17500.0, 'Active');""",
+            (s_rohan, hostel_id)
+        )
+        sub_id = cursor.lastrowid
+        if sub_id:
+            cursor.execute(
+                """INSERT OR IGNORE INTO meal_attendance (student_id, subscription_id, hostel_id, date, meal_type, verification_method, status, marked_by)
+                   VALUES (?, ?, ?, '2026-11-01', 'Lunch', 'QR_Code', 'Present', 7);""",
+                (s_rohan, sub_id, hostel_id)
+            )
+
+        # Additional Inventory Categories, Suppliers & Stock Items
+        cursor.execute("INSERT OR IGNORE INTO suppliers (name, contact_person, phone, email, address, category) VALUES ('Apex Hardware & Supplies', 'Manoj Jain', '9811223344', 'sales@apexhardware.com', 'Industrial Area, Phase 2', 'Electrical & Plumbing');")
+        sup_id = cursor.lastrowid or 1
+
+        cursor.execute("INSERT OR IGNORE INTO inventory_categories (name, description) VALUES ('Provisions & Groceries', 'Rice, pulses, oils, spices');")
+        cat_gro = cursor.lastrowid
+        if cat_gro:
+            cursor.execute(
+                """INSERT OR IGNORE INTO inventory_items (category_id, item_code, name, description, unit, quantity_in_stock, min_reorder_level, unit_price, supplier_id)
+                   VALUES (?, 'GRO-BAS-RICE', 'Basmati Rice Premium (25kg)', 'Aged long grain rice', 'bags', 25, 5, 1850.0, ?);""",
+                (cat_gro, sup_id)
+            )
+
+        # In-App Notifications
+        cursor.execute(
+            """INSERT OR IGNORE INTO notifications (user_id, title, message, category, priority, is_read, event_key, delivery_channel)
+               VALUES (?, 'Fee Payment Received', 'Your payment of Rs 6,000 for Invoice INV-2026-08-001 has been confirmed.', 'fees', 'Normal', 0, 'fee:inv:1', 'in_app');""",
+            (user_id_map.get("rohan", 5),)
+        )
+        cursor.execute(
+            """INSERT OR IGNORE INTO notifications (user_id, title, message, category, priority, is_read, event_key, delivery_channel)
+               VALUES (?, 'Leave Request Approved', 'Your leave request for 2026-11-07 has been approved. Outpass OP-202611-0001 generated.', 'leaves', 'Important', 0, 'leave:app:1001', 'in_app');""",
+            (user_id_map.get("rohan", 5),)
+        )
+
+        # Institutional Announcements
+        admin_uid = user_id_map.get("superadmin", 1)
+        cursor.execute(
+            """INSERT OR IGNORE INTO announcements (title, content, category, priority, target_audience, target_hostel_id, status, created_by, published_by)
+               VALUES ('Welcome to Academic Session 2026-27', 'Hostel accommodation guidelines and campus dining schedules are now active.', 'General Circular', 'Normal', 'All Users', NULL, 'Published', ?, ?);""",
+            (admin_uid, admin_uid)
+        )
+        cursor.execute(
+            """INSERT OR IGNORE INTO announcements (title, content, category, priority, target_audience, target_hostel_id, status, created_by, published_by)
+               VALUES ('Hostel Wi-Fi Upgradation Notice', 'High-speed 10Gbps optical fiber switches are being configured in Tagore Hostel this weekend.', 'Maintenance Notice', 'Important', 'Hostel Residents', ?, 'Published', ?, ?);""",
+            (hostel_id, admin_uid, admin_uid)
+        )
+        cursor.execute(
+            """INSERT OR IGNORE INTO announcements (title, content, category, priority, target_audience, target_hostel_id, status, created_by, published_by)
+               VALUES ('MANDATORY FIRE SAFETY DRILL', 'All residents of Rabindranath Tagore Hostel must assemble at North Ground at 10:00 AM sharp on Saturday.', 'Emergency Notice', 'Critical', 'Hostel Residents', ?, 'Published', ?, ?);""",
+            (hostel_id, admin_uid, admin_uid)
+        )
+
+        # 12. Seed System Settings
         cursor.execute("INSERT OR IGNORE INTO system_settings (setting_key, setting_value, category, description) VALUES ('institution_name', 'University College of Engineering', 'general', 'Institute name');")
         cursor.execute("INSERT OR IGNORE INTO system_settings (setting_key, setting_value, category, description) VALUES ('q05_latency_target_ms', '10.0', 'performance', 'Target response time SLA');")
 
