@@ -807,7 +807,7 @@ class AuthService:
                 return [dict(r) for r in cursor.fetchall()]
 
             # 2. Warden view: can approve Students and Parents (NOT Staff)
-            if "warden" in user_roles and not user_roles.intersection({"super_admin", "hostel_admin"}):
+            if user_roles.intersection({"warden", "assistant_warden"}) and not user_roles.intersection({"super_admin", "hostel_admin"}):
                 cursor.execute("""
                     SELECT rr.*, s.first_name as student_first_name, s.last_name as student_last_name, s.student_id as student_roll_no_display
                     FROM registration_requests rr
@@ -950,7 +950,7 @@ class AuthService:
             # RULE 3: STUDENT REGISTRATION APPROVAL (ADMIN OR WARDEN)
             # -------------------------------------------------------------
             if target_role == "student":
-                if not user_roles.intersection({"super_admin", "hostel_admin", "warden"}):
+                if not user_roles.intersection({"super_admin", "hostel_admin", "warden", "assistant_warden"}):
                     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Wardens or Administrators can approve student registrations.")
 
                 actor_role = "admin" if user_roles.intersection({"super_admin", "hostel_admin"}) else "warden"
@@ -982,7 +982,7 @@ class AuthService:
             # RULE 4: PARENT REGISTRATION APPROVAL (ADMIN OR WARDEN SIDE)
             # -------------------------------------------------------------
             if target_role == "parent_guardian":
-                if not user_roles.intersection({"super_admin", "hostel_admin", "warden"}):
+                if not user_roles.intersection({"super_admin", "hostel_admin", "warden", "assistant_warden"}):
                     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Wardens or Administrators can approve parent registrations.")
 
                 actor_role = "admin" if user_roles.intersection({"super_admin", "hostel_admin"}) else "warden"

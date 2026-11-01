@@ -707,6 +707,36 @@ document.addEventListener("alpine:init", () => {
             this.healthCheckInterval = setInterval(() => this.fetchHealth(), 8000);
             await this.checkCurrentSession();
             await this.loadRoles();
+
+            // Real-Time Cross-Tab Registration Approvals Synchronization
+            if (window.BroadcastChannel) {
+                try {
+                    this.regSyncChannel = new BroadcastChannel('hms_registrations_sync');
+                    this.regSyncChannel.onmessage = (event) => {
+                        if (this.isAuthenticated) {
+                            this.loadPendingRegistrations(true);
+                            if (this.activeRoleView === 'warden' || this.activeRoleView === 'super_admin') {
+                                this.loadDashboardStats();
+                            }
+                        }
+                    };
+                } catch (_) {}
+            }
+            window.addEventListener('storage', (e) => {
+                if (e.key === 'hms_last_reg_sync' && this.isAuthenticated) {
+                    this.loadPendingRegistrations(true);
+                    if (this.activeRoleView === 'warden' || this.activeRoleView === 'super_admin') {
+                        this.loadDashboardStats();
+                    }
+                }
+            });
+
+            // Active Queue Auto-Sync: Poll every 3 seconds without refreshing the whole page
+            setInterval(() => {
+                if (this.isAuthenticated && (this.activeSection === 'registrations' || this.activeSection === 'dashboard')) {
+                    this.loadPendingRegistrations(true);
+                }
+            }, 3000);
         },
 
         toggleDarkMode() {
@@ -1015,6 +1045,15 @@ selectPreset(preset) {
                     this.loginNotice = authData.message || 'Registration submitted! Awaiting required authorization.';
                     this.showToast(authData.message || 'Registration submitted for authorization!', 'info');
                 }
+                // Notify open Admin and Warden tabs instantly
+                if (window.BroadcastChannel) {
+                    try {
+                        const channel = new BroadcastChannel('hms_registrations_sync');
+                        channel.postMessage({ type: 'NEW_REGISTRATION_SUBMITTED', timestamp: Date.now() });
+                        channel.close();
+                    } catch (_) {}
+                }
+                localStorage.setItem('hms_last_reg_sync', Date.now().toString());
                 // Reset passwords
                 this.registerForm.password = '';
                 this.registerForm.confirmPassword = '';
@@ -1026,31 +1065,53 @@ selectPreset(preset) {
             }
         },
 
-        async loadPendingRegistrations() {
+        async loadPendingRegistrations(silent = false, userTriggered = false) {
             if (!this.isAuthenticated) return;
-            this.pendingRegistrationsLoading = true;
+            if (!silent) this.pendingRegistrationsLoading = true;
             try {
                 const data = await window.API.getPendingRegistrations();
                 this.pendingRegistrations = data || [];
+                if (userTriggered) {
+                    this.showToast(`Registration queue updated: ${this.pendingRegistrations.length} pending`, 'info');
+                }
             } catch (e) {
                 console.warn('Failed to load pending registrations:', e);
-                this.pendingRegistrations = [];
+                if (!silent) this.pendingRegistrations = [];
             } finally {
-                this.pendingRegistrationsLoading = false;
+                if (!silent) this.pendingRegistrationsLoading = false;
             }
         },
 
         async handleRegistrationAction(reqId, action, reason = '') {
+            // Instant optimistic update: remove immediately from local view
+            const removedItem = (this.pendingRegistrations || []).find(r => r.id === reqId);
+            this.pendingRegistrations = (this.pendingRegistrations || []).filter(r => r.id !== reqId);
+
             try {
                 const res = await window.API.processRegistrationAction(reqId, action, reason);
                 this.showToast(res.message || `Registration request ${action}ed successfully.`, 'success');
-                await this.loadPendingRegistrations();
+
+                // Broadcast instantly to all other browser tabs (e.g. Warden & Admin simultaneously sync!)
+                if (window.BroadcastChannel) {
+                    try {
+                        const channel = new BroadcastChannel('hms_registrations_sync');
+                        channel.postMessage({ type: 'REGISTRATION_ACTION_COMPLETED', reqId, action, timestamp: Date.now() });
+                        channel.close();
+                    } catch (_) {}
+                }
+                localStorage.setItem('hms_last_reg_sync', Date.now().toString());
+
+                await this.loadPendingRegistrations(true);
                 if (this.userRoles.includes('super_admin') || this.userRoles.includes('hostel_admin') || this.userRoles.includes('warden')) {
                     this.loadDashboardStats();
                     if (typeof this.loadAdminUsers === 'function') this.loadAdminUsers();
                     if (typeof this.loadUsers === 'function') this.loadUsers();
                 }
             } catch (err) {
+                // Rollback optimistic update on error
+                if (removedItem) {
+                    this.pendingRegistrations.unshift(removedItem);
+                }
                 this.showToast(err.message || `Failed to ${action} registration.`, 'error');
             }
         },
