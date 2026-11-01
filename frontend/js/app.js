@@ -2599,7 +2599,7 @@ document.addEventListener("alpine:init", () => {
             } catch (err) {
                 this.showToast(`Adjustment failed: ${err.message}`, "error");
             }
-        }
+        },
 
         // ==========================================
         // PROMPT 14 & 15: NOTIFICATIONS, ANNOUNCEMENTS, ADMIN & BACKUP
