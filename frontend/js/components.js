@@ -1,7 +1,6 @@
 /**
  * Reusable UI Components & Helpers
- * Course: BBAT104 Fundamentals of TQM
- * Quality Goal: Q05 - Reduce Response Time
+ * UI Component Helpers for Hostel Management System
  */
 
 const HMSComponents = {

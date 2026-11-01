@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hostel Management System Web App — TQM Quality Engineering</title>
+    <title>Hostel Management System</title>
 
     <!-- Tailwind CSS (via CDN) with Dark Mode Strategy -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -71,7 +71,7 @@
         </template>
     </div>
 
-    <!-- QUICK SEARCH MODAL (CTRL + K) - Q05 FAST SEARCH SYSTEM -->
+    <!-- QUICK SEARCH MODAL (CTRL + K) - FAST SEARCH SYSTEM -->
     <div x-show="searchModalOpen" x-cloak
          class="fixed inset-0 z-50 flex items-start justify-center pt-16 px-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in"
          @click.self="searchModalOpen = false">
@@ -82,9 +82,9 @@
                     <span class="w-6 h-6 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center text-xs font-bold">
                         <i class="fa-solid fa-bolt"></i>
                     </span>
-                    <span class="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Q05 Fast Search</span>
+                    <span class="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Fast Search</span>
                     <span class="text-[10px] bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 font-mono px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800 font-bold">
-                        &lt;10ms SLA
+                        Instant Search
                     </span>
                 </div>
                 <div class="flex items-center space-x-2">
@@ -259,7 +259,7 @@
                             <span>AI Suggestions</span>
                         </button>
                     </div>
-                    <p class="text-[10px] text-slate-400 mt-1">Poka-Yoke validates gender compatibility & prevents duplicate allocations</p>
+                    <p class="text-[10px] text-slate-400 mt-1">System validates gender compatibility & prevents duplicate allocations</p>
                 </div>
 
                 <div>
@@ -299,7 +299,7 @@
                     </button>
                     <button type="submit"
                             class="px-5 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold transition shadow-md">
-                        Enforce Poka-Yoke Allotment
+                        Confirm & Allocate Bed
                     </button>
                 </div>
             </form>
@@ -504,7 +504,7 @@
                     </div>
                     <div>
                         <h3 class="font-extrabold text-slate-900 dark:text-white text-base">Submit Grievance / Repair Request</h3>
-                        <p class="text-[11px] text-slate-400">TQM Defect Reporting & SLA Tracking</p>
+                        <p class="text-[11px] text-slate-400">Maintenance & Issue Tracking</p>
                     </div>
                 </div>
                 <button @click="complaintSubmitModalOpen = false" class="text-slate-400 hover:text-slate-600">
@@ -686,7 +686,7 @@
                             <!-- Satisfaction Rating -->
                             <div class="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 space-y-2">
                                 <div class="flex items-center justify-between">
-                                    <span class="text-xs font-bold text-emerald-900 dark:text-emerald-200">Resident Satisfaction Feedback (TQM Voice of Customer)</span>
+                                    <span class="text-xs font-bold text-emerald-900 dark:text-emerald-200">Resident Satisfaction Feedback</span>
                                     <div class="flex items-center space-x-1 text-amber-400">
                                         <template x-for="star in [1, 2, 3, 4, 5]" :key="star">
                                             <button type="button" @click="complaintRating = star" class="text-sm focus:outline-none">
@@ -953,7 +953,7 @@
                 <div class="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 flex items-start space-x-2">
                     <input type="checkbox" id="affectsOcc" x-model="complaintAssignForm.affects_occupancy" class="mt-0.5 rounded text-brand-600 focus:ring-brand-500">
                     <label for="affectsOcc" class="text-[11px] text-amber-900 dark:text-amber-200">
-                        <strong>Affects Room Occupancy (Poka-Yoke Lock):</strong> Lock room and bed under <em>Maintenance</em> status so room allocation engine mathematically prevents student placement.
+                        <strong>Affects Room Occupancy (Maintenance Lock):</strong> Lock room and bed under <em>Maintenance</em> status so room allocation engine prevents student placement.
                     </label>
                 </div>
 
@@ -1057,8 +1057,8 @@
                         <i class="fa-solid fa-hotel"></i>
                     </div>
                     <div x-show="!sidebarCollapsed" class="whitespace-nowrap transition-opacity">
-                        <div class="font-extrabold text-sm text-slate-900 dark:text-white leading-tight">Hostel Web App</div>
-                        <div class="text-[10px] text-brand-600 dark:text-brand-400 font-bold uppercase tracking-wider">TQM Q05 Platform</div>
+                        <div class="font-extrabold text-sm text-slate-900 dark:text-white leading-tight">Hostel Management</div>
+                        <div class="text-[10px] text-brand-600 dark:text-brand-400 font-bold uppercase tracking-wider">Administration Platform</div>
                     </div>
                 </div>
                 <!-- Desktop Sidebar Collapse Toggle -->
@@ -1191,7 +1191,7 @@
                             :class="activeSection === 'architecture' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
                             class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
                         <i class="fa-solid fa-microchip w-5 text-center text-sm"></i>
-                        <span x-show="!sidebarCollapsed" class="truncate">Q05 Architecture</span>
+                        <span x-show="!sidebarCollapsed" class="truncate">System Architecture</span>
                     </button>
                 </div>
 
@@ -1220,7 +1220,7 @@
             <!-- Sidebar Footer Status -->
             <div class="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
                 <div x-show="!sidebarCollapsed" class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                    <span class="font-semibold">Q05 Latency:</span>
+                    <span class="font-semibold">Response Time:</span>
                     <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400" x-text="(systemHealth.database?.ping_latency_ms || 0) + ' ms'"></span>
                 </div>
             </div>
@@ -1369,16 +1369,14 @@
                     <div class="bg-gradient-to-br from-brand-900 via-brand-800 to-slate-900 rounded-3xl p-8 sm:p-12 text-white shadow-xl relative overflow-hidden">
                         <div class="relative z-10 max-w-2xl space-y-4">
                             <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-white/10 text-brand-100 text-xs font-semibold border border-white/20">
-                                <i class="fa-solid fa-gauge-high text-sky-400"></i>
-                                <span>Quality Goal Q05: Reduce Response Time</span>
+                                <i class="fa-solid fa-hotel text-sky-400"></i>
+                                <span>Hostel Management System</span>
                             </div>
                             <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight">
-                                Next-Generation Web Platform for Collegiate Hostel Administration
+                                Complete Hostel Management, Simplified.
                             </h1>
                             <p class="text-slate-200 text-sm sm:text-base leading-relaxed">
-                                Re-engineered from desktop architecture into an ultra-responsive, modular web application powered by 
-                                <strong>FastAPI</strong>, <strong>SQLite WAL mode</strong>, and <strong>Alpine.js</strong>.
-                                Engineered under Total Quality Management (TQM) principles with comprehensive 12-Role RBAC authorization and student-level data isolation.
+                                Manage students, accommodation, attendance, finances, mess operations, maintenance, and hostel administration from one centralized platform.
                             </p>
                             <div class="pt-2 flex flex-wrap gap-3">
                                 <button @click="activeSection = isAuthenticated ? 'dashboard' : 'login'"
@@ -1397,15 +1395,25 @@
                         <div class="absolute right-32 top-8 w-48 h-48 rounded-full bg-sky-400/10 blur-2xl pointer-events-none"></div>
                     </div>
 
-                    <!-- 3 Pillars -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- 6 Professional Product Highlights -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                         <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2 hover:border-brand-600 transition">
                             <div class="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-brand-700 dark:text-brand-400 flex items-center justify-center text-xl mb-4">
-                                <i class="fa-solid fa-bolt"></i>
+                                <i class="fa-solid fa-hotel"></i>
                             </div>
-                            <h3 class="font-bold text-slate-900 dark:text-white text-base">Q05 Latency Optimization</h3>
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base">Centralized Hostel Operations</h3>
                             <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                                Indexed B-Tree queries, SQLite Write-Ahead Logging (WAL), and asynchronous ASGI request handling driving API latency under 5 milliseconds.
+                                Comprehensive multi-hostel administration managing buildings, floors, rooms, and daily residential workflows from a unified interface.
+                            </p>
+                        </div>
+
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2 hover:border-brand-600 transition">
+                            <div class="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xl mb-4">
+                                <i class="fa-solid fa-bed"></i>
+                            </div>
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base">Smart Room and Bed Allocation</h3>
+                            <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                                Conflict-free student room assignments, seamless bed transfers, and real-time occupancy tracking with automated validation rules.
                             </p>
                         </div>
 
@@ -1413,19 +1421,39 @@
                             <div class="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xl mb-4">
                                 <i class="fa-solid fa-user-shield"></i>
                             </div>
-                            <h3 class="font-bold text-slate-900 dark:text-white text-base">12-Role RBAC & Isolation</h3>
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base">Secure Role-Based Access</h3>
                             <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                                Granular permissions matrix for Super Admins, Wardens, Caretakers, Auditors, and Students with cryptographic data isolation barriers.
+                                Granular permissions matrix for 12 distinct stakeholder roles with strict data isolation protecting resident privacy.
                             </p>
                         </div>
 
                         <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2 hover:border-brand-600 transition">
-                            <div class="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xl mb-4">
-                                <i class="fa-solid fa-shield-halved"></i>
+                            <div class="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xl mb-4">
+                                <i class="fa-solid fa-chart-line"></i>
                             </div>
-                            <h3 class="font-bold text-slate-900 dark:text-white text-base">Poka-Yoke Security & Audit</h3>
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base">Real-Time Operational Insights</h3>
                             <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                                Bcrypt salted password hashing, JWT access tokens, HttpOnly rotated refresh tokens, and immutable audit logging on all logins.
+                                Live dashboard KPI aggregation, high-speed full-text search, and comprehensive audit logs for complete administrative visibility.
+                            </p>
+                        </div>
+
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2 hover:border-brand-600 transition">
+                            <div class="w-12 h-12 rounded-xl bg-violet-50 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 flex items-center justify-center text-xl mb-4">
+                                <i class="fa-solid fa-file-invoice-dollar"></i>
+                            </div>
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base">Financial and Fee Management</h3>
+                            <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                                Automated fee structure configuration, student invoicing, payment receipt generation, and detailed dues reconciliation reports.
+                            </p>
+                        </div>
+
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2 hover:border-brand-600 transition">
+                            <div class="w-12 h-12 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center text-xl mb-4">
+                                <i class="fa-solid fa-clipboard-user"></i>
+                            </div>
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base">Attendance and Visitor Tracking</h3>
+                            <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                                Daily attendance roll-calls, verified student leave outpasses, and secure visitor pass registration with gate check-in logs.
                             </p>
                         </div>
                     </div>
@@ -1960,7 +1988,7 @@
                                 </div>
                                 <div>
                                     <h4 class="font-extrabold text-base">Student Data Isolation Enforcement Barrier</h4>
-                                    <p class="text-xs text-slate-300">Under TQM Defect Prevention, students are mathematically prohibited from inspecting other students' private records</p>
+                                    <p class="text-xs text-slate-300">Security policies and data isolation strictly prevent students from inspecting other students' private records</p>
                                 </div>
                             </div>
 
@@ -2373,7 +2401,7 @@
                             <div class="flex items-center space-x-2">
                                 <input type="text" placeholder="Enter Student Enrollment No or Scan Digital Pass..."
                                        class="flex-1 px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:border-brand-600 dark:text-white">
-                                <button type="button" @click="showToast('Outpass Verified: Rohan Bakshi sanctioned for Day Outing until 20:00', 'success')"
+                                <button type="button" @click="showToast('Outpass Verified: Student sanctioned for Day Outing until 20:00', 'success')"
                                         class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl transition">
                                     Verify Pass
                                 </button>
@@ -2424,7 +2452,7 @@
                             <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
                                 <div>
                                     <h3 class="font-extrabold text-slate-900 dark:text-white text-lg">Linked Ward Oversight Portal</h3>
-                                    <p class="text-xs text-slate-500 dark:text-slate-400">Authenticated parent: Sunil Bakshi • Linked Ward: Rohan Bakshi</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">Authenticated guardian • Linked Ward: Resident Student</p>
                                 </div>
                                 <span class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                                     Primary Guardian
@@ -2457,12 +2485,12 @@
                     </div>
 
                     <!-- ========================================== -->
-                    <!-- 12. TQM AUDITOR DASHBOARD                  -->
+                    <!-- 12. AUDITOR DASHBOARD                      -->
                     <!-- ========================================== -->
                     <div x-show="activeRoleView === 'auditor'" class="space-y-6">
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
-                                <div class="text-xs font-bold text-slate-400 uppercase">Q05 Target SLA</div>
+                                <div class="text-xs font-bold text-slate-400 uppercase">Response Time SLA</div>
                                 <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">&lt; 10.0 ms</div>
                                 <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">✓ 100% SLA Compliance</div>
                             </div>
@@ -2477,15 +2505,15 @@
                                 <div class="text-[11px] text-slate-500 mt-0.5">Covering all foreign keys</div>
                             </div>
                             <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
-                                <div class="text-xs font-bold text-slate-400 uppercase">Poka-Yoke Defects</div>
+                                <div class="text-xs font-bold text-slate-400 uppercase">Validation Anomalies</div>
                                 <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">0</div>
                                 <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">Zero orphaned entities</div>
                             </div>
                         </div>
 
-                        <!-- TQM Compliance Review Audit Box -->
+                        <!-- System Compliance Review Audit Box -->
                         <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-                            <h3 class="font-bold text-slate-900 dark:text-white text-base">TQM Quality Goal Q05 Compliance Audit</h3>
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base">System Performance & Compliance Audit</h3>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                                 <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-1.5">
                                     <div class="font-bold text-slate-800 dark:text-slate-200">Database Engine Concurrency Audit</div>
@@ -2512,7 +2540,7 @@
                         <div>
                             <div class="flex items-center space-x-2">
                                 <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
-                                    Poka-Yoke Enforced
+                                    Validated Allotment
                                 </span>
                                 <span class="text-xs text-slate-400 font-mono">Defect-Proof Allocation Engine</span>
                             </div>
@@ -2552,9 +2580,9 @@
                             <div class="text-[11px] text-slate-400 mt-0.5">Awaiting review</div>
                         </div>
                         <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-                            <div class="text-[10px] font-bold uppercase text-slate-400">Poka-Yoke Protections</div>
+                            <div class="text-[10px] font-bold uppercase text-slate-400">Integrity Checks</div>
                             <div class="text-2xl font-black text-brand-600 dark:text-brand-400 mt-1">10 / 10</div>
-                            <div class="text-[11px] text-brand-600 dark:text-brand-400 font-semibold mt-0.5">Active Defect Barriers</div>
+                            <div class="text-[11px] text-brand-600 dark:text-brand-400 font-semibold mt-0.5">Active Integrity Rules</div>
                         </div>
                     </div>
 
@@ -3068,7 +3096,7 @@
                                 </div>
                                 <button @click="handleExportFinancialCsv()" class="px-4 py-2 rounded-xl bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center space-x-2 shadow-sm self-start md:self-auto">
                                     <i class="fa-solid fa-file-csv text-emerald-400"></i>
-                                    <span>Export CSV (Q05 Fast)</span>
+                                    <span>Export CSV</span>
                                 </button>
                             </div>
 
@@ -3931,7 +3959,7 @@
                             <div>
                                 <h2 class="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
                                     Fee & Financial Management
-                                    <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300">TQM Audit Ready</span>
+                                    <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300">Audited Ledger</span>
                                 </h2>
                                 <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                                     Fee structures, automated student demand invoicing, concessions, partial payments, and audit logs.
@@ -5269,7 +5297,7 @@
                                 </div>
                                 <div>
                                     <h2 class="text-xl font-black text-slate-900 dark:text-white tracking-tight">Inventory & Stock Operations</h2>
-                                    <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Real-time stock ledger, Poka-Yoke issuance, supplier directory & expiry alerts</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Real-time stock ledger, validated issuance, supplier directory & expiry alerts</p>
                                 </div>
                             </div>
                         </div>
@@ -5679,7 +5707,7 @@
                 <div x-show="stockOutwardModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs" style="display: none;">
                     <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800">
                         <div class="flex items-center justify-between">
-                            <h3 class="text-base font-bold text-slate-900 dark:text-white">Issue Stock Outward (Poka-Yoke)</h3>
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white">Issue Stock Outward</h3>
                             <button @click="stockOutwardModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
                         </div>
                         <form @submit.prevent="handleRecordStockOutward()" class="space-y-3 text-xs">
@@ -5712,7 +5740,7 @@
                             </div>
                             <div class="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-[11px] flex items-center space-x-2">
                                 <i class="fa-solid fa-shield-halved"></i>
-                                <span>Poka-Yoke check ensures stock cannot go below zero.</span>
+                                <span>System validation ensures stock cannot go below zero.</span>
                             </div>
                             <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
                                 <button type="button" @click="stockOutwardModalOpen = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">Cancel</button>
@@ -5840,7 +5868,7 @@
                             <div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
                                 <div class="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase">Ping Latency</div>
                                 <div class="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1" x-text="(systemHealth.database?.ping_latency_ms || 0) + ' ms'"></div>
-                                <div class="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">✓ Meets &lt; 10ms SLA</div>
+                                <div class="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">✓ Ultra-Fast Response</div>
                             </div>
                         </div>
                     </div>
@@ -6168,10 +6196,10 @@
             <footer class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-6 text-xs text-slate-500 dark:text-slate-400 mt-auto">
                 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
                     <div>
-                        <strong>BBAT104 Fundamentals of TQM</strong> • Student: Rohan Bakshi (Roll No: 2410301057) • B.Tech CSE (Sec A)
+                        <strong>Hostel Management System</strong> &bull; Secure &bull; Efficient &bull; Reliable
                     </div>
                     <div>
-                        Quality Goal: <span class="font-semibold text-slate-800 dark:text-slate-200">Q05 (Reduce Response Time)</span>
+                        <span class="font-semibold text-slate-800 dark:text-slate-200">Enterprise Edition &bull; Intelligent Residential Administration</span>
                     </div>
                 </div>
             </footer>

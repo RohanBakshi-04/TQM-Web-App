@@ -1,7 +1,6 @@
 /**
  * Alpine.js Application Controller with RBAC Multi-Stakeholder Support
- * Course: BBAT104 Fundamentals of TQM
- * Quality Goal: Q05 - Reduce Response Time
+ * Unified Platform for Intelligent Hostel Administration and Management
  */
 
 document.addEventListener("alpine:init", () => {
@@ -97,7 +96,7 @@ document.addEventListener("alpine:init", () => {
         // Notifications List
         notifications: [
             { id: 1, title: "System Initialized", message: "Hostel Management System v0.3.0 active in WAL mode.", time: "Just now", unread: true, type: "info" },
-            { id: 2, title: "Q05 SLA Active", message: "Response time telemetry running under 10ms threshold.", time: "5m ago", unread: true, type: "success" },
+            { id: 2, title: "High Performance Active", message: "Database query response time running under 10ms target.", time: "5m ago", unread: true, type: "success" },
             { id: 3, title: "Database Audit", message: "Initial 39 tables and 38 B-Tree indexes operational.", time: "1h ago", unread: false, type: "system" }
         ],
 
@@ -136,7 +135,7 @@ document.addEventListener("alpine:init", () => {
             { role: "security_guard", username: "security", label: "Security", icon: "fa-id-badge", desc: "Gate passes & visitor logs" },
             { role: "admission_officer", username: "admission", label: "Admissions", icon: "fa-file-signature", desc: "Applications & verification" },
             { role: "parent_guardian", username: "parent", label: "Parent/Guardian", icon: "fa-people-roof", desc: "Ward academic & fee tracking" },
-            { role: "auditor", username: "evaluator", label: "TQM Auditor", icon: "fa-chart-line", desc: "Compliance & latency review" }
+            { role: "auditor", username: "evaluator", label: "Auditor", icon: "fa-chart-line", desc: "Compliance & audit review" }
         ],
 
         // Role-Specific Loaded Data
@@ -632,7 +631,7 @@ document.addEventListener("alpine:init", () => {
             } else if (this.activeSection === "login") {
                 crumbs.push({ label: "Stakeholder Sign In", section: "login" });
             } else if (this.activeSection === "architecture") {
-                crumbs.push({ label: "Q05 Architecture & Telemetry", section: "architecture" });
+                crumbs.push({ label: "System Architecture", section: "architecture" });
             } else if (this.activeSection === "dashboard") {
                 const currentPreset = this.rolePresets.find(p => p.role === this.activeRoleView);
                 crumbs.push({ label: "Stakeholder Portal", section: "dashboard" });
@@ -894,7 +893,7 @@ document.addEventListener("alpine:init", () => {
                 this.loadDashboardStats();
                 this.viewSlip(res.id);
             } catch (err) {
-                this.showToast(`Poka-Yoke Error: ${err.message}`, "error");
+                this.showToast(`Validation Error: ${err.message}`, "error");
             }
         },
 

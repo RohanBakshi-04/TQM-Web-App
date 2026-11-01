@@ -1,7 +1,6 @@
 /**
  * Lightweight API Client for Hostel Management System Web App
- * Course: BBAT104 Fundamentals of TQM
- * Quality Goal: Q05 - Reduce Response Time
+ * High-Performance REST API Client for Hostel Management System
  */
 
 const API = {

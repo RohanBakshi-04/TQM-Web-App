@@ -42,8 +42,8 @@ FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
 
 app = FastAPI(
     title=settings.app_name,
-    description="High-performance, modular web application for Hostel Administration engineered for Q05 Latency Reduction.",
-    version="0.1.0"
+    description="A unified platform for intelligent hostel administration and management.",
+    version="1.0.0"
 )
 
 # CORS Middleware

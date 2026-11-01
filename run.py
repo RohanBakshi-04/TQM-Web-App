@@ -23,10 +23,8 @@ def open_browser():
 
 def main():
     print("=" * 70)
-    print("  HOSTEL MANAGEMENT SYSTEM (HMS) — WEB APPLICATION")
-    print("  Assigned Quality Goal: Q05 — REDUCE RESPONSE TIME")
-    print("  Course: BBAT104 Fundamentals of TQM (Session 2026-27)")
-    print("  Student: Rohan Bakshi | Roll No: 2410301057 | CSE (Sec A)")
+    print("  HOSTEL MANAGEMENT SYSTEM")
+    print("  A unified platform for intelligent hostel administration")
     print("=" * 70)
 
     # 1. Initialize SQLite connection and WAL mode
