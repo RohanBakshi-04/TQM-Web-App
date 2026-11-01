@@ -1745,6 +1745,24 @@
                     <!-- 1. SUPER ADMIN DASHBOARD                   -->
                     <!-- ========================================== -->
                     <div x-show="activeRoleView === 'super_admin'" class="space-y-6">
+                        <template x-if="!pendingRegistrations || pendingRegistrations.length === 0">
+                            <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex items-center justify-between">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                                        <i class="fa-solid fa-user-check text-sm"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-bold text-slate-800 dark:text-slate-200 text-xs">Registration Approvals Queue</h4>
+                                        <p class="text-[11px] text-slate-400">All applicant requests (Students, Staff, Parents) are processed & up to date (0 Pending).</p>
+                                    </div>
+                                </div>
+                                <button type="button" @click="activeSection = 'registrations'; loadPendingRegistrations();"
+                                        class="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center space-x-1.5 transition">
+                                    <span>Approvals Center</span>
+                                    <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                                </button>
+                            </div>
+                        </template>
                         <!-- Super Admin Pending Registrations Queue -->
                         <template x-if="pendingRegistrations && pendingRegistrations.length > 0">
                             <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
@@ -1939,6 +1957,24 @@
                     <!-- 3. CHIEF WARDEN DASHBOARD                  -->
                     <!-- ========================================== -->
                     <div x-show="activeRoleView === 'warden'" class="space-y-6">
+                        <template x-if="!pendingRegistrations || pendingRegistrations.length === 0">
+                            <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex items-center justify-between">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                                        <i class="fa-solid fa-user-check text-sm"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-bold text-slate-800 dark:text-slate-200 text-xs">Hostel Registration Approvals Queue</h4>
+                                        <p class="text-[11px] text-slate-400">All resident student and parent linkage requests are up to date (0 Pending).</p>
+                                    </div>
+                                </div>
+                                <button type="button" @click="activeSection = 'registrations'; loadPendingRegistrations();"
+                                        class="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center space-x-1.5 transition">
+                                    <span>Approvals Center</span>
+                                    <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                                </button>
+                            </div>
+                        </template>
                         <!-- Warden Registration Approvals Queue (Students & Parents) -->
                         <template x-if="pendingRegistrations && pendingRegistrations.length > 0">
                             <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
@@ -6740,6 +6776,209 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- ========================================== -->
+                <!-- REGISTRATION APPROVALS CENTER              -->
+                <!-- ========================================== -->
+                <section x-show="activeSection === 'registrations'" class="animate-fade-in space-y-6">
+                    <!-- Top Enterprise Command Banner -->
+                    <div class="bg-gradient-to-r from-slate-950 via-slate-900 to-brand-950 p-6 rounded-3xl text-white shadow-xl flex flex-col md:flex-row md:items-center md:justify-between gap-6 border border-slate-800">
+                        <div class="flex items-center space-x-4">
+                            <div class="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center font-black text-2xl text-amber-400 shadow-inner">
+                                <i class="fa-solid fa-user-check"></i>
+                            </div>
+                            <div>
+                                <div class="flex items-center space-x-2">
+                                    <h2 class="text-2xl font-black text-white">Registration Approvals Center</h2>
+                                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40">Multi-Party RBAC</span>
+                                </div>
+                                <p class="text-xs text-slate-300 mt-0.5">Authorize Student admissions, Staff appointments, and Parent-Child linkage requests</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center space-x-3">
+                            <span class="px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-bold"
+                                  x-text="(pendingRegistrations ? pendingRegistrations.length : 0) + ' Pending Approval'"></span>
+                            <button type="button" @click="loadPendingRegistrations()" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/10 transition flex items-center space-x-1.5">
+                                <i class="fa-solid fa-arrows-rotate" :class="pendingRegistrationsLoading ? 'fa-spin' : ''"></i>
+                                <span>Refresh Queue</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Role Filter Tabs -->
+                    <div class="flex flex-wrap items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+                        <button type="button" @click="registrationFilterRole = 'all'"
+                                :class="registrationFilterRole === 'all' ? 'bg-brand-900 text-white font-bold shadow-xs' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'"
+                                class="px-3.5 py-1.5 rounded-xl text-xs transition flex items-center space-x-1.5">
+                            <span>All Requests</span>
+                            <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20" x-text="pendingRegistrations ? pendingRegistrations.length : 0"></span>
+                        </button>
+                        <button type="button" @click="registrationFilterRole = 'student'"
+                                :class="registrationFilterRole === 'student' ? 'bg-brand-900 text-white font-bold shadow-xs' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'"
+                                class="px-3.5 py-1.5 rounded-xl text-xs transition flex items-center space-x-1.5">
+                            <i class="fa-solid fa-user-graduate text-xs"></i>
+                            <span>Students</span>
+                            <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20"
+                                  x-text="pendingRegistrations ? pendingRegistrations.filter(r => r.requested_role === 'student').length : 0"></span>
+                        </button>
+                        <template x-if="hasRole('super_admin') || hasRole('hostel_admin')">
+                            <button type="button" @click="registrationFilterRole = 'staff'"
+                                    :class="registrationFilterRole === 'staff' ? 'bg-brand-900 text-white font-bold shadow-xs' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'"
+                                    class="px-3.5 py-1.5 rounded-xl text-xs transition flex items-center space-x-1.5">
+                                <i class="fa-solid fa-id-badge text-xs"></i>
+                                <span>Staff Members (Admin Only)</span>
+                                <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20"
+                                      x-text="pendingRegistrations ? pendingRegistrations.filter(r => r.requested_role !== 'student' && r.requested_role !== 'parent_guardian').length : 0"></span>
+                            </button>
+                        </template>
+                        <button type="button" @click="registrationFilterRole = 'parent_guardian'"
+                                :class="registrationFilterRole === 'parent_guardian' ? 'bg-brand-900 text-white font-bold shadow-xs' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'"
+                                class="px-3.5 py-1.5 rounded-xl text-xs transition flex items-center space-x-1.5">
+                            <i class="fa-solid fa-children text-xs"></i>
+                            <span>Parents & Guardians</span>
+                            <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20"
+                                  x-text="pendingRegistrations ? pendingRegistrations.filter(r => r.requested_role === 'parent_guardian').length : 0"></span>
+                        </button>
+                    </div>
+
+                    <!-- Empty State -->
+                    <template x-if="!pendingRegistrations || pendingRegistrations.length === 0">
+                        <div class="bg-white dark:bg-slate-900 p-12 rounded-3xl border border-slate-200 dark:border-slate-800 text-center space-y-4 shadow-xs">
+                            <div class="w-16 h-16 rounded-3xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto text-2xl font-bold shadow-inner">
+                                <i class="fa-solid fa-circle-check"></i>
+                            </div>
+                            <div class="max-w-md mx-auto space-y-1">
+                                <h3 class="text-base font-bold text-slate-800 dark:text-slate-200">Registration Approvals Queue is Clear</h3>
+                                <p class="text-xs text-slate-500">There are currently no registration requests pending your authorization. When a new student, staff member, or parent registers, their application will appear here for review.</p>
+                            </div>
+                            <div class="pt-2">
+                                <button type="button" @click="loadPendingRegistrations()" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+                                    <i class="fa-solid fa-arrows-rotate mr-1"></i> Refresh Queue
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Pending Cards List -->
+                    <template x-if="pendingRegistrations && pendingRegistrations.length > 0">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <template x-for="req in pendingRegistrations.filter(r => registrationFilterRole === 'all' || (registrationFilterRole === 'staff' ? (r.requested_role !== 'student' && r.requested_role !== 'parent_guardian') : r.requested_role === registrationFilterRole))" :key="req.id">
+                                <div class="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between space-y-4 transition hover:shadow-md">
+                                    <div class="space-y-3">
+                                        <!-- Card Top Header -->
+                                        <div class="flex items-start justify-between gap-3">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-base shadow-inner"
+                                                     :class="req.requested_role === 'student' ? 'bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-300' : (req.requested_role === 'parent_guardian' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300')">
+                                                    <i :class="req.requested_role === 'student' ? 'fa-solid fa-user-graduate' : (req.requested_role === 'parent_guardian' ? 'fa-solid fa-children' : 'fa-solid fa-briefcase')"></i>
+                                                </div>
+                                                <div>
+                                                    <div class="flex items-center space-x-2">
+                                                        <h4 class="font-bold text-slate-900 dark:text-white text-sm" x-text="req.first_name + ' ' + req.last_name"></h4>
+                                                        <span class="text-xs text-slate-400 font-mono" x-text="'@' + req.username"></span>
+                                                    </div>
+                                                    <span class="inline-block mt-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider"
+                                                          :class="req.requested_role === 'student' ? 'bg-brand-100 text-brand-800 dark:bg-brand-950 dark:text-brand-300 border border-brand-200' : (req.requested_role === 'parent_guardian' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-200')"
+                                                          x-text="req.requested_role === 'student' ? 'Student Admission' : (req.requested_role === 'parent_guardian' ? ('Parent / ' + (req.relationship || 'Guardian')) : ('Staff: ' + (req.specialization || req.requested_role)))"></span>
+                                                </div>
+                                            </div>
+                                            <span class="text-[10px] text-slate-400" x-text="req.created_at ? req.created_at.split(' ')[0] : 'Today'"></span>
+                                        </div>
+
+                                        <!-- Detail Grid -->
+                                        <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 text-xs space-y-1.5">
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-slate-500"><i class="fa-regular fa-envelope w-4"></i> Email:</span>
+                                                <span class="font-medium text-slate-800 dark:text-slate-200" x-text="req.email"></span>
+                                            </div>
+                                            <div class="flex items-center justify-between" x-show="req.phone">
+                                                <span class="text-slate-500"><i class="fa-solid fa-phone w-4"></i> Phone:</span>
+                                                <span class="font-medium text-slate-800 dark:text-slate-200" x-text="req.phone"></span>
+                                            </div>
+                                            <!-- Student Specifics -->
+                                            <template x-if="req.requested_role === 'student'">
+                                                <div class="space-y-1 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                                                    <div class="flex items-center justify-between">
+                                                        <span class="text-slate-500"><i class="fa-solid fa-graduation-cap w-4"></i> Department:</span>
+                                                        <span class="font-bold text-slate-800 dark:text-slate-200" x-text="req.branch || 'General'"></span>
+                                                    </div>
+                                                    <div class="flex items-center justify-between">
+                                                        <span class="text-slate-500"><i class="fa-solid fa-id-card w-4"></i> Roll / Student ID:</span>
+                                                        <code class="px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-[11px]" x-text="req.student_roll_no || 'Auto-generated'"></code>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            <!-- Staff Specifics -->
+                                            <template x-if="req.requested_role !== 'student' && req.requested_role !== 'parent_guardian'">
+                                                <div class="space-y-1 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                                                    <div class="flex items-center justify-between">
+                                                        <span class="text-slate-500"><i class="fa-solid fa-screwdriver-wrench w-4"></i> Specialization:</span>
+                                                        <span class="font-bold capitalize text-slate-800 dark:text-slate-200" x-text="req.specialization || req.requested_role"></span>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            <!-- Parent Specifics -->
+                                            <template x-if="req.requested_role === 'parent_guardian'">
+                                                <div class="space-y-1.5 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                                                    <div class="flex items-center justify-between">
+                                                        <span class="text-slate-500"><i class="fa-solid fa-child w-4"></i> Ward / Student:</span>
+                                                        <span class="font-bold text-slate-800 dark:text-slate-200" x-text="req.student_first_name ? (req.student_first_name + ' ' + req.student_last_name) : ('Student #' + req.linked_student_id)"></span>
+                                                    </div>
+                                                    <div class="flex items-center justify-between">
+                                                        <span class="text-slate-500"><i class="fa-solid fa-id-card w-4"></i> Ward Roll No:</span>
+                                                        <code class="px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-[11px]" x-text="req.student_roll_no_display || '-'"></code>
+                                                    </div>
+                                                    <div class="flex items-center justify-between">
+                                                        <span class="text-slate-500"><i class="fa-solid fa-user-shield w-4"></i> Student Approval:</span>
+                                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                                                              :class="req.student_approval_status === 'Approved' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'"
+                                                              x-text="req.student_approval_status === 'Approved' ? 'Confirmed by Student' : 'Pending Student Confirmation'"></span>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+
+                                        <!-- Policy Notice -->
+                                        <div class="text-[11px] p-2 rounded-xl bg-slate-100/70 dark:bg-slate-800/40 text-slate-500 flex items-center space-x-1.5">
+                                            <i class="fa-solid fa-shield-halved text-slate-400"></i>
+                                            <template x-if="req.requested_role === 'student'">
+                                                <span>Approval Policy: Can be approved by either Hostel Warden or Administrator.</span>
+                                            </template>
+                                            <template x-if="req.requested_role !== 'student' && req.requested_role !== 'parent_guardian'">
+                                                <span>Approval Policy: Restricted to Administrator authorization only.</span>
+                                            </template>
+                                            <template x-if="req.requested_role === 'parent_guardian'">
+                                                <span>Dual Approval Policy: Requires both child student verification AND Warden/Admin approval.</span>
+                                            </template>
+                                        </div>
+                                    </div>
+
+                                    <!-- Action Buttons -->
+                                    <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end space-x-2">
+                                        <template x-if="req.requested_role !== 'student' && req.requested_role !== 'parent_guardian' && !hasRole('super_admin') && !hasRole('hostel_admin')">
+                                            <span class="text-xs text-amber-600 font-medium italic">Administrator authorization required for staff.</span>
+                                        </template>
+                                        <template x-if="req.requested_role === 'student' || req.requested_role === 'parent_guardian' || hasRole('super_admin') || hasRole('hostel_admin')">
+                                            <div class="flex items-center space-x-2 w-full sm:w-auto">
+                                                <button type="button" @click="handleRegistrationAction(req.id, 'approve')"
+                                                        class="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-xs flex items-center justify-center space-x-1.5">
+                                                    <i class="fa-solid fa-check"></i>
+                                                    <span x-text="req.requested_role === 'parent_guardian' ? 'Authorize Parent' : (req.requested_role === 'student' ? 'Approve Student' : 'Approve Staff')"></span>
+                                                </button>
+                                                <button type="button" @click="handleRegistrationAction(req.id, 'reject', 'Rejected by administrator/warden')"
+                                                        class="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800 font-bold text-xs transition flex items-center justify-center space-x-1.5">
+                                                    <i class="fa-solid fa-xmark"></i>
+                                                    <span>Reject</span>
+                                                </button>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </section>
 
                 <!-- ========================================== -->
                 <!-- SYSTEM ADMINISTRATION CONTROL CONSOLE       -->

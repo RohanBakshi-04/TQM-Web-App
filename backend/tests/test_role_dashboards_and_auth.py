@@ -411,7 +411,7 @@ class TestRoleDashboardsAndAuth(unittest.TestCase):
             "password": "Password123!",
             "first_name": "Kavita",
             "last_name": "Rao",
-            "phone": "9811223399",
+            "phone": f"98{uuid.uuid4().int % 100000000:08d}",
             "role": "student",
             "branch": "CSE"
         })
@@ -434,7 +434,7 @@ class TestRoleDashboardsAndAuth(unittest.TestCase):
             "password": "Password123!",
             "first_name": "Ramesh",
             "last_name": "Kumar",
-            "phone": "9822334499",
+            "phone": f"98{uuid.uuid4().int % 100000000:08d}",
             "role": "staff",
             "specialization": "electrician"
         })

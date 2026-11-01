@@ -162,6 +162,7 @@ document.addEventListener("alpine:init", () => {
         roleNavigationMap: {
             super_admin: [
                 { id: "dashboard", label: "System Overview", icon: "fa-gauge-high" },
+                { id: "registrations", label: "Registration Approvals", icon: "fa-user-check" },
                 { id: "allocations", label: "Room Allocations", icon: "fa-bed" },
                 { id: "attendance", label: "Attendance Control", icon: "fa-clipboard-user" },
                 { id: "leaves", label: "Leaves & Outpasses", icon: "fa-id-badge" },
@@ -174,6 +175,7 @@ document.addEventListener("alpine:init", () => {
             ],
             hostel_admin: [
                 { id: "dashboard", label: "Hostel Dashboard", icon: "fa-gauge-high" },
+                { id: "registrations", label: "Registration Approvals", icon: "fa-user-check" },
                 { id: "allocations", label: "Rooms & Allocations", icon: "fa-bed" },
                 { id: "attendance", label: "Student Attendance", icon: "fa-clipboard-user" },
                 { id: "leaves", label: "Leaves & Outpass", icon: "fa-id-badge" },
@@ -184,6 +186,7 @@ document.addEventListener("alpine:init", () => {
             ],
             warden: [
                 { id: "dashboard", label: "Warden Dashboard", icon: "fa-gauge-high" },
+                { id: "registrations", label: "Registration Approvals", icon: "fa-user-check" },
                 { id: "attendance", label: "Daily Roll-Call", icon: "fa-clipboard-user" },
                 { id: "leaves", label: "Leave Approvals", icon: "fa-id-badge" },
                 { id: "visitors", label: "Visitor Management", icon: "fa-user-clock" },
@@ -192,6 +195,7 @@ document.addEventListener("alpine:init", () => {
             ],
             assistant_warden: [
                 { id: "dashboard", label: "Floor Dashboard", icon: "fa-gauge-high" },
+                { id: "registrations", label: "Registration Approvals", icon: "fa-user-check" },
                 { id: "attendance", label: "Block Roll-Call", icon: "fa-clipboard-user" },
                 { id: "leaves", label: "Leave Review Queue", icon: "fa-id-badge" },
                 { id: "allocations", label: "Room Checks", icon: "fa-bed" },
@@ -369,6 +373,8 @@ document.addEventListener("alpine:init", () => {
         complaintEscalateForm: {
             reason: ""
         },
+
+        registrationFilterRole: "all",
 
         // Attendance State
         attendanceSubTab: "dashboard", // "dashboard" | "mark" | "history" | "reports"
@@ -771,6 +777,8 @@ document.addEventListener("alpine:init", () => {
                 crumbs.push({ label: "Inventory & Stock", section: "inventory" });
             } else if (this.activeSection === "announcements") {
                 crumbs.push({ label: "Announcements", section: "announcements" });
+            } else if (this.activeSection === "registrations") {
+                crumbs.push({ label: "Registration Approvals", section: "registrations" });
             } else if (this.activeSection === "admin") {
                 crumbs.push({ label: "System Administration", section: "admin" });
             }
@@ -1425,6 +1433,8 @@ selectPreset(preset) {
                 this.loadInventoryDashboard();
                 this.loadInventoryItems();
                 this.loadSuppliers();
+            } else if (section === 'registrations') {
+                this.loadPendingRegistrations();
             } else if (section === 'announcements') {
                 this.loadAnnouncements();
             } else if (section === 'admin') {

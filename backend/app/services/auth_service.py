@@ -599,15 +599,30 @@ class AuthService:
             else:
                 target_role = "student"
 
-            # Check if username already exists
+            # Check if username already exists in users or pending registrations
             cursor.execute("SELECT id FROM users WHERE username = ?;", (uname,))
             if cursor.fetchone():
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username is already taken.")
+            cursor.execute("SELECT id FROM registration_requests WHERE username = ? AND status = 'Pending';", (uname,))
+            if cursor.fetchone():
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A registration request with this username is already pending approval.")
 
-            # Check if email already exists in users
+            # Check if email already exists in users or pending registrations across ALL roles
             cursor.execute("SELECT id FROM users WHERE email = ?;", (email,))
             if cursor.fetchone():
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email is already registered.")
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This email address is already registered with an existing account.")
+            cursor.execute("SELECT id FROM registration_requests WHERE email = ? AND status = 'Pending';", (email,))
+            if cursor.fetchone():
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A registration request with this email address is already pending approval.")
+
+            # Check if phone number already exists in users or pending registrations across ALL roles
+            if phone:
+                cursor.execute("SELECT id FROM users WHERE phone = ?;", (phone,))
+                if cursor.fetchone():
+                    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This phone number is already registered with an existing account.")
+                cursor.execute("SELECT id FROM registration_requests WHERE phone = ? AND status = 'Pending';", (phone,))
+                if cursor.fetchone():
+                    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A registration request with this phone number is already pending approval.")
 
             # If Parent: Resolve Child Student Record
             linked_student_id = None
