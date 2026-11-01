@@ -4,7 +4,7 @@ Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
 Quality Goal: Q05 - Reduce Response Time (< 10ms)
 """
 
-from typing import Optional, List
+from typing import Optional, List, Union
 from pydantic import BaseModel, Field
 
 
@@ -15,7 +15,7 @@ class VisitorRegistrationRequest(BaseModel):
     id_proof_type: str = Field("Aadhaar", description="Aadhaar, Passport, Driving_License, Voter_ID, Other")
     id_proof_number: str = Field(..., min_length=4, max_length=50, description="Government identity document number")
     address: Optional[str] = Field("", max_length=255)
-    student_id: int = Field(..., gt=0, description="Hostel resident student being visited")
+    student_id: Union[int, str] = Field(..., description="Hostel resident student being visited")
     hostel_id: Optional[int] = Field(None, gt=0)
     room_id: Optional[int] = Field(None, gt=0)
     purpose: str = Field(..., min_length=3, max_length=255, description="Purpose of the visit")

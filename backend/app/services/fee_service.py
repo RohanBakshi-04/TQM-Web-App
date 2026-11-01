@@ -264,10 +264,12 @@ class FeeService:
             cursor = conn.cursor()
 
             # Verify student exists
-            cursor.execute("SELECT id, student_id, first_name || ' ' || last_name as name, user_id FROM students WHERE id = ?;", (payload.student_id,))
+            st_val = str(payload.student_id).strip()
+            cursor.execute("SELECT id, student_id, first_name || ' ' || last_name as name, user_id FROM students WHERE student_id = ? OR CAST(id AS TEXT) = ?;", (st_val, st_val))
             student = cursor.fetchone()
             if not student:
                 raise HTTPException(status_code=404, detail="Student not found.")
+            payload.student_id = student["id"]
 
             fee_struct = None
             if payload.fee_structure_id:

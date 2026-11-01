@@ -7,13 +7,22 @@ const API = {
     baseUrl: window.location.origin,
     accessToken: localStorage.getItem("hms_access_token") || null,
 
-    setToken(token) {
+    setToken(token, refreshToken = null) {
         this.accessToken = token;
         if (token) {
             localStorage.setItem("hms_access_token", token);
         } else {
             localStorage.removeItem("hms_access_token");
         }
+        if (refreshToken) {
+            localStorage.setItem("hms_refresh_token", refreshToken);
+        } else if (token === null) {
+            localStorage.removeItem("hms_refresh_token");
+        }
+    },
+
+    getRefreshToken() {
+        return localStorage.getItem("hms_refresh_token");
     },
 
     getToken() {
@@ -107,7 +116,7 @@ const API = {
         }
 
         if (data && data.access_token) {
-            this.setToken(data.access_token);
+            this.setToken(data.access_token, data.refresh_token);
         }
         return data;
     },
@@ -134,7 +143,7 @@ const API = {
             throw new Error(errorMsg);
         }
 
-        this.setToken(data.access_token);
+        this.setToken(data.access_token, data.refresh_token);
         return data;
     },
 
@@ -142,27 +151,41 @@ const API = {
     /**
      * Rotate refresh token and update access token.
      */
+    _refreshPromise: null,
     async refreshToken() {
-        try {
-            const response = await fetch(`${this.baseUrl}/api/v1/auth/refresh`, {
-                method: "POST",
-                headers: this.getHeaders(),
-                credentials: "include",
-                body: JSON.stringify({})
-            });
-
-            if (!response.ok) {
-                this.setToken(null);
-                return null;
-            }
-
-            const data = await response.json();
-            this.setToken(data.access_token);
-            return data;
-        } catch (err) {
-            this.setToken(null);
-            return null;
+        if (this._refreshPromise) {
+            return this._refreshPromise;
         }
+        this._refreshPromise = (async () => {
+            try {
+                const storedRefresh = this.getRefreshToken();
+                const bodyPayload = storedRefresh ? { refresh_token: storedRefresh } : {};
+                const response = await fetch(`${this.baseUrl}/api/v1/auth/refresh`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify(bodyPayload)
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401 || response.status === 403) {
+                        this.setToken(null);
+                    }
+                    return null;
+                }
+
+                const data = await response.json();
+                if (data && data.access_token) {
+                    this.setToken(data.access_token, data.refresh_token || storedRefresh);
+                }
+                return data;
+            } catch (err) {
+                return null;
+            } finally {
+                this._refreshPromise = null;
+            }
+        })();
+        return this._refreshPromise;
     },
 
     /**
@@ -170,7 +193,7 @@ const API = {
      */
     async logout() {
         try {
-            await fetch(`${this.baseUrl}/api/v1/auth/logout`, {
+            await this.request(`${this.baseUrl}/api/v1/auth/logout`, {
                 method: "POST",
                 headers: this.getHeaders(),
                 credentials: "include",
@@ -188,7 +211,7 @@ const API = {
      * Switch active role for accounts with multiple authorized roles.
      */
     async switchRole(role) {
-        const response = await fetch(`${this.baseUrl}/api/v1/auth/switch-role`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/auth/switch-role`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ role })
@@ -204,7 +227,7 @@ const API = {
     },
 
     async getMe() {
-        const response = await fetch(`${this.baseUrl}/api/v1/auth/me`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/auth/me`, {
             headers: this.getHeaders(),
             credentials: "include"
         });
@@ -230,7 +253,7 @@ const API = {
      * List all 12 system roles.
      */
     async getRoles() {
-        const response = await fetch(`${this.baseUrl}/api/v1/roles`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/roles`, {
             headers: this.getHeaders()
         });
         if (!response.ok) return [];
@@ -276,7 +299,7 @@ const API = {
             // Fallback to legacy endpoint if metrics router unavailable
         }
 
-        const legacyResp = await fetch(`${this.baseUrl}/api/v1/dashboard/stats`, {
+        const legacyResp = await this.request(`${this.baseUrl}/api/v1/dashboard/stats`, {
             headers: this.getHeaders()
         });
         if (!legacyResp.ok) return null;
@@ -287,7 +310,7 @@ const API = {
      * Retrieve cache operational statistics.
      */
     async getCacheStats() {
-        const response = await fetch(`${this.baseUrl}/api/v1/metrics/cache/stats`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/metrics/cache/stats`, {
             headers: this.getHeaders()
         });
         if (!response.ok) return null;
@@ -298,7 +321,7 @@ const API = {
      * Flush in-memory cache.
      */
     async clearCache() {
-        const response = await fetch(`${this.baseUrl}/api/v1/metrics/cache/clear`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/metrics/cache/clear`, {
             method: "POST",
             headers: this.getHeaders()
         });
@@ -309,7 +332,7 @@ const API = {
      * Fetch user list (Super Admin & Hostel Admin only).
      */
     async getUsers() {
-        const response = await fetch(`${this.baseUrl}/api/v1/users`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/users`, {
             headers: this.getHeaders()
         });
         if (!response.ok) {
@@ -323,7 +346,7 @@ const API = {
      * Fetch student profile with strict isolation.
      */
     async getStudentProfile(studentId) {
-        const response = await fetch(`${this.baseUrl}/api/v1/students/${studentId}/profile`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/students/${studentId}/profile`, {
             headers: this.getHeaders()
         });
         const data = await response.json();
@@ -337,7 +360,7 @@ const API = {
      * Change current user's password.
      */
     async getAuthorizedHostels() {
-        const response = await fetch(`${this.baseUrl}/api/v1/auth/authorized-hostels`);
+        const response = await this.request(`${this.baseUrl}/api/v1/auth/authorized-hostels`);
         const data = await response.json();
         if (!response.ok) {
             throw new Error(data.detail || "Failed to load authorized hostels.");
@@ -346,7 +369,7 @@ const API = {
     },
 
     async changePassword(currentPassword, newPassword) {
-        const response = await fetch(`${this.baseUrl}/api/v1/auth/change-password`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/auth/change-password`, {
             method: "POST",
             headers: this.getHeaders(),
             credentials: "include",
@@ -369,7 +392,7 @@ const API = {
 
     async getHostels(params = {}) {
         const qs = new URLSearchParams(params).toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/hostels${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/hostels${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load hostels.");
@@ -378,7 +401,7 @@ const API = {
 
     async getAllocations(params = {}) {
         const qs = new URLSearchParams(params).toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/allocations${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/allocations${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load allocations.");
@@ -386,7 +409,7 @@ const API = {
     },
 
     async getAllocation(id) {
-        const response = await fetch(`${this.baseUrl}/api/v1/allocations/${id}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/allocations/${id}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to fetch allocation.");
@@ -394,7 +417,7 @@ const API = {
     },
 
     async createAllocation(data) {
-        const response = await fetch(`${this.baseUrl}/api/v1/allocations`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/allocations`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(data)
@@ -406,7 +429,7 @@ const API = {
 
     async getAvailableBeds(params = {}) {
         const qs = new URLSearchParams(params).toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/allocations/available-beds${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/allocations/available-beds${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to fetch available beds.");
@@ -419,7 +442,7 @@ const API = {
         if (preferredRoomType) params.append("preferred_room_type", preferredRoomType);
         if (floorPreference !== null && floorPreference !== undefined) params.append("floor_preference", floorPreference);
 
-        const response = await fetch(`${this.baseUrl}/api/v1/allocations/suggestions?${params.toString()}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/allocations/suggestions?${params.toString()}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to fetch allocation suggestions.");
@@ -427,7 +450,7 @@ const API = {
     },
 
     async checkinAllocation(allocationId, checkinDate = null) {
-        const response = await fetch(`${this.baseUrl}/api/v1/allocations/${allocationId}/checkin`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/allocations/${allocationId}/checkin`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ checkin_date: checkinDate })
@@ -438,7 +461,7 @@ const API = {
     },
 
     async checkoutAllocation(allocationId, checkoutDate = null, reason = "Academic Term Completion") {
-        const response = await fetch(`${this.baseUrl}/api/v1/allocations/${allocationId}/checkout`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/allocations/${allocationId}/checkout`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ checkout_date: checkoutDate, reason })
@@ -449,7 +472,7 @@ const API = {
     },
 
     async requestTransfer(allocationId, toBedId, reason) {
-        const response = await fetch(`${this.baseUrl}/api/v1/allocations/${allocationId}/transfer`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/allocations/${allocationId}/transfer`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ to_bed_id: toBedId, reason })
@@ -465,7 +488,7 @@ const API = {
         if (studentId) params.append("student_id", studentId);
         const qs = params.toString();
 
-        const response = await fetch(`${this.baseUrl}/api/v1/transfers${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/transfers${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load transfer requests.");
@@ -473,7 +496,7 @@ const API = {
     },
 
     async reviewTransfer(transferId, action, remarks = "") {
-        const response = await fetch(`${this.baseUrl}/api/v1/transfers/${transferId}/review`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/transfers/${transferId}/review`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ action, remarks })
@@ -484,7 +507,7 @@ const API = {
     },
 
     async getStudentAllocationHistory(studentId) {
-        const response = await fetch(`${this.baseUrl}/api/v1/students/${studentId}/allocation-history`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/students/${studentId}/allocation-history`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load student history.");
@@ -492,7 +515,7 @@ const API = {
     },
 
     async getRoomOccupants(roomId) {
-        const response = await fetch(`${this.baseUrl}/api/v1/rooms/${roomId}/occupants`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/rooms/${roomId}/occupants`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load room occupants.");
@@ -509,7 +532,7 @@ const API = {
             limit: limit.toString(),
             offset: offset.toString()
         });
-        const response = await fetch(`${this.baseUrl}/api/v1/search?${params.toString()}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/search?${params.toString()}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) {
@@ -520,7 +543,7 @@ const API = {
     },
 
     async rebuildSearchIndex() {
-        const response = await fetch(`${this.baseUrl}/api/v1/search/rebuild-index`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/search/rebuild-index`, {
             method: "POST",
             headers: this.getHeaders()
         });
@@ -534,7 +557,7 @@ const API = {
     // ==================== COMPLAINTS ====================
 
     async submitComplaint(data) {
-        const response = await fetch(`${this.baseUrl}/api/v1/complaints`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/complaints`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(data)
@@ -558,7 +581,7 @@ const API = {
     },
 
     async getComplaintDetails(complaintId) {
-        const response = await fetch(`${this.baseUrl}/api/v1/complaints/${complaintId}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/complaints/${complaintId}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error("Failed to load complaint details.");
@@ -566,7 +589,7 @@ const API = {
     },
 
     async addComplaintComment(complaintId, comment) {
-        const response = await fetch(`${this.baseUrl}/api/v1/complaints/${complaintId}/comments`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/complaints/${complaintId}/comments`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ comment })
@@ -577,7 +600,7 @@ const API = {
     },
 
     async reopenComplaint(complaintId, reason) {
-        const response = await fetch(`${this.baseUrl}/api/v1/complaints/${complaintId}/reopen`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/complaints/${complaintId}/reopen`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ reason })
@@ -588,7 +611,7 @@ const API = {
     },
 
     async submitComplaintFeedback(complaintId, rating, comment = "") {
-        const response = await fetch(`${this.baseUrl}/api/v1/complaints/${complaintId}/feedback`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/complaints/${complaintId}/feedback`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ rating, comment })
@@ -618,7 +641,7 @@ const API = {
 
     async getComplaintAnalytics(hostelId = null) {
         const qs = hostelId ? `?hostel_id=${hostelId}` : "";
-        const response = await fetch(`${this.baseUrl}/api/v1/complaints/analytics${qs}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/complaints/analytics${qs}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error("Failed to load complaint analytics.");
@@ -626,7 +649,7 @@ const API = {
     },
 
     async assignComplaint(complaintId, assignedTo, priority = null, deadline = null, internalRemarks = "", affectsOccupancy = false) {
-        const response = await fetch(`${this.baseUrl}/api/v1/complaints/${complaintId}/assign`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/complaints/${complaintId}/assign`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({
@@ -643,7 +666,7 @@ const API = {
     },
 
     async escalateComplaint(complaintId, reason) {
-        const response = await fetch(`${this.baseUrl}/api/v1/complaints/${complaintId}/escalate`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/complaints/${complaintId}/escalate`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ reason })
@@ -654,7 +677,7 @@ const API = {
     },
 
     async rejectComplaint(complaintId, reason) {
-        const response = await fetch(`${this.baseUrl}/api/v1/complaints/${complaintId}/reject`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/complaints/${complaintId}/reject`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ reason })
@@ -665,7 +688,7 @@ const API = {
     },
 
     async closeComplaint(complaintId, notes = "") {
-        const response = await fetch(`${this.baseUrl}/api/v1/complaints/${complaintId}/close`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/complaints/${complaintId}/close`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ notes })
@@ -684,7 +707,7 @@ const API = {
         if (hostelId) params.append('hostel_id', hostelId);
 
         const qs = params.toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/maintenance/tasks${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/maintenance/tasks${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error("Failed to load maintenance tasks.");
@@ -692,7 +715,7 @@ const API = {
     },
 
     async getMaintenanceTask(taskId) {
-        const response = await fetch(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error("Failed to load maintenance task details.");
@@ -700,7 +723,7 @@ const API = {
     },
 
     async createMaintenanceTask(data) {
-        const response = await fetch(`${this.baseUrl}/api/v1/maintenance/tasks`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/maintenance/tasks`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(data)
@@ -711,7 +734,7 @@ const API = {
     },
 
     async acceptMaintenanceTask(taskId) {
-        const response = await fetch(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}/accept`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}/accept`, {
             method: "POST",
             headers: this.getHeaders()
         });
@@ -721,7 +744,7 @@ const API = {
     },
 
     async startMaintenanceTask(taskId) {
-        const response = await fetch(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}/start`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}/start`, {
             method: "POST",
             headers: this.getHeaders()
         });
@@ -731,7 +754,7 @@ const API = {
     },
 
     async updateMaintenanceTaskProgress(taskId, notes) {
-        const response = await fetch(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}/progress`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}/progress`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ notes })
@@ -742,7 +765,7 @@ const API = {
     },
 
     async holdMaintenanceTask(taskId, holdReason, notes = "") {
-        const response = await fetch(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}/hold`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}/hold`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ hold_reason: holdReason, notes })
@@ -753,7 +776,7 @@ const API = {
     },
 
     async completeMaintenanceTask(taskId, resolutionNotes, actualCost = 0.0, completionPhotoUrl = null) {
-        const response = await fetch(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}/complete`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}/complete`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({
@@ -768,7 +791,7 @@ const API = {
     },
 
     async verifyMaintenanceTask(taskId, approved = true, verificationNotes = "") {
-        const response = await fetch(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}/verify`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/maintenance/tasks/${taskId}/verify`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({
@@ -782,7 +805,7 @@ const API = {
     },
 
     async getStaffAvailability() {
-        const response = await fetch(`${this.baseUrl}/api/v1/maintenance/staff-availability`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/maintenance/staff-availability`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error("Failed to load staff availability.");
@@ -804,7 +827,7 @@ const API = {
         if (filters.offset) params.append('offset', filters.offset);
 
         const qs = params.toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/attendance${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/attendance${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error("Failed to load attendance records.");
@@ -812,7 +835,7 @@ const API = {
     },
 
     async markAttendance(data) {
-        const response = await fetch(`${this.baseUrl}/api/v1/attendance`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/attendance`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(data)
@@ -823,7 +846,7 @@ const API = {
     },
 
     async bulkMarkAttendance(data) {
-        const response = await fetch(`${this.baseUrl}/api/v1/attendance/bulk`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/attendance/bulk`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(data)
@@ -834,7 +857,7 @@ const API = {
     },
 
     async correctAttendance(attendanceId, data) {
-        const response = await fetch(`${this.baseUrl}/api/v1/attendance/${attendanceId}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/attendance/${attendanceId}`, {
             method: "PUT",
             headers: this.getHeaders(),
             body: JSON.stringify(data)
@@ -850,7 +873,7 @@ const API = {
         if (hostelId) params.append('hostel_id', hostelId);
         const qs = params.toString();
 
-        const response = await fetch(`${this.baseUrl}/api/v1/attendance/summary${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/attendance/summary${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error("Failed to load attendance daily summary.");
@@ -861,7 +884,7 @@ const API = {
         const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
         if (hostelId) params.append('hostel_id', hostelId);
 
-        const response = await fetch(`${this.baseUrl}/api/v1/attendance/reports?${params.toString()}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/attendance/reports?${params.toString()}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error("Failed to generate attendance report.");
@@ -870,7 +893,7 @@ const API = {
 
 
     async getMyAttendance() {
-        const response = await fetch(`${this.baseUrl}/api/v1/attendance/my-attendance`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/attendance/my-attendance`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error("Failed to load personal attendance record.");
@@ -878,7 +901,7 @@ const API = {
     },
 
         async getStudentAttendanceHistory(studentId) {
-        const response = await fetch(`${this.baseUrl}/api/v1/attendance/student/${studentId}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/attendance/student/${studentId}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error("Failed to load student attendance history.");
@@ -912,7 +935,7 @@ const API = {
         if (filters.offset) params.append('offset', filters.offset);
 
         const qs = params.toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/leave${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/leave${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error("Failed to load leave applications.");
@@ -920,7 +943,7 @@ const API = {
     },
 
     async submitLeaveApplication(data) {
-        const response = await fetch(`${this.baseUrl}/api/v1/leave`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/leave`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(data)
@@ -931,7 +954,7 @@ const API = {
     },
 
     async getLeaveApplication(id) {
-        const response = await fetch(`${this.baseUrl}/api/v1/leave/${id}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/leave/${id}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error("Failed to load leave application details.");
@@ -939,7 +962,7 @@ const API = {
     },
 
     async updateLeaveApplication(id, data) {
-        const response = await fetch(`${this.baseUrl}/api/v1/leave/${id}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/leave/${id}`, {
             method: "PUT",
             headers: this.getHeaders(),
             body: JSON.stringify(data)
@@ -950,7 +973,7 @@ const API = {
     },
 
     async approveLeaveApplication(id, remarks = "") {
-        const response = await fetch(`${this.baseUrl}/api/v1/leave/${id}/approve`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/leave/${id}/approve`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ remarks })
@@ -961,7 +984,7 @@ const API = {
     },
 
     async rejectLeaveApplication(id, reason) {
-        const response = await fetch(`${this.baseUrl}/api/v1/leave/${id}/reject`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/leave/${id}/reject`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ reason })
@@ -979,7 +1002,7 @@ const API = {
         if (filters.offset) params.append('offset', filters.offset);
 
         const qs = params.toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/outpasses${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/outpasses${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error("Failed to load outpasses.");
@@ -988,7 +1011,7 @@ const API = {
 
     async getOverdueOutpasses(hostelId = null) {
         const qs = hostelId ? `?hostel_id=${hostelId}` : "";
-        const response = await fetch(`${this.baseUrl}/api/v1/outpasses/overdue${qs}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/outpasses/overdue${qs}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error("Failed to load overdue outpasses.");
@@ -996,7 +1019,7 @@ const API = {
     },
 
     async verifyOutpassExit(ref, remarks = "") {
-        const response = await fetch(`${this.baseUrl}/api/v1/outpasses/${ref}/verify-exit`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/outpasses/${ref}/verify-exit`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ remarks })
@@ -1007,7 +1030,7 @@ const API = {
     },
 
     async verifyOutpassReturn(ref, remarks = "") {
-        const response = await fetch(`${this.baseUrl}/api/v1/outpasses/${ref}/verify-return`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/outpasses/${ref}/verify-return`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ remarks })
@@ -1028,7 +1051,7 @@ const API = {
         if (filters.offset) params.append('offset', filters.offset);
 
         const qs = params.toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/visitors${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/visitors${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error("Failed to load visitor logs.");
@@ -1036,7 +1059,7 @@ const API = {
     },
 
     async registerVisitor(data) {
-        const response = await fetch(`${this.baseUrl}/api/v1/visitors`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/visitors`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(data)
@@ -1047,7 +1070,7 @@ const API = {
     },
 
     async getVisitorLog(id) {
-        const response = await fetch(`${this.baseUrl}/api/v1/visitors/${id}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/visitors/${id}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error("Failed to load visitor details.");
@@ -1055,7 +1078,7 @@ const API = {
     },
 
     async approveVisitor(id, remarks = "") {
-        const response = await fetch(`${this.baseUrl}/api/v1/visitors/${id}/approve`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/visitors/${id}/approve`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ remarks })
@@ -1066,7 +1089,7 @@ const API = {
     },
 
     async rejectVisitor(id, reason) {
-        const response = await fetch(`${this.baseUrl}/api/v1/visitors/${id}/reject`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/visitors/${id}/reject`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ reason })
@@ -1077,7 +1100,7 @@ const API = {
     },
 
     async checkInVisitor(id, remarks = "", expectedExitTime = null) {
-        const response = await fetch(`${this.baseUrl}/api/v1/visitors/${id}/check-in`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/visitors/${id}/check-in`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ remarks, expected_exit_time: expectedExitTime })
@@ -1088,7 +1111,7 @@ const API = {
     },
 
     async checkOutVisitor(id, remarks = "") {
-        const response = await fetch(`${this.baseUrl}/api/v1/visitors/${id}/check-out`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/visitors/${id}/check-out`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ remarks })
@@ -1100,7 +1123,7 @@ const API = {
 
     async getActiveVisitors(hostelId = null) {
         const qs = hostelId ? `?hostel_id=${hostelId}` : "";
-        const response = await fetch(`${this.baseUrl}/api/v1/visitors/active${qs}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/visitors/active${qs}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error("Failed to load active visitors.");
@@ -1111,7 +1134,7 @@ const API = {
         const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
         if (hostelId) params.append('hostel_id', hostelId);
 
-        const response = await fetch(`${this.baseUrl}/api/v1/visitors/reports?${params.toString()}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/visitors/reports?${params.toString()}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error("Failed to load visitor reports.");
@@ -1122,7 +1145,7 @@ const API = {
 
     async getFeeStructures(params = {}) {
         const qs = new URLSearchParams(params).toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/structures${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/structures${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load fee structures.");
@@ -1130,7 +1153,7 @@ const API = {
     },
 
     async createFeeStructure(payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/structures`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/structures`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1141,7 +1164,7 @@ const API = {
     },
 
     async getFeeStructure(id) {
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/structures/${id}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/structures/${id}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load fee structure.");
@@ -1149,7 +1172,7 @@ const API = {
     },
 
     async updateFeeStructure(id, payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/structures/${id}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/structures/${id}`, {
             method: "PUT",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1160,7 +1183,7 @@ const API = {
     },
 
     async deleteFeeStructure(id) {
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/structures/${id}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/structures/${id}`, {
             method: "DELETE",
             headers: this.getHeaders()
         });
@@ -1171,7 +1194,7 @@ const API = {
 
     async getInvoices(params = {}) {
         const qs = new URLSearchParams(params).toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/invoices${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/invoices${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load invoices.");
@@ -1179,7 +1202,7 @@ const API = {
     },
 
     async createInvoice(payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/invoices`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/invoices`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1190,7 +1213,7 @@ const API = {
     },
 
     async createBulkInvoices(payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/invoices/bulk`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/invoices/bulk`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1201,7 +1224,7 @@ const API = {
     },
 
     async getInvoice(id) {
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/invoices/${id}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/invoices/${id}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load invoice details.");
@@ -1209,7 +1232,7 @@ const API = {
     },
 
     async applyInvoiceDiscount(id, discountAmount, discountReason) {
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/invoices/${id}/discount`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/invoices/${id}/discount`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ discount_amount: discountAmount, discount_reason: discountReason })
@@ -1220,7 +1243,7 @@ const API = {
     },
 
     async cancelInvoice(id, cancellationReason) {
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/invoices/${id}/cancel`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/invoices/${id}/cancel`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ cancellation_reason: cancellationReason })
@@ -1232,7 +1255,7 @@ const API = {
 
     async getStudentInvoices(studentId, params = {}) {
         const qs = new URLSearchParams(params).toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/invoices/student/${studentId}${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/invoices/student/${studentId}${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load student invoices.");
@@ -1240,7 +1263,7 @@ const API = {
     },
 
     async getInvoiceReceipt(id) {
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/invoices/${id}/receipt`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/invoices/${id}/receipt`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load invoice receipt.");
@@ -1249,7 +1272,7 @@ const API = {
 
     async getPayments(params = {}) {
         const qs = new URLSearchParams(params).toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/payments${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/payments${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load payments.");
@@ -1257,7 +1280,7 @@ const API = {
     },
 
     async recordPayment(payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/payments`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/payments`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1268,7 +1291,7 @@ const API = {
     },
 
     async getPayment(id) {
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/payments/${id}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/payments/${id}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load payment details.");
@@ -1276,7 +1299,7 @@ const API = {
     },
 
     async reversePayment(id, reason) {
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/payments/${id}/reverse`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/payments/${id}/reverse`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ reversal_reason: reason })
@@ -1288,7 +1311,7 @@ const API = {
 
     async getRefunds(params = {}) {
         const qs = new URLSearchParams(params).toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/refunds${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/refunds${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load refunds.");
@@ -1296,7 +1319,7 @@ const API = {
     },
 
     async requestRefund(payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/refunds`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/refunds`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1308,7 +1331,7 @@ const API = {
 
     async reviewRefund(id, action, reason = "", transactionRef = "") {
         const endpoint = action.toLowerCase();
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/refunds/${id}/${endpoint}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/refunds/${id}/${endpoint}`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ action, reason, transaction_reference: transactionRef })
@@ -1320,7 +1343,7 @@ const API = {
 
     async getFinancialDashboard(hostelId = null) {
         const qs = hostelId ? `?hostel_id=${hostelId}` : "";
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/dashboard${qs}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/dashboard${qs}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load financial dashboard.");
@@ -1329,7 +1352,7 @@ const API = {
 
     async getFinancialReports(reportType, params = {}) {
         const qs = new URLSearchParams(params).toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/reports/${reportType}${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/reports/${reportType}${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to generate financial report.");
@@ -1339,7 +1362,7 @@ const API = {
     async exportFinancialCsv(reportType, params = {}) {
         const allParams = { report_type: reportType, ...params };
         const qs = new URLSearchParams(allParams).toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/fees/reports/export?${qs}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/fees/reports/export?${qs}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error("Failed to export financial CSV.");
@@ -1358,7 +1381,7 @@ const API = {
     // ==================== MESS MANAGEMENT API ====================
     async getMessMenus(params = {}) {
         const qs = new URLSearchParams(params).toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/mess/menus${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/mess/menus${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load mess menus.");
@@ -1366,7 +1389,7 @@ const API = {
     },
 
     async createMessMenu(payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/mess/menus`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/mess/menus`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1377,7 +1400,7 @@ const API = {
     },
 
     async updateMessMenu(id, payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/mess/menus/${id}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/mess/menus/${id}`, {
             method: "PUT",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1388,7 +1411,7 @@ const API = {
     },
 
     async deleteMessMenu(id) {
-        const response = await fetch(`${this.baseUrl}/api/v1/mess/menus/${id}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/mess/menus/${id}`, {
             method: "DELETE",
             headers: this.getHeaders()
         });
@@ -1399,7 +1422,7 @@ const API = {
 
     async getMessSubscriptions(params = {}) {
         const qs = new URLSearchParams(params).toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/mess/subscriptions${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/mess/subscriptions${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load mess subscriptions.");
@@ -1407,7 +1430,7 @@ const API = {
     },
 
     async createMessSubscription(payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/mess/subscriptions`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/mess/subscriptions`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1419,7 +1442,7 @@ const API = {
 
     async updateMessSubscriptionStatus(id, action, reason = "") {
         const qs = new URLSearchParams({ reason }).toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/mess/subscriptions/${id}/${action}?${qs}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/mess/subscriptions/${id}/${action}?${qs}`, {
             method: "POST",
             headers: this.getHeaders()
         });
@@ -1430,7 +1453,7 @@ const API = {
 
     async getMealAttendance(params = {}) {
         const qs = new URLSearchParams(params).toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/mess/attendance${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/mess/attendance${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load meal attendance.");
@@ -1438,7 +1461,7 @@ const API = {
     },
 
     async recordMealAttendance(payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/mess/attendance`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/mess/attendance`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1449,7 +1472,7 @@ const API = {
     },
 
     async verifyMealAttendanceQR(payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/mess/attendance/qr-verify`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/mess/attendance/qr-verify`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1460,7 +1483,7 @@ const API = {
     },
 
     async correctMealAttendance(id, payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/mess/attendance/${id}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/mess/attendance/${id}`, {
             method: "PUT",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1472,7 +1495,7 @@ const API = {
 
     async getMessDashboard(hostelId = null) {
         const qs = hostelId ? `?hostel_id=${hostelId}` : "";
-        const response = await fetch(`${this.baseUrl}/api/v1/mess/dashboard${qs}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/mess/dashboard${qs}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load mess dashboard.");
@@ -1481,7 +1504,7 @@ const API = {
 
     // ==================== INVENTORY & STOCK API ====================
     async getInventoryCategories() {
-        const response = await fetch(`${this.baseUrl}/api/v1/inventory/categories`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/inventory/categories`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load categories.");
@@ -1489,7 +1512,7 @@ const API = {
     },
 
     async createInventoryCategory(payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/inventory/categories`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/inventory/categories`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1501,7 +1524,7 @@ const API = {
 
     async getSuppliers(activeOnly = false) {
         const qs = activeOnly ? "?active_only=true" : "";
-        const response = await fetch(`${this.baseUrl}/api/v1/inventory/suppliers${qs}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/inventory/suppliers${qs}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load suppliers.");
@@ -1509,7 +1532,7 @@ const API = {
     },
 
     async createSupplier(payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/inventory/suppliers`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/inventory/suppliers`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1520,7 +1543,7 @@ const API = {
     },
 
     async updateSupplier(id, payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/inventory/suppliers/${id}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/inventory/suppliers/${id}`, {
             method: "PUT",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1532,7 +1555,7 @@ const API = {
 
     async getInventoryItems(params = {}) {
         const qs = new URLSearchParams(params).toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/inventory/items${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/inventory/items${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load items.");
@@ -1540,7 +1563,7 @@ const API = {
     },
 
     async createInventoryItem(payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/inventory/items`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/inventory/items`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1551,7 +1574,7 @@ const API = {
     },
 
     async updateInventoryItem(id, payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/inventory/items/${id}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/inventory/items/${id}`, {
             method: "PUT",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1562,7 +1585,7 @@ const API = {
     },
 
     async recordStockInward(payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/inventory/stock/inward`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/inventory/stock/inward`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1573,7 +1596,7 @@ const API = {
     },
 
     async recordStockOutward(payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/inventory/stock/outward`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/inventory/stock/outward`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1584,7 +1607,7 @@ const API = {
     },
 
     async recordStockAdjustment(payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/inventory/stock/adjustment`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/inventory/stock/adjustment`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1596,7 +1619,7 @@ const API = {
 
     async getInventoryTransactions(params = {}) {
         const qs = new URLSearchParams(params).toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/inventory/transactions${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/inventory/transactions${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load transactions.");
@@ -1604,7 +1627,7 @@ const API = {
     },
 
     async getInventoryDashboard() {
-        const response = await fetch(`${this.baseUrl}/api/v1/inventory/dashboard`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/inventory/dashboard`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load inventory dashboard.");
@@ -1614,7 +1637,7 @@ const API = {
     // ==================== NOTIFICATIONS API ====================
     async getNotifications(params = {}) {
         const qs = new URLSearchParams(params).toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/notifications${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/notifications${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load notifications.");
@@ -1622,7 +1645,7 @@ const API = {
     },
 
     async getUnreadNotificationCount() {
-        const response = await fetch(`${this.baseUrl}/api/v1/notifications/unread-count`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/notifications/unread-count`, {
             headers: this.getHeaders()
         });
         if (!response.ok) return { unread_count: 0 };
@@ -1630,7 +1653,7 @@ const API = {
     },
 
     async markNotificationRead(id) {
-        const response = await fetch(`${this.baseUrl}/api/v1/notifications/${id}/read`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/notifications/${id}/read`, {
             method: "POST",
             headers: this.getHeaders()
         });
@@ -1639,7 +1662,7 @@ const API = {
     },
 
     async markAllNotificationsRead() {
-        const response = await fetch(`${this.baseUrl}/api/v1/notifications/read-all`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/notifications/read-all`, {
             method: "POST",
             headers: this.getHeaders()
         });
@@ -1648,7 +1671,7 @@ const API = {
     },
 
     async getNotificationPreferences() {
-        const response = await fetch(`${this.baseUrl}/api/v1/notifications/preferences`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/notifications/preferences`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load notification preferences.");
@@ -1656,7 +1679,7 @@ const API = {
     },
 
     async updateNotificationPreferences(payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/notifications/preferences`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/notifications/preferences`, {
             method: "PUT",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1668,7 +1691,7 @@ const API = {
     // ==================== ANNOUNCEMENTS API ====================
     async getAnnouncements(params = {}) {
         const qs = new URLSearchParams(params).toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/announcements${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/announcements${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load announcements.");
@@ -1676,7 +1699,7 @@ const API = {
     },
 
     async createAnnouncement(payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/announcements`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/announcements`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1687,7 +1710,7 @@ const API = {
     },
 
     async getAnnouncement(id) {
-        const response = await fetch(`${this.baseUrl}/api/v1/announcements/${id}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/announcements/${id}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load announcement.");
@@ -1695,7 +1718,7 @@ const API = {
     },
 
     async updateAnnouncement(id, payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/announcements/${id}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/announcements/${id}`, {
             method: "PUT",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1706,7 +1729,7 @@ const API = {
     },
 
     async publishAnnouncement(id) {
-        const response = await fetch(`${this.baseUrl}/api/v1/announcements/${id}/publish`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/announcements/${id}/publish`, {
             method: "POST",
             headers: this.getHeaders()
         });
@@ -1716,7 +1739,7 @@ const API = {
     },
 
     async archiveAnnouncement(id) {
-        const response = await fetch(`${this.baseUrl}/api/v1/announcements/${id}/archive`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/announcements/${id}/archive`, {
             method: "POST",
             headers: this.getHeaders()
         });
@@ -1726,7 +1749,7 @@ const API = {
     },
 
     async acknowledgeAnnouncement(id) {
-        const response = await fetch(`${this.baseUrl}/api/v1/announcements/${id}/acknowledge`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/announcements/${id}/acknowledge`, {
             method: "POST",
             headers: this.getHeaders()
         });
@@ -1736,7 +1759,7 @@ const API = {
     },
 
     async getAnnouncementViews(id) {
-        const response = await fetch(`${this.baseUrl}/api/v1/announcements/${id}/views`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/announcements/${id}/views`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load views.");
@@ -1746,13 +1769,13 @@ const API = {
     // ==================== SYSTEM ADMINISTRATION API ====================
     async getAdminSettings(category = null) {
         const url = `${this.baseUrl}/api/v1/admin/settings${category ? '?category=' + encodeURIComponent(category) : ''}`;
-        const response = await fetch(url, { headers: this.getHeaders() });
+        const response = await this.request(url, { headers: this.getHeaders() });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load system settings.");
         return await response.json();
     },
 
     async updateAdminSettings(payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/admin/settings`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/settings`, {
             method: "PUT",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1763,7 +1786,7 @@ const API = {
     },
 
     async getAdminSettingsHistory(limit = 50) {
-        const response = await fetch(`${this.baseUrl}/api/v1/admin/settings/history?limit=${limit}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/settings/history?limit=${limit}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load settings history.");
@@ -1772,7 +1795,7 @@ const API = {
 
     async getAdminUsers(params = {}) {
         const qs = new URLSearchParams(params).toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/admin/users${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/users${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load users directory.");
@@ -1780,7 +1803,7 @@ const API = {
     },
 
     async getAdminUserDetail(id) {
-        const response = await fetch(`${this.baseUrl}/api/v1/admin/users/${id}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/users/${id}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load user details.");
@@ -1788,7 +1811,7 @@ const API = {
     },
 
     async updateAdminUserStatus(id, payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/admin/users/${id}/status`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/users/${id}/status`, {
             method: "PUT",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1799,7 +1822,7 @@ const API = {
     },
 
     async updateAdminUserRoles(id, payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/admin/users/${id}/roles`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/users/${id}/roles`, {
             method: "PUT",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1810,7 +1833,7 @@ const API = {
     },
 
     async adminResetPassword(id, payload = {}) {
-        const response = await fetch(`${this.baseUrl}/api/v1/admin/users/${id}/password-reset`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/users/${id}/password-reset`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1821,7 +1844,7 @@ const API = {
     },
 
     async getAdminRoles() {
-        const response = await fetch(`${this.baseUrl}/api/v1/admin/roles`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/roles`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load roles.");
@@ -1829,7 +1852,7 @@ const API = {
     },
 
     async getAdminPermissions() {
-        const response = await fetch(`${this.baseUrl}/api/v1/admin/permissions`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/permissions`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load permissions.");
@@ -1837,7 +1860,7 @@ const API = {
     },
 
     async updateRolePermissions(roleId, payload) {
-        const response = await fetch(`${this.baseUrl}/api/v1/admin/roles/${roleId}/permissions`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/roles/${roleId}/permissions`, {
             method: "PUT",
             headers: this.getHeaders(),
             body: JSON.stringify(payload)
@@ -1849,7 +1872,7 @@ const API = {
 
     async getAdminAuditLogs(params = {}) {
         const qs = new URLSearchParams(params).toString();
-        const response = await fetch(`${this.baseUrl}/api/v1/admin/audit-logs${qs ? '?' + qs : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/audit-logs${qs ? '?' + qs : ''}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load audit logs.");
@@ -1857,7 +1880,7 @@ const API = {
     },
 
     async getAdminAuditLogDetail(id) {
-        const response = await fetch(`${this.baseUrl}/api/v1/admin/audit-logs/${id}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/audit-logs/${id}`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load audit log.");
@@ -1870,7 +1893,7 @@ const API = {
     },
 
     async createBackup(note = "") {
-        const response = await fetch(`${this.baseUrl}/api/v1/admin/backups${note ? '?note=' + encodeURIComponent(note) : ''}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/backups${note ? '?note=' + encodeURIComponent(note) : ''}`, {
             method: "POST",
             headers: this.getHeaders()
         });
@@ -1880,7 +1903,7 @@ const API = {
     },
 
     async listBackups() {
-        const response = await fetch(`${this.baseUrl}/api/v1/admin/backups`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/backups`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to list backups.");
@@ -1888,7 +1911,7 @@ const API = {
     },
 
     async restoreBackup(backupFilename) {
-        const response = await fetch(`${this.baseUrl}/api/v1/admin/backups/restore?backup_filename=${encodeURIComponent(backupFilename)}`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/backups/restore?backup_filename=${encodeURIComponent(backupFilename)}`, {
             method: "POST",
             headers: this.getHeaders()
         });
@@ -1898,7 +1921,7 @@ const API = {
     },
 
     async getPendingRegistrations() {
-        const response = await fetch(`${this.baseUrl}/api/v1/registrations/pending`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/registrations/pending`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load pending registrations.");
@@ -1906,7 +1929,7 @@ const API = {
     },
 
     async processRegistrationAction(id, action, reason = "") {
-        const response = await fetch(`${this.baseUrl}/api/v1/registrations/${id}/action`, {
+        const response = await this.request(`${this.baseUrl}/api/v1/registrations/${id}/action`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ action, reason })

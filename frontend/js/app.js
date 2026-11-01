@@ -1548,8 +1548,12 @@ selectPreset(preset) {
                 this.loadAvailableBeds();
                 this.loadTransfers();
             } else if (section === 'attendance') {
-                this.loadAttendanceSummary();
-                this.loadStudentsForMarking();
+                if (this.activeRoleView === 'student' || this.activeRoleView === 'parent_guardian') {
+                    this.loadMyAttendance();
+                } else {
+                    this.loadAttendanceSummary();
+                    this.loadStudentsForMarking();
+                }
             } else if (section === 'leaves') {
                 this.loadLeaveApplications();
                 this.loadOutpasses();
@@ -1561,9 +1565,13 @@ selectPreset(preset) {
                 this.loadFeeStructures();
                 this.loadInvoicesList();
             } else if (section === 'mess') {
-                this.loadMessDashboard();
-                this.loadMessMenus();
-                this.loadMessSubscriptions();
+                if (this.activeRoleView === 'student' || this.activeRoleView === 'parent_guardian') {
+                    this.loadMessMenus();
+                } else {
+                    this.loadMessDashboard();
+                    this.loadMessMenus();
+                    this.loadMessSubscriptions();
+                }
             } else if (section === 'inventory') {
                 this.loadInventoryDashboard();
                 this.loadInventoryItems();
@@ -1996,6 +2004,9 @@ selectPreset(preset) {
 
         // ==================== ATTENDANCE MODULE ====================
         async loadAttendanceSummary() {
+            if (this.activeRoleView === 'student' || this.activeRoleView === 'parent_guardian') {
+                return;
+            }
             try {
                 this.attendanceSummary = await window.API.getDailyAttendanceSummary(
                     this.attendanceDate,
@@ -2007,6 +2018,9 @@ selectPreset(preset) {
         },
 
         async loadStudentsForMarking() {
+            if (this.activeRoleView === 'student' || this.activeRoleView === 'parent_guardian') {
+                return;
+            }
             try {
                 let d = (this.attendanceDate || "").trim();
                 if (!d) {
@@ -2771,6 +2785,9 @@ selectPreset(preset) {
 
         // ==================== MESS & DINING MANAGEMENT ====================
         async loadMessDashboard(hostelId = null) {
+            if (this.activeRoleView === 'student' || this.activeRoleView === 'parent_guardian') {
+                return;
+            }
             this.messLoading = true;
             try {
                 this.messDashboardData = await window.API.getMessDashboard(hostelId);
@@ -2842,6 +2859,9 @@ selectPreset(preset) {
         },
 
         async loadMessSubscriptions() {
+            if (this.activeRoleView === 'student' || this.activeRoleView === 'parent_guardian') {
+                return;
+            }
             this.messLoading = true;
             try {
                 const params = {};

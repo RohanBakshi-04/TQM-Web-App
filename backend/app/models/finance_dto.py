@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from pydantic import BaseModel, Field, validator
 
 
@@ -64,7 +64,7 @@ class InvoiceItemCreate(BaseModel):
 
 
 class InvoiceCreate(BaseModel):
-    student_id: int
+    student_id: Union[int, str]
     fee_structure_id: Optional[int] = None
     issue_date: str = Field(default_factory=lambda: date.today().isoformat())
     due_date: str

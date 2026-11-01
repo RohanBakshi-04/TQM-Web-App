@@ -90,8 +90,8 @@ class VisitorService:
                 LEFT JOIN floors f ON f.id = r.floor_id
                 LEFT JOIN buildings bld ON bld.id = f.building_id
                 LEFT JOIN hostels h ON h.id = bld.hostel_id
-                WHERE s.id = ?;
-            """, (payload.student_id,))
+                WHERE s.student_id = ? OR CAST(s.id AS TEXT) = ?;
+            """, (str(payload.student_id).strip(), str(payload.student_id).strip()))
             student_info = cursor.fetchone()
             if not student_info:
                 raise HTTPException(status_code=404, detail="Resident student not found.")
@@ -131,7 +131,7 @@ class VisitorService:
                     status, approved_by, remarks
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """, (
-                pass_number, visitor_id, payload.student_id, hostel_id, room_id,
+                pass_number, visitor_id, student_info['student_id'], hostel_id, room_id,
                 check_in_time, expected_exit, payload.purpose, approval_status,
                 initial_status, current_user.get("user_id"), payload.address or ""
             ))

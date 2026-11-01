@@ -129,6 +129,12 @@ def get_students_for_marking(
         parts = clean_date.split("/")
         if len(parts) == 3 and len(parts[2]) == 4:
             clean_date = f"{parts[2]}-{parts[0].zfill(2)}-{parts[1].zfill(2)}"
+        elif len(parts) == 3 and len(parts[0]) == 4:
+            clean_date = f"{parts[0]}-{parts[1].zfill(2)}-{parts[2].zfill(2)}"
+    elif "-" in clean_date:
+        parts = clean_date.split("-")
+        if len(parts) == 3 and len(parts[2]) == 4:
+            clean_date = f"{parts[2]}-{parts[0].zfill(2)}-{parts[1].zfill(2)}"
 
     return AttendanceService.get_students_for_marking(
         clean_date, hostel_id, building_id, floor_id, room_id, current_user

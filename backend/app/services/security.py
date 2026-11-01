@@ -17,7 +17,7 @@ from backend.app.config import settings
 # JWT Cryptographic Parameters
 JWT_SECRET = os.getenv("JWT_SECRET_KEY", "tqm-q05-hms-super-secret-jwt-key-2026-rohan-bakshi")
 JWT_ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")) # 30 min access token
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440")) # 24 hours (1440 min)
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7")) # 7 days refresh token
 
 
