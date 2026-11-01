@@ -337,7 +337,7 @@ const API = {
      * Change current user's password.
      */
     async getAuthorizedHostels() {
-        const response = await fetch(${this.baseUrl}/api/v1/auth/authorized-hostels);
+        const response = await fetch(`${this.baseUrl}/api/v1/auth/authorized-hostels`);
         const data = await response.json();
         if (!response.ok) {
             throw new Error(data.detail || "Failed to load authorized hostels.");
@@ -346,7 +346,7 @@ const API = {
     },
 
     async changePassword(currentPassword, newPassword) {
-        const response = await fetch(${this.baseUrl}/api/v1/auth/change-password, {
+        const response = await fetch(`${this.baseUrl}/api/v1/auth/change-password`, {
             method: "POST",
             headers: this.getHeaders(),
             credentials: "include",
