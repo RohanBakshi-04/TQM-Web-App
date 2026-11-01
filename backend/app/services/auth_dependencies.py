@@ -46,7 +46,7 @@ def get_current_user(
         cursor = conn.cursor()
         cursor.execute("""
             SELECT id, username, email, first_name, last_name, phone, is_active,
-                   linked_student_id, linked_hostel_id
+                   linked_student_id, linked_hostel_id, staff_id
             FROM users
             WHERE id = ?;
         """, (user_id,))
@@ -62,6 +62,20 @@ def get_current_user(
         if not active_role or active_role not in roles:
             active_role = roles[0] if roles else "student"
 
+        # Resolve student_id if linked to a student profile
+        resolved_student_id = None
+        if user_row["linked_student_id"]:
+            cursor.execute("SELECT student_id FROM students WHERE id = ?;", (user_row["linked_student_id"],))
+            st_row = cursor.fetchone()
+            if st_row:
+                resolved_student_id = st_row["student_id"] if isinstance(st_row, dict) or hasattr(st_row, 'keys') else st_row[0]
+
+        # Resolve staff_id for any staff role
+        staff_roles = {'super_admin', 'hostel_admin', 'warden', 'assistant_warden', 'accountant', 'mess_manager', 'maintenance_staff', 'security_guard', 'admission_officer', 'auditor'}
+        staff_id_val = user_row["staff_id"]
+        if not staff_id_val and any(r in roles for r in staff_roles):
+            staff_id_val = f"STF-{user_row['id']:04d}"
+
         return {
             "id": user_row["id"],
             "user_id": user_row["id"],
@@ -75,7 +89,9 @@ def get_current_user(
             "active_role": active_role,
             "permissions": list(permissions),
             "linked_student_id": user_row["linked_student_id"],
-            "linked_hostel_id": user_row["linked_hostel_id"]
+            "linked_hostel_id": user_row["linked_hostel_id"],
+            "staff_id": staff_id_val,
+            "student_id": resolved_student_id
         }
     finally:
         conn.close()

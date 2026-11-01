@@ -1004,6 +1004,44 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
             applied_now.append("010_registration_approval_workflow")
             logger.info("Migration 010_registration_approval_workflow applied successfully.")
 
+        # Migration 011: Staff ID and Student ID Unique Identifiers
+        if "011_staff_ids_and_unique_identifiers" not in applied:
+            logger.info("Applying Migration 011_staff_ids_and_unique_identifiers...")
+            cursor = conn.cursor()
+
+            # 1. Add staff_id to users if not present
+            user_cols = [c[1] for c in cursor.execute("PRAGMA table_info(users);").fetchall()]
+            if "staff_id" not in user_cols:
+                cursor.execute("ALTER TABLE users ADD COLUMN staff_id TEXT;")
+
+            # 2. Add staff_id to registration_requests if not present
+            reg_cols = [c[1] for c in cursor.execute("PRAGMA table_info(registration_requests);").fetchall()]
+            if "staff_id" not in reg_cols:
+                cursor.execute("ALTER TABLE registration_requests ADD COLUMN staff_id TEXT;")
+
+            # 3. Create unique index for staff_id on users
+            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_staff_id ON users(staff_id) WHERE staff_id IS NOT NULL;")
+
+            # 4. Backfill unique Staff IDs for all existing staff members
+            staff_roles = ('super_admin', 'hostel_admin', 'warden', 'assistant_warden', 'accountant', 'mess_manager', 'maintenance_staff', 'security_guard', 'admission_officer', 'auditor')
+            cursor.execute("""
+                SELECT DISTINCT u.id
+                FROM users u
+                JOIN user_roles ur ON u.id = ur.user_id
+                JOIN roles r ON ur.role_id = r.id
+                WHERE r.name IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) AND (u.staff_id IS NULL OR u.staff_id = '')
+                ORDER BY u.id ASC;
+            """, staff_roles)
+            staff_user_ids = [row[0] for row in cursor.fetchall()]
+            for uid in staff_user_ids:
+                s_id = f"STF-{uid:04d}"
+                cursor.execute("UPDATE users SET staff_id = ? WHERE id = ?;", (s_id, uid))
+
+            conn.commit()
+            record_migration(conn, "011_staff_ids_and_unique_identifiers", "Add staff_id column, unique indexes, and backfill staff and student unique identifiers")
+            applied_now.append("011_staff_ids_and_unique_identifiers")
+            logger.info("Migration 011_staff_ids_and_unique_identifiers applied successfully.")
+
         return applied_now
     finally:
         if should_close:

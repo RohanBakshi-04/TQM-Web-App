@@ -110,11 +110,14 @@ class UserProfileResponse(BaseModel):
     email: str
     first_name: str
     last_name: str
+    phone: Optional[str] = ""
     roles: List[str]
     permissions: List[str]
     active_role: Optional[str] = None
     linked_student_id: Optional[int] = None
     linked_hostel_id: Optional[int] = None
+    staff_id: Optional[str] = None
+    student_id: Optional[str] = None
 
 
 class SwitchRoleRequest(BaseModel):

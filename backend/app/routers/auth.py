@@ -246,7 +246,7 @@ def list_system_users(
         cursor = conn.cursor()
         cursor.execute("""
             SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.is_active,
-                   u.failed_login_attempts, u.locked_until, u.linked_student_id, u.linked_hostel_id,
+                   u.failed_login_attempts, u.locked_until, u.linked_student_id, u.linked_hostel_id, u.staff_id,
                    GROUP_CONCAT(r.name) as role_names
             FROM users u
             LEFT JOIN user_roles ur ON u.id = ur.user_id

@@ -70,7 +70,7 @@ class AuthService:
             cursor = conn.cursor()
             query = """
                 SELECT id, username, email, password_hash, first_name, last_name, phone,
-                       is_active, failed_login_attempts, locked_until, linked_student_id, linked_hostel_id
+                       is_active, failed_login_attempts, locked_until, linked_student_id, linked_hostel_id, staff_id
                 FROM users
                 WHERE username = ? OR email = ?;
             """
@@ -155,16 +155,35 @@ class AuthService:
 
             roles, permissions = cls.get_user_roles_and_permissions(conn, user["id"])
 
+            # Resolve unique student_id if student
+            resolved_student_id = None
+            if user["linked_student_id"]:
+                cursor.execute("SELECT student_id FROM students WHERE id = ?;", (user["linked_student_id"],))
+                st_row = cursor.fetchone()
+                if st_row:
+                    resolved_student_id = st_row["student_id"] if isinstance(st_row, dict) or hasattr(st_row, 'keys') else st_row[0]
+
+            # Resolve unique staff_id if staff role
+            staff_roles = {'super_admin', 'hostel_admin', 'warden', 'assistant_warden', 'accountant', 'mess_manager', 'maintenance_staff', 'security_guard', 'admission_officer', 'auditor'}
+            staff_id_val = user["staff_id"]
+            if not staff_id_val and any(r in roles for r in staff_roles):
+                staff_id_val = f"STF-{user['id']:04d}"
+                cursor.execute("UPDATE users SET staff_id = ? WHERE id = ?;", (staff_id_val, user["id"]))
+                conn.commit()
+
             return {
                 "id": user["id"],
                 "username": user["username"],
                 "email": user["email"],
                 "first_name": user["first_name"],
                 "last_name": user["last_name"],
+                "phone": user["phone"] or "",
                 "roles": roles,
                 "permissions": list(permissions),
                 "linked_student_id": user["linked_student_id"],
-                "linked_hostel_id": user["linked_hostel_id"]
+                "linked_hostel_id": user["linked_hostel_id"],
+                "staff_id": staff_id_val,
+                "student_id": resolved_student_id
             }
         finally:
             if should_close:
@@ -284,23 +303,37 @@ class AuthService:
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired.")
 
             # Load user details
-            cursor.execute("SELECT id, username, email, first_name, last_name, is_active, linked_student_id, linked_hostel_id FROM users WHERE id = ?;", (token_row["user_id"],))
+            cursor.execute("SELECT id, username, email, first_name, last_name, phone, is_active, linked_student_id, linked_hostel_id, staff_id FROM users WHERE id = ?;", (token_row["user_id"],))
             user = cursor.fetchone()
             if not user or not user["is_active"]:
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User account inactive.")
 
             # Generate new pair
             roles, permissions = cls.get_user_roles_and_permissions(conn, user["id"])
+            # Resolve unique student_id if student
+            resolved_student_id = None
+            if user["linked_student_id"]:
+                cursor.execute("SELECT student_id FROM students WHERE id = ?;", (user["linked_student_id"],))
+                st_row = cursor.fetchone()
+                if st_row:
+                    resolved_student_id = st_row["student_id"] if isinstance(st_row, dict) or hasattr(st_row, 'keys') else st_row[0]
+
+            staff_roles = {'super_admin', 'hostel_admin', 'warden', 'assistant_warden', 'accountant', 'mess_manager', 'maintenance_staff', 'security_guard', 'admission_officer', 'auditor'}
+            staff_id_val = user["staff_id"] or (f"STF-{user['id']:04d}" if any(r in roles for r in staff_roles) else None)
+
             user_dict = {
                 "id": user["id"],
                 "username": user["username"],
                 "email": user["email"],
                 "first_name": user["first_name"],
                 "last_name": user["last_name"],
+                "phone": user["phone"] or "",
                 "roles": roles,
                 "permissions": list(permissions),
                 "linked_student_id": user["linked_student_id"],
-                "linked_hostel_id": user["linked_hostel_id"]
+                "linked_hostel_id": user["linked_hostel_id"],
+                "staff_id": staff_id_val,
+                "student_id": resolved_student_id
             }
 
             raw_new_refresh, new_token_hash, new_expires_at = create_refresh_token(user["id"])
@@ -677,15 +710,34 @@ class AuthService:
             # Assign Role in user_roles
             cursor.execute("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?);", (user_id, role_id))
 
-            # If Student: create linked student record with Pending status
+            # Unique Staff ID generation for staff members
+            assigned_staff_id = None
+            if target_role not in ("student", "parent_guardian"):
+                assigned_staff_id = f"STF-{user_id:04d}"
+                cursor.execute("SELECT id FROM users WHERE staff_id = ?;", (assigned_staff_id,))
+                if cursor.fetchone():
+                    assigned_staff_id = f"STF-{user_id:04d}-{uuid.uuid4().hex[:4].upper()}"
+                cursor.execute("UPDATE users SET staff_id = ? WHERE id = ?;", (assigned_staff_id, user_id))
+
+            # If Student: create linked student record with unique student_id
             if target_role == "student":
-                enrollment = (payload.enrollment_no or "").strip() or f"STU-{datetime.now().strftime('%Y%m')}-{user_id:04d}"
+                enrollment = (payload.enrollment_no or "").strip()
+                if enrollment:
+                    # Strict Uniqueness Enforcement for Student ID (Poka-Yoke)
+                    cursor.execute("SELECT id FROM students WHERE student_id = ?;", (enrollment,))
+                    if cursor.fetchone():
+                        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Student ID / Roll No '{enrollment}' is already registered to another student.")
+                    cursor.execute("SELECT id FROM registration_requests WHERE student_roll_no = ? AND status = 'Pending';", (enrollment,))
+                    if cursor.fetchone():
+                        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"A registration request with Student ID '{enrollment}' is already pending approval.")
+                else:
+                    enrollment = f"STU-{datetime.now().strftime('%Y%m')}-{user_id:04d}"
+                    cursor.execute("SELECT id FROM students WHERE student_id = ?;", (enrollment,))
+                    if cursor.fetchone():
+                        enrollment = f"STU-{datetime.now().strftime('%Y%m')}-{user_id:04d}-{uuid.uuid4().hex[:4].upper()}"
+
                 gender = payload.gender if payload.gender in ("Male", "Female", "Other") else "Male"
                 branch = (payload.branch or "General").strip()
-
-                cursor.execute("SELECT id FROM students WHERE student_id = ?;", (enrollment,))
-                if cursor.fetchone():
-                    enrollment = f"{enrollment}-{user_id}"
 
                 cursor.execute("""
                     INSERT INTO students (
