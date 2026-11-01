@@ -126,6 +126,7 @@ document.addEventListener("alpine:init", () => {
             password: '',
             confirmPassword: '',
             role: 'student', // student, staff, parent_guardian
+            gender: 'Male', // Male, Female, Other
             enrollment_no: '',
             branch: 'CSE',
             specialization: 'warden',
@@ -1028,6 +1029,7 @@ selectPreset(preset) {
                     first_name: this.registerForm.first_name,
                     last_name: this.registerForm.last_name,
                     phone: this.registerForm.phone || null,
+                    gender: this.registerForm.gender || 'Male',
                     role: this.registerForm.role,
                     enrollment_no: this.registerForm.role === 'student' ? (this.registerForm.enrollment_no || null) : null,
                     branch: this.registerForm.role === 'student' ? this.registerForm.branch : null,

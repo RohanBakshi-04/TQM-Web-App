@@ -175,5 +175,49 @@ class TestRegistrationApprovalWorkflow(unittest.TestCase):
         self.assertEqual(login_success.status_code, 200)
         self.assertIn("parent_guardian", login_success.json()["user"]["roles"])
 
+
+    def test_04_gender_persisted_for_student_and_staff_registration(self):
+        # 1. Register student with Female gender
+        s_uid = uuid.uuid4().hex[:6]
+        s_uname = f"std_f_{s_uid}"
+        res_s = self.client.post("/api/v1/auth/register", json={
+            "username": s_uname,
+            "email": f"{s_uname}@univ.edu",
+            "password": "Password123!",
+            "first_name": "Pooja",
+            "last_name": "Sharma",
+            "role": "student",
+            "branch": "ECE",
+            "gender": "Female"
+        })
+        self.assertEqual(res_s.status_code, 201)
+
+        # Check in pending queue that gender is Female
+        pend_w = self.client.get("/api/v1/registrations/pending", headers=self.warden_headers).json()
+        target_s = next((r for r in pend_w if r["username"] == s_uname), None)
+        self.assertIsNotNone(target_s)
+        self.assertEqual(target_s["gender"], "Female")
+
+        # 2. Register staff member with Female gender
+        stf_uid = uuid.uuid4().hex[:6]
+        stf_uname = f"stf_f_{stf_uid}"
+        res_stf = self.client.post("/api/v1/auth/register", json={
+            "username": stf_uname,
+            "email": f"{stf_uname}@univ.edu",
+            "password": "Password123!",
+            "first_name": "Meena",
+            "last_name": "Kumari",
+            "role": "staff",
+            "specialization": "warden",
+            "gender": "Female"
+        })
+        self.assertEqual(res_stf.status_code, 201)
+
+        # Check in admin queue that staff request has Female gender
+        pend_a = self.client.get("/api/v1/registrations/pending", headers=self.admin_headers).json()
+        target_stf = next((r for r in pend_a if r["username"] == stf_uname), None)
+        self.assertIsNotNone(target_stf)
+        self.assertEqual(target_stf["gender"], "Female")
+
 if __name__ == "__main__":
     unittest.main()

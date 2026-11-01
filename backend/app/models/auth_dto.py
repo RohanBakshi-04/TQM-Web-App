@@ -40,6 +40,13 @@ class RegisterRequest(BaseModel):
             raise ValueError("Invalid email format (e.g. name@univ.edu).")
         return v.strip().lower()
 
+    @field_validator("gender")
+    @classmethod
+    def validate_gender(cls, v: Optional[str]) -> str:
+        if not v or v not in ("Male", "Female", "Other"):
+            return "Male"
+        return v
+
     @field_validator("phone")
     @classmethod
     def validate_phone_number(cls, v: Optional[str]) -> Optional[str]:

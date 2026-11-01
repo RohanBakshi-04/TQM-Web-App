@@ -1584,39 +1584,60 @@
 
                                 <!-- Conditional Fields: Student -->
                                 <template x-if="registerForm.role === 'student'">
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-brand-50/50 dark:bg-brand-950/30 rounded-xl border border-brand-200 dark:border-brand-900/50">
-                                        <div>
-                                            <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Enrollment / Roll No (Optional)</label>
-                                            <input type="text" x-model="registerForm.enrollment_no" placeholder="Leave blank for auto-ID"
-                                                   class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
+                                    <div class="space-y-3 p-3 bg-brand-50/50 dark:bg-brand-950/30 rounded-xl border border-brand-200 dark:border-brand-900/50">
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Gender *</label>
+                                                <select x-model="registerForm.gender" required class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white font-medium">
+                                                    <option value="Male">Male (Boys Hostel)</option>
+                                                    <option value="Female">Female (Girls Hostel)</option>
+                                                    <option value="Other">Other</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Department / Branch *</label>
+                                                <select x-model="registerForm.branch" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
+                                                    <option value="CSE">Computer Science (CSE)</option>
+                                                    <option value="ECE">Electronics (ECE)</option>
+                                                    <option value="ME">Mechanical (ME)</option>
+                                                    <option value="CE">Civil (CE)</option>
+                                                    <option value="IT">Information Tech (IT)</option>
+                                                    <option value="Management">Management (MBA/BBA)</option>
+                                                </select>
+                                            </div>
                                         </div>
                                         <div>
-                                            <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Department / Branch</label>
-                                            <select x-model="registerForm.branch" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
-                                                <option value="CSE">Computer Science (CSE)</option>
-                                                <option value="ECE">Electronics (ECE)</option>
-                                                <option value="ME">Mechanical (ME)</option>
-                                                <option value="CE">Civil (CE)</option>
-                                                <option value="IT">Information Tech (IT)</option>
-                                                <option value="Management">Management (MBA/BBA)</option>
-                                            </select>
+                                            <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Enrollment / Roll No (Optional)</label>
+                                            <input type="text" x-model="registerForm.enrollment_no" placeholder="e.g. 2410301057 (leave blank for auto-ID)"
+                                                   class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white font-mono">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Used for unique student ID and room allotment matching.</span>
                                         </div>
                                     </div>
                                 </template>
 
                                 <!-- Conditional Fields: Staff -->
                                 <template x-if="registerForm.role === 'staff'">
-                                    <div class="p-3 bg-amber-50/50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-900/50">
-                                        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Staff Specialization / Role</label>
-                                        <select x-model="registerForm.specialization" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
-                                            <option value="warden">Hostel Warden (Administration & Oversight)</option>
-                                            <option value="electrician">Electrician (Electrical Systems)</option>
-                                            <option value="plumber">Plumber (Water & Sanitation)</option>
-                                            <option value="maintenance_staff">General Facility & Carpentry</option>
-                                            <option value="mess_manager">Chef / Mess Dining Operations</option>
-                                            <option value="security_guard">Campus Gate Security Guard</option>
-                                            <option value="accountant">Accounts & Billing Clerk</option>
-                                        </select>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-amber-50/50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-900/50">
+                                        <div>
+                                            <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Gender *</label>
+                                            <select x-model="registerForm.gender" required class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white font-medium">
+                                                <option value="Male">Male</option>
+                                                <option value="Female">Female</option>
+                                                <option value="Other">Other</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Staff Specialization / Role *</label>
+                                            <select x-model="registerForm.specialization" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
+                                                <option value="warden">Hostel Warden (Administration & Oversight)</option>
+                                                <option value="electrician">Electrician (Electrical Systems)</option>
+                                                <option value="plumber">Plumber (Water & Sanitation)</option>
+                                                <option value="maintenance_staff">General Facility & Carpentry</option>
+                                                <option value="mess_manager">Chef / Mess Dining Operations</option>
+                                                <option value="security_guard">Campus Gate Security Guard</option>
+                                                <option value="accountant">Accounts & Billing Clerk</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </template>
 
@@ -1847,7 +1868,9 @@
                                                 </div>
                                                 <div class="text-xs text-slate-600 dark:text-slate-300 flex flex-wrap gap-x-4 gap-y-1">
                                                     <span><i class="fa-regular fa-envelope text-slate-400 mr-1"></i><span x-text="req.email"></span></span>
-                                                    <span x-show="req.phone"><i class="fa-solid fa-phone text-slate-400 mr-1"></i><span x-text="req.phone"></span></span>
+                                                    <span x-show="req.phone"><i class="fa-solid fa-phone text-slate-400 mr-1"></i><span x-text="req.phone"></span></span>
+                                                    <span x-show="req.gender"><i class="fa-solid fa-venus-mars text-slate-400 mr-1"></i><span x-text="req.gender"></span></span>
+                                                    <span x-show="req.gender"><i class="fa-solid fa-venus-mars text-slate-400 mr-1"></i><span x-text="req.gender"></span></span>
                                                     <template x-if="req.requested_role === 'student'">
                                                         <span><i class="fa-solid fa-graduation-cap text-slate-400 mr-1"></i>Dept: <strong x-text="req.branch || 'General'"></strong> | Roll: <code x-text="req.student_roll_no || 'Auto'"></code></span>
                                                     </template>
@@ -2075,7 +2098,9 @@
                                                 </div>
                                                 <div class="text-xs text-slate-600 dark:text-slate-300 flex flex-wrap gap-x-4 gap-y-1">
                                                     <span><i class="fa-regular fa-envelope text-slate-400 mr-1"></i><span x-text="req.email"></span></span>
-                                                    <span x-show="req.phone"><i class="fa-solid fa-phone text-slate-400 mr-1"></i><span x-text="req.phone"></span></span>
+                                                    <span x-show="req.phone"><i class="fa-solid fa-phone text-slate-400 mr-1"></i><span x-text="req.phone"></span></span>
+                                                    <span x-show="req.gender"><i class="fa-solid fa-venus-mars text-slate-400 mr-1"></i><span x-text="req.gender"></span></span>
+                                                    <span x-show="req.gender"><i class="fa-solid fa-venus-mars text-slate-400 mr-1"></i><span x-text="req.gender"></span></span>
                                                     <template x-if="req.requested_role === 'student'">
                                                         <span><i class="fa-solid fa-graduation-cap text-slate-400 mr-1"></i>Dept: <strong x-text="req.branch || 'General'"></strong> | Roll: <code x-text="req.student_roll_no || 'Auto'"></code></span>
                                                     </template>

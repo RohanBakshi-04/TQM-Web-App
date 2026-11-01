@@ -171,6 +171,7 @@ class AuthService:
                 cursor.execute("UPDATE users SET staff_id = ? WHERE id = ?;", (staff_id_val, user["id"]))
                 conn.commit()
 
+            user_gender = user["gender"] if "gender" in user.keys() and user["gender"] else "Male"
             return {
                 "id": user["id"],
                 "username": user["username"],
@@ -178,6 +179,7 @@ class AuthService:
                 "first_name": user["first_name"],
                 "last_name": user["last_name"],
                 "phone": user["phone"] or "",
+                "gender": user_gender,
                 "roles": roles,
                 "permissions": list(permissions),
                 "linked_student_id": user["linked_student_id"],
@@ -691,11 +693,13 @@ class AuthService:
             # Hash password
             pwd_hash = hash_password(payload.password)
 
+            gender_val = payload.gender if payload.gender in ("Male", "Female", "Other") else "Male"
+
             # Create User record in INACTIVE state awaiting approval
             cursor.execute("""
-                INSERT INTO users (username, email, password_hash, salt, first_name, last_name, phone, is_active, linked_student_id)
-                VALUES (?, ?, ?, '', ?, ?, ?, 0, ?);
-            """, (uname, email, pwd_hash, first_name, last_name, phone, linked_student_id if target_role == "parent_guardian" else None))
+                INSERT INTO users (username, email, password_hash, salt, first_name, last_name, phone, is_active, linked_student_id, gender)
+                VALUES (?, ?, ?, '', ?, ?, ?, 0, ?, ?);
+            """, (uname, email, pwd_hash, first_name, last_name, phone, linked_student_id if target_role == "parent_guardian" else None, gender_val))
             user_id = cursor.lastrowid
 
             # Resolve Role ID
@@ -771,8 +775,9 @@ class AuthService:
                     user_id, username, email, first_name, last_name, phone,
                     requested_role, specialization, student_roll_no, branch,
                     linked_student_id, relationship, status,
-                    admin_warden_approval_status, student_approval_status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    admin_warden_approval_status, student_approval_status,
+                    staff_id, gender
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """, (
                 user_id, uname, email, first_name, last_name, phone,
                 target_role, payload.specialization,
@@ -780,7 +785,8 @@ class AuthService:
                 payload.branch if target_role == "student" else None,
                 linked_student_id,
                 getattr(payload, 'relationship', 'Parent'),
-                status_str, admin_warden_status, student_status
+                status_str, admin_warden_status, student_status,
+                assigned_staff_id, gender_val
             ))
             req_id = cursor.lastrowid
 

@@ -1042,6 +1042,33 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
             applied_now.append("011_staff_ids_and_unique_identifiers")
             logger.info("Migration 011_staff_ids_and_unique_identifiers applied successfully.")
 
+        # 12. Migration 012: Gender support for users and registration requests
+        if "012_gender_support_for_users_and_registrations" not in applied:
+            logger.info("Applying Migration 012_gender_support_for_users_and_registrations...")
+            cursor = conn.cursor()
+
+            # 1. Add gender to users if not present
+            user_cols = [c[1] for c in cursor.execute("PRAGMA table_info(users);").fetchall()]
+            if "gender" not in user_cols:
+                cursor.execute("ALTER TABLE users ADD COLUMN gender TEXT DEFAULT 'Male';")
+
+            # 2. Add gender to registration_requests if not present
+            reg_cols = [c[1] for c in cursor.execute("PRAGMA table_info(registration_requests);").fetchall()]
+            if "gender" not in reg_cols:
+                cursor.execute("ALTER TABLE registration_requests ADD COLUMN gender TEXT DEFAULT 'Male';")
+
+            # 3. Synchronize existing students' gender to users table
+            cursor.execute("""
+                UPDATE users
+                SET gender = (SELECT s.gender FROM students s WHERE s.id = users.linked_student_id)
+                WHERE users.linked_student_id IS NOT NULL AND EXISTS (SELECT 1 FROM students s WHERE s.id = users.linked_student_id);
+            """)
+
+            conn.commit()
+            record_migration(conn, "012_gender_support_for_users_and_registrations", "Add gender column to users and registration_requests tables")
+            applied_now.append("012_gender_support_for_users_and_registrations")
+            logger.info("Migration 012_gender_support_for_users_and_registrations applied successfully.")
+
         return applied_now
     finally:
         if should_close:
