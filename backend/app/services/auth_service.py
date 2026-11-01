@@ -83,8 +83,32 @@ class AuthService:
                 cls._log_login(conn, None, username_or_email, ip_address, user_agent, "FAILED", "User not found")
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password.")
 
-            # Check if account is deactivated
+            # Check if account is deactivated or pending registration approval
             if not user["is_active"]:
+                cursor.execute("""
+                    SELECT status, requested_role, admin_warden_approval_status, student_approval_status
+                    FROM registration_requests
+                    WHERE user_id = ?
+                    ORDER BY id DESC LIMIT 1;
+                """, (user["id"],))
+                reg_req = cursor.fetchone()
+                if reg_req and reg_req["status"] == "Pending":
+                    r_role = reg_req["requested_role"]
+                    if r_role == "parent_guardian":
+                        if reg_req["student_approval_status"] != "Approved":
+                            detail = "Your parent registration is awaiting confirmation by your child. Once verified by your child and approved by the Hostel Warden/Admin, your account will be active."
+                        else:
+                            detail = "Your child has verified your parent request! Your account is awaiting final approval by the Hostel Warden or Administrator."
+                    elif r_role in ("staff", "maintenance_staff", "warden", "security_guard", "mess_manager", "accountant"):
+                        detail = "Your staff registration is pending approval by the Administrator. You will be able to log in once approved."
+                    else:
+                        detail = "Your student registration is pending approval by the Hostel Warden or Administrator. You will be able to log in once approved."
+                    cls._log_login(conn, user["id"], username_or_email, ip_address, user_agent, "BLOCKED", "Registration pending approval")
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+                elif reg_req and reg_req["status"] == "Rejected":
+                    cls._log_login(conn, user["id"], username_or_email, ip_address, user_agent, "BLOCKED", "Registration rejected")
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Your registration request was not approved. Contact hostel administration.")
+
                 cls._log_login(conn, user["id"], username_or_email, ip_address, user_agent, "BLOCKED", "Account deactivated")
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated. Contact administration.")
 
@@ -528,7 +552,9 @@ class AuthService:
             # Map generic staff roles into specialist staff categories
             if requested_role in ("staff", "staff_member"):
                 spec = (payload.specialization or "").strip().lower()
-                if any(k in spec for k in ("mess", "chef", "cook", "kitchen", "dining")):
+                if any(k in spec for k in ("warden", "hostel_warden")):
+                    target_role = "warden"
+                elif any(k in spec for k in ("mess", "chef", "cook", "kitchen", "dining")):
                     target_role = "mess_manager"
                 elif any(k in spec for k in ("security", "guard", "gate")):
                     target_role = "security_guard"
@@ -551,14 +577,45 @@ class AuthService:
             if cursor.fetchone():
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email is already registered.")
 
+            # If Parent: Resolve Child Student Record
+            linked_student_id = None
+            child_info = None
+            if target_role == "parent_guardian":
+                child_ident = (getattr(payload, 'child_identifier', None) or "").strip()
+                if not child_ident:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Child Roll Number or University Email is required for Parent / Guardian registration."
+                    )
+                cursor.execute("""
+                    SELECT s.id, s.student_id, s.first_name, s.last_name, s.user_id, s.email
+                    FROM students s
+                    WHERE s.student_id = ? OR s.email = ?;
+                """, (child_ident, child_ident.lower()))
+                child_info = cursor.fetchone()
+                if not child_info:
+                    cursor.execute("""
+                        SELECT s.id, s.student_id, s.first_name, s.last_name, s.user_id, s.email
+                        FROM students s
+                        JOIN users u ON s.user_id = u.id
+                        WHERE u.username = ?;
+                    """, (child_ident.lower(),))
+                    child_info = cursor.fetchone()
+                if not child_info:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"No enrolled student found matching identifier '{child_ident}'. Please check your child's roll number or email."
+                    )
+                linked_student_id = child_info["id"]
+
             # Hash password
             pwd_hash = hash_password(payload.password)
 
-            # Create User record
+            # Create User record in INACTIVE state awaiting approval
             cursor.execute("""
-                INSERT INTO users (username, email, password_hash, salt, first_name, last_name, phone, is_active)
-                VALUES (?, ?, ?, '', ?, ?, ?, 1);
-            """, (uname, email, pwd_hash, first_name, last_name, phone))
+                INSERT INTO users (username, email, password_hash, salt, first_name, last_name, phone, is_active, linked_student_id)
+                VALUES (?, ?, ?, '', ?, ?, ?, 0, ?);
+            """, (uname, email, pwd_hash, first_name, last_name, phone, linked_student_id if target_role == "parent_guardian" else None))
             user_id = cursor.lastrowid
 
             # Resolve Role ID
@@ -573,7 +630,7 @@ class AuthService:
             # Assign Role in user_roles
             cursor.execute("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?);", (user_id, role_id))
 
-            # If Student: create linked student record
+            # If Student: create linked student record with Pending status
             if target_role == "student":
                 enrollment = (payload.enrollment_no or "").strip() or f"STU-{datetime.now().strftime('%Y%m')}-{user_id:04d}"
                 gender = payload.gender if payload.gender in ("Male", "Female", "Other") else "Male"
@@ -592,11 +649,58 @@ class AuthService:
                 linked_student_id = cursor.lastrowid
                 cursor.execute("UPDATE users SET linked_student_id = ? WHERE id = ?;", (linked_student_id, user_id))
 
+            # Insert Registration Approval Request
+            if target_role == "parent_guardian":
+                status_str = "Pending"
+                admin_warden_status = "Pending"
+                student_status = "Pending"
+                reg_message = f"Parent registration submitted. Verification requests sent to your child ({child_info['first_name']} {child_info['last_name']}) and the Hostel Warden/Administrator."
+            elif target_role == "student":
+                status_str = "Pending"
+                admin_warden_status = "Pending"
+                student_status = "N/A"
+                reg_message = f"Student registration submitted for {first_name} {last_name}. Awaiting approval by the Hostel Warden or Administrator."
+            else:
+                status_str = "Pending"
+                admin_warden_status = "Pending"
+                student_status = "N/A"
+                role_title = "Hostel Warden" if target_role == "warden" else "Staff Member"
+                reg_message = f"{role_title} registration submitted for {first_name} {last_name}. Awaiting approval by the Administrator."
+
+            cursor.execute("""
+                INSERT INTO registration_requests (
+                    user_id, username, email, first_name, last_name, phone,
+                    requested_role, specialization, student_roll_no, branch,
+                    linked_student_id, relationship, status,
+                    admin_warden_approval_status, student_approval_status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """, (
+                user_id, uname, email, first_name, last_name, phone,
+                target_role, payload.specialization,
+                payload.enrollment_no if target_role == "student" else None,
+                payload.branch if target_role == "student" else None,
+                linked_student_id,
+                getattr(payload, 'relationship', 'Parent'),
+                status_str, admin_warden_status, student_status
+            ))
+            req_id = cursor.lastrowid
+
+            # Notifications
+            if target_role == "parent_guardian" and child_info and child_info["user_id"]:
+                cursor.execute("""
+                    INSERT INTO notifications (user_id, title, message, category, priority, is_read, event_key, delivery_channel)
+                    VALUES (?, 'Parent Verification Request', ?, 'security', 'Important', 0, ?, 'in_app');
+                """, (
+                    child_info["user_id"],
+                    f"{first_name} {last_name} ({email}) has requested to link as your parent/guardian. Please confirm on your dashboard.",
+                    f"reg_approval:{req_id}"
+                ))
+
             # Audit Log
             cursor.execute("""
                 INSERT INTO audit_logs (user_id, username, action, entity_name, entity_id, details, ip_address, latency_ms)
-                VALUES (?, ?, 'USER_REGISTRATION', 'users', ?, ?, ?, 0.0);
-            """, (user_id, uname, str(user_id), f"User self-registered with role {target_role}", ip_address))
+                VALUES (?, ?, 'USER_REGISTRATION_SUBMITTED', 'registration_requests', ?, ?, ?, 0.0);
+            """, (user_id, uname, str(req_id), f"Registration submitted for role {target_role} (Pending Approval)", ip_address))
 
             conn.commit()
 
@@ -612,10 +716,266 @@ class AuthService:
                 'roles': roles,
                 'permissions': sorted(list(permissions)),
                 'active_role': target_role,
-                'linked_student_id': linked_student_id if target_role == 'student' else None,
+                'linked_student_id': linked_student_id,
                 'linked_hostel_id': None
             }
-            return cls.issue_token_pair(user=user_dict, ip_address=ip_address, device_info=user_agent, conn=conn)
+
+            return {
+                "status": "Pending_Approval",
+                "message": reg_message,
+                "access_token": "",
+                "refresh_token": "",
+                "token_type": "bearer",
+                "expires_in": 0,
+                "user": user_dict,
+                "requires_approval": True,
+                "requires_student_approval": (target_role == "parent_guardian"),
+                "requires_admin_warden_approval": True
+            }
+        finally:
+            if should_close:
+                conn.close()
+
+    @classmethod
+    def get_pending_registrations(cls, current_user: Dict[str, Any], conn: Optional[sqlite3.Connection] = None) -> List[Dict[str, Any]]:
+        """Retrieve pending registrations filtered by user role permissions."""
+        should_close = False
+        if conn is None:
+            conn = get_db_connection()
+            should_close = True
+        try:
+            cursor = conn.cursor()
+            user_roles = set(current_user.get("roles", []))
+            
+            # 1. Student view: pending parent requests targeting this student
+            if "student" in user_roles and not user_roles.intersection({"super_admin", "hostel_admin", "warden"}):
+                linked_s_id = current_user.get("linked_student_id")
+                cursor.execute("""
+                    SELECT rr.*, s.first_name as student_first_name, s.last_name as student_last_name, s.student_id as student_roll_no_display
+                    FROM registration_requests rr
+                    LEFT JOIN students s ON rr.linked_student_id = s.id
+                    WHERE rr.linked_student_id = ? AND rr.status = 'Pending' AND rr.student_approval_status = 'Pending'
+                    ORDER BY rr.id DESC;
+                """, (linked_s_id,))
+                return [dict(r) for r in cursor.fetchall()]
+
+            # 2. Warden view: can approve Students and Parents (NOT Staff)
+            if "warden" in user_roles and not user_roles.intersection({"super_admin", "hostel_admin"}):
+                cursor.execute("""
+                    SELECT rr.*, s.first_name as student_first_name, s.last_name as student_last_name, s.student_id as student_roll_no_display
+                    FROM registration_requests rr
+                    LEFT JOIN students s ON rr.linked_student_id = s.id
+                    WHERE rr.requested_role IN ('student', 'parent_guardian')
+                      AND rr.status = 'Pending'
+                      AND rr.admin_warden_approval_status = 'Pending'
+                    ORDER BY rr.id DESC;
+                """)
+                return [dict(r) for r in cursor.fetchall()]
+
+            # 3. Super Admin & Hostel Admin: all pending registrations
+            if user_roles.intersection({"super_admin", "hostel_admin"}):
+                cursor.execute("""
+                    SELECT rr.*, s.first_name as student_first_name, s.last_name as student_last_name, s.student_id as student_roll_no_display
+                    FROM registration_requests rr
+                    LEFT JOIN students s ON rr.linked_student_id = s.id
+                    WHERE rr.status = 'Pending'
+                    ORDER BY rr.id DESC;
+                """)
+                return [dict(r) for r in cursor.fetchall()]
+
+            return []
+        finally:
+            if should_close:
+                conn.close()
+
+    @classmethod
+    def process_registration_action(
+        cls,
+        req_id: int,
+        action: str,
+        reason: Optional[str],
+        current_user: Dict[str, Any],
+        conn: Optional[sqlite3.Connection] = None
+    ) -> Dict[str, Any]:
+        """Process approval or rejection on a registration request according to multi-party RBAC rules."""
+        should_close = False
+        if conn is None:
+            conn = get_db_connection()
+            should_close = True
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM registration_requests WHERE id = ?;", (req_id,))
+            req = cursor.fetchone()
+            if not req:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Registration request #{req_id} not found.")
+
+            if req["status"] != "Pending":
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Registration request #{req_id} is already {req['status']}.")
+
+            action_normalized = action.strip().lower()
+            if action_normalized not in ("approve", "reject"):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Action must be 'approve' or 'reject'.")
+
+            user_roles = set(current_user.get("roles", []))
+            target_role = req["requested_role"]
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # -------------------------------------------------------------
+            # RULE 1: STUDENT APPROVAL ON PARENT REGISTRATION
+            # -------------------------------------------------------------
+            if "student" in user_roles and not user_roles.intersection({"super_admin", "hostel_admin", "warden"}):
+                if target_role != "parent_guardian":
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Students can only verify parent/guardian registration requests.")
+                
+                if current_user.get("linked_student_id") != req["linked_student_id"]:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Security Violation: You can only approve verification requests for your own parent.")
+
+                if action_normalized == "reject":
+                    cursor.execute("""
+                        UPDATE registration_requests
+                        SET status = 'Rejected', student_approval_status = 'Rejected',
+                            student_approved_by = ?, student_approved_at = ?,
+                            rejection_reason = ?, updated_at = ?
+                        WHERE id = ?;
+                    """, (current_user["id"], now_str, reason or "Declined by student", now_str, req_id))
+                    conn.commit()
+                    return {"success": True, "status": "Rejected", "message": "Parent registration request rejected."}
+
+                # Student approves:
+                cursor.execute("""
+                    UPDATE registration_requests
+                    SET student_approval_status = 'Approved',
+                        student_approved_by = ?, student_approved_at = ?,
+                        updated_at = ?
+                    WHERE id = ?;
+                """, (current_user["id"], now_str, now_str, req_id))
+
+                # Check if Admin/Warden has also approved:
+                if req["admin_warden_approval_status"] == "Approved":
+                    cursor.execute("UPDATE registration_requests SET status = 'Approved', updated_at = ? WHERE id = ?;", (now_str, req_id))
+                    cursor.execute("UPDATE users SET is_active = 1, linked_student_id = ? WHERE id = ?;", (req["linked_student_id"], req["user_id"]))
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO guardians (name, phone, email, relationship)
+                        VALUES (?, ?, ?, ?);
+                    """, (f"{req['first_name']} {req['last_name']}", req["phone"], req["email"], req["relationship"] or "Parent"))
+                    gid = cursor.lastrowid
+                    if gid and req["linked_student_id"]:
+                        cursor.execute("INSERT OR IGNORE INTO student_guardians (student_id, guardian_id, is_primary) VALUES (?, ?, 1);", (req["linked_student_id"], gid))
+                    conn.commit()
+                    return {"success": True, "status": "Approved", "message": "Parent verified! Both student and hostel administration approvals complete. Parent account is now Active."}
+                else:
+                    conn.commit()
+                    return {"success": True, "status": "Pending", "message": "You have confirmed your parent! Final activation is pending Hostel Warden / Administrator approval."}
+
+            # -------------------------------------------------------------
+            # RULE 2: STAFF REGISTRATION APPROVAL (ADMIN ONLY)
+            # -------------------------------------------------------------
+            is_staff_role = target_role in ("staff", "maintenance_staff", "warden", "security_guard", "mess_manager", "accountant")
+            if is_staff_role:
+                if not user_roles.intersection({"super_admin", "hostel_admin"}):
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Unauthorized: Only Administrators can approve staff member registrations."
+                    )
+                if action_normalized == "reject":
+                    cursor.execute("""
+                        UPDATE registration_requests
+                        SET status = 'Rejected', admin_warden_approval_status = 'Rejected',
+                            admin_warden_approved_by = ?, admin_warden_approved_at = ?, admin_warden_role = 'admin',
+                            rejection_reason = ?, updated_at = ?
+                        WHERE id = ?;
+                    """, (current_user["id"], now_str, reason or "Rejected by Administrator", now_str, req_id))
+                    conn.commit()
+                    return {"success": True, "status": "Rejected", "message": "Staff registration request rejected."}
+
+                cursor.execute("""
+                    UPDATE registration_requests
+                    SET status = 'Approved', admin_warden_approval_status = 'Approved',
+                        admin_warden_approved_by = ?, admin_warden_approved_at = ?, admin_warden_role = 'admin',
+                        updated_at = ?
+                    WHERE id = ?;
+                """, (current_user["id"], now_str, now_str, req_id))
+                cursor.execute("UPDATE users SET is_active = 1 WHERE id = ?;", (req["user_id"],))
+                conn.commit()
+                return {"success": True, "status": "Approved", "message": f"Staff registration approved! {req['first_name']} {req['last_name']} account is now Active."}
+
+            # -------------------------------------------------------------
+            # RULE 3: STUDENT REGISTRATION APPROVAL (ADMIN OR WARDEN)
+            # -------------------------------------------------------------
+            if target_role == "student":
+                if not user_roles.intersection({"super_admin", "hostel_admin", "warden"}):
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Wardens or Administrators can approve student registrations.")
+
+                actor_role = "admin" if user_roles.intersection({"super_admin", "hostel_admin"}) else "warden"
+                if action_normalized == "reject":
+                    cursor.execute("""
+                        UPDATE registration_requests
+                        SET status = 'Rejected', admin_warden_approval_status = 'Rejected',
+                            admin_warden_approved_by = ?, admin_warden_approved_at = ?, admin_warden_role = ?,
+                            rejection_reason = ?, updated_at = ?
+                        WHERE id = ?;
+                    """, (current_user["id"], now_str, actor_role, reason or "Rejected by Warden/Admin", now_str, req_id))
+                    cursor.execute("UPDATE students SET status = 'Rejected' WHERE user_id = ?;", (req["user_id"],))
+                    conn.commit()
+                    return {"success": True, "status": "Rejected", "message": "Student registration request rejected."}
+
+                cursor.execute("""
+                    UPDATE registration_requests
+                    SET status = 'Approved', admin_warden_approval_status = 'Approved',
+                        admin_warden_approved_by = ?, admin_warden_approved_at = ?, admin_warden_role = ?,
+                        updated_at = ?
+                    WHERE id = ?;
+                """, (current_user["id"], now_str, actor_role, now_str, req_id))
+                cursor.execute("UPDATE users SET is_active = 1 WHERE id = ?;", (req["user_id"],))
+                cursor.execute("UPDATE students SET status = 'Active' WHERE user_id = ?;", (req["user_id"],))
+                conn.commit()
+                return {"success": True, "status": "Approved", "message": f"Student registration approved by {actor_role}! Student account is now Active."}
+
+            # -------------------------------------------------------------
+            # RULE 4: PARENT REGISTRATION APPROVAL (ADMIN OR WARDEN SIDE)
+            # -------------------------------------------------------------
+            if target_role == "parent_guardian":
+                if not user_roles.intersection({"super_admin", "hostel_admin", "warden"}):
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Wardens or Administrators can approve parent registrations.")
+
+                actor_role = "admin" if user_roles.intersection({"super_admin", "hostel_admin"}) else "warden"
+                if action_normalized == "reject":
+                    cursor.execute("""
+                        UPDATE registration_requests
+                        SET status = 'Rejected', admin_warden_approval_status = 'Rejected',
+                            admin_warden_approved_by = ?, admin_warden_approved_at = ?, admin_warden_role = ?,
+                            rejection_reason = ?, updated_at = ?
+                        WHERE id = ?;
+                    """, (current_user["id"], now_str, actor_role, reason or f"Rejected by {actor_role}", now_str, req_id))
+                    conn.commit()
+                    return {"success": True, "status": "Rejected", "message": "Parent registration request rejected."}
+
+                cursor.execute("""
+                    UPDATE registration_requests
+                    SET admin_warden_approval_status = 'Approved',
+                        admin_warden_approved_by = ?, admin_warden_approved_at = ?, admin_warden_role = ?,
+                        updated_at = ?
+                    WHERE id = ?;
+                """, (current_user["id"], now_str, actor_role, now_str, req_id))
+
+                # Check if student child has already approved:
+                if req["student_approval_status"] == "Approved":
+                    cursor.execute("UPDATE registration_requests SET status = 'Approved', updated_at = ? WHERE id = ?;", (now_str, req_id))
+                    cursor.execute("UPDATE users SET is_active = 1, linked_student_id = ? WHERE id = ?;", (req["linked_student_id"], req["user_id"]))
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO guardians (name, phone, email, relationship)
+                        VALUES (?, ?, ?, ?);
+                    """, (f"{req['first_name']} {req['last_name']}", req["phone"], req["email"], req["relationship"] or "Parent"))
+                    gid = cursor.lastrowid
+                    if gid and req["linked_student_id"]:
+                        cursor.execute("INSERT OR IGNORE INTO student_guardians (student_id, guardian_id, is_primary) VALUES (?, ?, 1);", (req["linked_student_id"], gid))
+                    conn.commit()
+                    return {"success": True, "status": "Approved", "message": f"Parent approved by {actor_role}! Both child and {actor_role} approvals complete. Parent account is now Active."}
+                else:
+                    conn.commit()
+                    return {"success": True, "status": "Pending", "message": f"{actor_role.capitalize()} approval recorded! Account will activate once the child student confirms."}
+
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported registration request role.")
         finally:
             if should_close:
                 conn.close()

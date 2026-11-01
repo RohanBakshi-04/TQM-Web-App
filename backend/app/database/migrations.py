@@ -963,6 +963,47 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
             applied_now.append("009_notifications_announcements_and_admin_enhancements")
             logger.info("Migration 009_notifications_announcements_and_admin_enhancements applied successfully.")
 
+        # Migration 010: Registration Approval Workflow (Student, Staff, Parent Multi-Party Approvals)
+        if "010_registration_approval_workflow" not in applied:
+            logger.info("Applying Migration 010_registration_approval_workflow...")
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS registration_requests (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    username TEXT NOT NULL,
+                    email TEXT NOT NULL,
+                    first_name TEXT NOT NULL,
+                    last_name TEXT NOT NULL,
+                    phone TEXT,
+                    requested_role TEXT NOT NULL,
+                    specialization TEXT,
+                    student_roll_no TEXT,
+                    branch TEXT,
+                    linked_student_id INTEGER REFERENCES students(id),
+                    relationship TEXT,
+                    status TEXT NOT NULL DEFAULT 'Pending',
+                    admin_warden_approval_status TEXT NOT NULL DEFAULT 'Pending',
+                    admin_warden_approved_by INTEGER REFERENCES users(id),
+                    admin_warden_approved_at TEXT,
+                    admin_warden_role TEXT,
+                    student_approval_status TEXT NOT NULL DEFAULT 'Pending',
+                    student_approved_by INTEGER REFERENCES users(id),
+                    student_approved_at TEXT,
+                    rejection_reason TEXT,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_reg_req_user ON registration_requests(user_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_reg_req_status ON registration_requests(status);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_reg_req_linked_student ON registration_requests(linked_student_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_reg_req_role ON registration_requests(requested_role);")
+            conn.commit()
+            record_migration(conn, "010_registration_approval_workflow", "Multi-party registration approval tables and indexes")
+            applied_now.append("010_registration_approval_workflow")
+            logger.info("Migration 010_registration_approval_workflow applied successfully.")
+
         return applied_now
     finally:
         if should_close:

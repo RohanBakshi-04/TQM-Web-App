@@ -89,7 +89,9 @@ const API = {
             throw new Error(data.detail || "Authentication failed.");
         }
 
-        this.setToken(data.access_token);
+        if (data && data.access_token) {
+            this.setToken(data.access_token);
+        }
         return data;
     },
 
@@ -1857,6 +1859,24 @@ const API = {
         if (!response.ok) throw new Error(res.detail || "Failed to restore database backup.");
         return res;
     }
+    async getPendingRegistrations() {
+        const response = await fetch(`${this.baseUrl}/api/v1/registrations/pending`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load pending registrations.");
+        return await response.json();
+    },
+
+    async processRegistrationAction(id, action, reason = "") {
+        const response = await fetch(`${this.baseUrl}/api/v1/registrations/${id}/action`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ action, reason })
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to process registration action.");
+        return res;
+    },
 };
 
 window.API = API;

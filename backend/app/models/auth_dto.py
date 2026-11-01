@@ -25,7 +25,9 @@ class RegisterRequest(BaseModel):
     enrollment_no: Optional[str] = Field(None, max_length=50)
     branch: Optional[str] = Field(None, max_length=50)
     gender: Optional[str] = Field("Male", max_length=20)
-    specialization: Optional[str] = Field(None, max_length=50, description="Staff specialty: electrician, plumber, maintenance, mess, security")
+    specialization: Optional[str] = Field(None, max_length=50, description="Staff specialty: warden, electrician, plumber, maintenance, mess, security, accountant")
+    child_identifier: Optional[str] = Field(None, max_length=100, description="Child's student ID, roll number, or university email (required for parent registration)")
+    relationship: Optional[str] = Field("Parent / Guardian", max_length=50, description="Relationship: Father, Mother, Guardian")
 
 
 class RefreshTokenRequest(BaseModel):
@@ -82,3 +84,21 @@ class AuthResponse(BaseModel):
 class MessageResponse(BaseModel):
     success: bool
     message: str
+
+
+class RegisterResponse(BaseModel):
+    status: str = "Pending_Approval"
+    message: str
+    access_token: Optional[str] = ""
+    refresh_token: Optional[str] = ""
+    token_type: str = "bearer"
+    expires_in: int = 0
+    user: UserProfileResponse
+    requires_approval: bool = True
+    requires_student_approval: bool = False
+    requires_admin_warden_approval: bool = True
+
+
+class RegistrationApprovalAction(BaseModel):
+    action: str = Field(..., description="'approve' or 'reject'")
+    reason: Optional[str] = Field(None, description="Optional rejection reason or approval remarks")

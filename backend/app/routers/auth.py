@@ -14,6 +14,8 @@ from backend.app.models.auth_dto import (
     ForgotPasswordRequest,
     LoginRequest,
     RegisterRequest,
+    RegisterResponse,
+    RegistrationApprovalAction,
     MessageResponse,
     RefreshTokenRequest,
     ResetPasswordRequest,
@@ -77,20 +79,20 @@ def login(login_dto: LoginRequest, request: Request, response: Response) -> Dict
     return token_data
 
 
-@router.post("/auth/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/auth/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 def register(register_dto: RegisterRequest, request: Request, response: Response) -> Dict[str, Any]:
-    """Register a new user account (Student, Staff, or Parent), issue token pair, and set HttpOnly cookie."""
+    """Register a new user account (Student, Staff, or Parent) requiring multi-party role approval."""
     ip, ua = get_client_ip_and_ua(request)
     auth_data = AuthService.register_user(register_dto, ip, ua)
 
-    # Set secure HttpOnly cookie for refresh token rotation
-    response.set_cookie(
-        key="refresh_token",
-        value=auth_data["refresh_token"],
-        httponly=True,
-        samesite="lax",
-        max_age=7 * 24 * 3600  # 7 days
-    )
+    if auth_data.get("refresh_token"):
+        response.set_cookie(
+            key="refresh_token",
+            value=auth_data["refresh_token"],
+            httponly=True,
+            samesite="lax",
+            max_age=7 * 24 * 3600
+        )
     return auth_data
 
 
@@ -308,3 +310,20 @@ def get_student_profile(
         return result
     finally:
         conn.close()
+
+
+
+@router.get("/registrations/pending", response_model=List[Dict[str, Any]])
+def get_pending_registrations(current_user: Dict[str, Any] = Depends(get_current_user)) -> List[Dict[str, Any]]:
+    """Retrieve pending user registration requests filtered by role permissions."""
+    return AuthService.get_pending_registrations(current_user)
+
+
+@router.post("/registrations/{id}/action")
+def process_registration_action(
+    id: int,
+    payload: RegistrationApprovalAction,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """Approve or reject a registration request according to multi-party RBAC rules."""
+    return AuthService.process_registration_action(id, payload.action, payload.reason, current_user)

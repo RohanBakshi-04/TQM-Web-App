@@ -128,8 +128,12 @@ document.addEventListener("alpine:init", () => {
             role: 'student', // student, staff, parent_guardian
             enrollment_no: '',
             branch: 'CSE',
-            specialization: 'electrician'
+            specialization: 'warden',
+            child_identifier: '',
+            relationship: 'Father'
         },
+        pendingRegistrations: [],
+        pendingRegistrationsLoading: false,
 
         // Personal Student Attendance State
         myAttendanceData: null,
@@ -862,6 +866,7 @@ selectPreset(preset) {
                 this.activeRoleView = "student";
             }
 
+            this.loadPendingRegistrations();
             if (this.activeRoleView === "student") {
                 this.loadMyStudentProfile();
                 this.loadMyComplaints();
@@ -908,6 +913,11 @@ selectPreset(preset) {
                 this.showToast(this.registerError, 'error');
                 return;
             }
+            if (this.registerForm.role === 'parent_guardian' && !this.registerForm.child_identifier) {
+                this.registerError = "Please specify your child's Student Roll Number or University Email.";
+                this.showToast(this.registerError, 'error');
+                return;
+            }
             this.registerLoading = true;
             try {
                 const payload = {
@@ -920,13 +930,21 @@ selectPreset(preset) {
                     role: this.registerForm.role,
                     enrollment_no: this.registerForm.role === 'student' ? (this.registerForm.enrollment_no || null) : null,
                     branch: this.registerForm.role === 'student' ? this.registerForm.branch : null,
-                    specialization: this.registerForm.role === 'staff' ? this.registerForm.specialization : null
+                    specialization: this.registerForm.role === 'staff' ? this.registerForm.specialization : null,
+                    child_identifier: this.registerForm.role === 'parent_guardian' ? this.registerForm.child_identifier : null,
+                    relationship: this.registerForm.role === 'parent_guardian' ? this.registerForm.relationship : null
                 };
                 const authData = await window.API.register(payload);
-                this.onAuthenticated(authData.user);
-                this.activeSection = 'dashboard';
-                this.showToast(`Account created successfully! Welcome, ${authData.user.first_name}!`, 'success');
-                // Reset form
+                if (authData.access_token && authData.status !== 'Pending_Approval') {
+                    this.onAuthenticated(authData.user);
+                    this.activeSection = 'dashboard';
+                    this.showToast(`Account created successfully! Welcome, ${authData.user.first_name}!`, 'success');
+                } else {
+                    this.authTab = 'login';
+                    this.loginNotice = authData.message || 'Registration submitted! Awaiting required authorization.';
+                    this.showToast(authData.message || 'Registration submitted for authorization!', 'info');
+                }
+                // Reset passwords
                 this.registerForm.password = '';
                 this.registerForm.confirmPassword = '';
             } catch (err) {
@@ -934,6 +952,35 @@ selectPreset(preset) {
                 this.showToast(this.registerError, 'error');
             } finally {
                 this.registerLoading = false;
+            }
+        },
+
+        async loadPendingRegistrations() {
+            if (!this.isAuthenticated) return;
+            this.pendingRegistrationsLoading = true;
+            try {
+                const data = await window.API.getPendingRegistrations();
+                this.pendingRegistrations = data || [];
+            } catch (e) {
+                console.warn('Failed to load pending registrations:', e);
+                this.pendingRegistrations = [];
+            } finally {
+                this.pendingRegistrationsLoading = false;
+            }
+        },
+
+        async handleRegistrationAction(reqId, action, reason = '') {
+            try {
+                const res = await window.API.processRegistrationAction(reqId, action, reason);
+                this.showToast(res.message || `Registration request ${action}ed successfully.`, 'success');
+                await this.loadPendingRegistrations();
+                if (this.userRoles.includes('super_admin') || this.userRoles.includes('hostel_admin') || this.userRoles.includes('warden')) {
+                    this.loadDashboardStats();
+                    if (typeof this.loadAdminUsers === 'function') this.loadAdminUsers();
+                    if (typeof this.loadUsers === 'function') this.loadUsers();
+                }
+            } catch (err) {
+                this.showToast(err.message || `Failed to ${action} registration.`, 'error');
             }
         },
 
@@ -985,6 +1032,7 @@ selectPreset(preset) {
                     }
                     this.activeSection = "dashboard";
                     this.loadDashboardStats();
+                    this.loadPendingRegistrations();
                     if (roleKey === "student") {
                         this.loadMyStudentProfile();
                         this.loadMyComplaints();
