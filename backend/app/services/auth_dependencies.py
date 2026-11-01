@@ -121,36 +121,54 @@ def get_current_user(
         conn.close()
 
 
-def require_roles(*allowed_roles: str):
+def require_roles(*allowed_roles):
     """Enforce that authenticated user belongs to at least one of the specified roles."""
+    flat_roles = set()
+    for r in allowed_roles:
+        if isinstance(r, (list, tuple, set)):
+            flat_roles.update(r)
+        else:
+            flat_roles.add(r)
+
     def role_checker(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
         user_roles = set(current_user.get("roles", []))
+        if current_user.get("role"):
+            user_roles.add(current_user["role"])
         # Super admin always has access
         if "super_admin" in user_roles:
             return current_user
 
-        if not user_roles.intersection(set(allowed_roles)):
+        if not user_roles.intersection(flat_roles):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access denied. Required role(s): {', '.join(allowed_roles)}. Your role(s): {', '.join(user_roles)}"
+                detail=f"Access denied. Required role(s): {', '.join(sorted(flat_roles))}. Your role(s): {', '.join(user_roles)}"
             )
         return current_user
     return role_checker
 
 
-def require_permissions(*required_permissions: str):
+def require_permissions(*required_permissions):
     """Enforce that authenticated user possesses all specified permissions."""
+    flat_perms = set()
+    for p in required_permissions:
+        if isinstance(p, (list, tuple, set)):
+            flat_perms.update(p)
+        else:
+            flat_perms.add(p)
+
     def permission_checker(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
         user_roles = set(current_user.get("roles", []))
+        if current_user.get("role"):
+            user_roles.add(current_user["role"])
         if "super_admin" in user_roles:
             return current_user
 
         user_perms = set(current_user.get("permissions", []))
-        missing = set(required_permissions) - user_perms
+        missing = flat_perms - user_perms
         if missing:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access denied. Missing permission(s): {', '.join(missing)}"
+                detail=f"Access denied. Missing permission(s): {', '.join(sorted(missing))}"
             )
         return current_user
     return permission_checker

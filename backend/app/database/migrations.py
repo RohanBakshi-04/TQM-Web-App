@@ -1079,42 +1079,8 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
             if "hostel_id" not in reg_cols:
                 cursor.execute("ALTER TABLE registration_requests ADD COLUMN hostel_id INTEGER REFERENCES hostels(id);")
 
-            # 2. Add Mother Teresa Girls Hostel (with Single Rooms) if not exists
-            cursor.execute("SELECT id FROM hostels WHERE code = 'MTGH-01';")
-            existing_mt = cursor.fetchone()
-            if not existing_mt:
-                cursor.execute(
-                    """INSERT INTO hostels (name, code, hostel_type, address, contact_phone, contact_email, is_active)
-                       VALUES ('Mother Teresa Girls Hostel', 'MTGH-01', 'Girls', 'South Campus, Block C, University Enclave', '011-2700103', 'teresa.girls@univ.edu', 1);"""
-                )
-                mt_hostel_id = cursor.lastrowid
-
-                cursor.execute(
-                    "INSERT INTO buildings (hostel_id, name, code, total_floors, is_active) VALUES (?, 'Mother Teresa Wing', 'BLK-MTG', 2, 1);",
-                    (mt_hostel_id,)
-                )
-                mt_bldg_id = cursor.lastrowid
-
-                cursor.execute(
-                    "INSERT INTO floors (building_id, floor_number, floor_name) VALUES (?, 1, 'First Floor');",
-                    (mt_bldg_id,)
-                )
-                mt_floor_id = cursor.lastrowid
-
-                # Create Single Rooms and Beds
-                for room_num in ['101', '102', '103']:
-                    cursor.execute(
-                        "INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status, is_active) VALUES (?, ?, 'Single', 1, 6500.0, 'Available', 1);",
-                        (mt_floor_id, room_num)
-                    )
-                    r_id = cursor.lastrowid
-                    cursor.execute(
-                        "INSERT INTO beds (room_id, bed_number, status) VALUES (?, ?, 'Available');",
-                        (r_id, f"{room_num}-A")
-                    )
-
             conn.commit()
-            record_migration(conn, "013_hostel_warden_allocation_and_girls_single_hostel", "Add hostel_id to registration_requests and seed Mother Teresa Girls Hostel with Single Rooms")
+            record_migration(conn, "013_hostel_warden_allocation_and_girls_single_hostel", "Add hostel_id to registration_requests")
             applied_now.append("013_hostel_warden_allocation_and_girls_single_hostel")
             logger.info("Migration 013_hostel_warden_allocation_and_girls_single_hostel applied successfully.")
 

@@ -73,7 +73,7 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
             ("superadmin", "superadmin@univ.edu", hashed_pw, "", "Super", "Admin", "9800000001", "super_admin", None, None),
             ("hosteladmin", "hosteladmin@univ.edu", hashed_pw, "", "Hostel", "Admin", "9800000002", "hostel_admin", None, 1),
             ("warden", "warden@univ.edu", hashed_pw, "", "Dr. Anand", "Kulkarni", "9800000003", "warden", None, 1),
-            ("asstwarden", "asstwarden@univ.edu", hashed_pw, "", "Suresh", "Rao", "9800000004", "assistant_warden", None, 1),
+            ("asstwarden", "asstwarden@univ.edu", hashed_pw, "", "Suresh", "Rao", "9800000004", "assistant_warden", None, 2),
             ("rohan", "rohan.bakshi@univ.edu", hashed_pw, "", "Rohan", "Bakshi", "9810301057", "student", 1, 1),
             ("accountant", "accountant@univ.edu", hashed_pw, "", "Manoj", "Sharma", "9800000006", "accountant", None, None),
             ("messmanager", "messmanager@univ.edu", hashed_pw, "", "Rajesh", "Verma", "9800000007", "mess_manager", None, 1),
@@ -97,58 +97,86 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
             cursor.execute("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?);", (u_id, r_id))
 
         # 4. Seed Hostel, Buildings, Floors, Rooms & Beds
-        warden_user_id = user_id_map.get("warden", 3)
-        cursor.execute(
-            """INSERT INTO hostels (name, code, hostel_type, address, warden_id, contact_phone, contact_email)
-               VALUES ('Rabindranath Tagore Hostel', 'RTH-01', 'Boys', 'North Campus, Tech Avenue', ?, '011-2700101', 'tagore.hostel@univ.edu');""",
-            (warden_user_id,)
-        )
-        hostel_id = cursor.lastrowid
+        cursor.execute("SELECT id FROM hostels WHERE code = 'RTH-01';")
+        rth_row = cursor.fetchone()
+        if not rth_row:
+            warden_user_id = user_id_map.get("warden", 3)
+            cursor.execute(
+                """INSERT INTO hostels (name, code, hostel_type, address, warden_id, contact_phone, contact_email)
+                   VALUES ('Rabindranath Tagore Hostel', 'RTH-01', 'Boys', 'North Campus, Tech Avenue', ?, '011-2700101', 'tagore.hostel@univ.edu');""",
+                (warden_user_id,)
+            )
+            hostel_id = cursor.lastrowid
 
-        cursor.execute("INSERT INTO buildings (hostel_id, name, code, total_floors) VALUES (?, 'Aryabhata Block', 'BLK-A', 3);", (hostel_id,))
-        bldg_a = cursor.lastrowid
+            cursor.execute("INSERT INTO buildings (hostel_id, name, code, total_floors) VALUES (?, 'Aryabhata Block', 'BLK-A', 3);", (hostel_id,))
+            bldg_a = cursor.lastrowid
 
-        cursor.execute("INSERT INTO floors (building_id, floor_number, floor_name) VALUES (?, 1, 'First Floor');", (bldg_a,))
-        flr_1 = cursor.lastrowid
-        cursor.execute("INSERT INTO floors (building_id, floor_number, floor_name) VALUES (?, 2, 'Second Floor');", (bldg_a,))
-        flr_2 = cursor.lastrowid
+            cursor.execute("INSERT INTO floors (building_id, floor_number, floor_name) VALUES (?, 1, 'First Floor');", (bldg_a,))
+            flr_1 = cursor.lastrowid
+            cursor.execute("INSERT INTO floors (building_id, floor_number, floor_name) VALUES (?, 2, 'Second Floor');", (bldg_a,))
+            flr_2 = cursor.lastrowid
 
-        # Rooms in Boys Hostel
-        cursor.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status) VALUES (?, '101', 'Single', 1, 6000.0, 'Full');", (flr_1,))
-        r101 = cursor.lastrowid
-        cursor.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status) VALUES (?, '102', 'Double', 2, 4500.0, 'Partially_Occupied');", (flr_1,))
-        r102 = cursor.lastrowid
-        cursor.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status) VALUES (?, '201', 'Double', 2, 4500.0, 'Available');", (flr_2,))
-        r201 = cursor.lastrowid
+            # Rooms in Boys Hostel
+            cursor.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status) VALUES (?, '101', 'Single', 1, 6000.0, 'Full');", (flr_1,))
+            r101 = cursor.lastrowid
+            cursor.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status) VALUES (?, '102', 'Double', 2, 4500.0, 'Partially_Occupied');", (flr_1,))
+            r102 = cursor.lastrowid
+            cursor.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status) VALUES (?, '201', 'Double', 2, 4500.0, 'Available');", (flr_2,))
+            r201 = cursor.lastrowid
 
-        # Beds in Boys Hostel
-        cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, '101-A', 'Occupied');", (r101,))
-        b101_a = cursor.lastrowid
-        cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, '102-A', 'Occupied');", (r102,))
-        b102_a = cursor.lastrowid
-        cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, '102-B', 'Available');", (r102,))
-        b102_b = cursor.lastrowid
-        cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, '201-A', 'Available');", (r201,))
-        cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, '201-B', 'Available');", (r201,))
+            # Beds in Boys Hostel
+            cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, '101-A', 'Occupied');", (r101,))
+            b101_a = cursor.lastrowid
+            cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, '102-A', 'Occupied');", (r102,))
+            b102_a = cursor.lastrowid
+            cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, '102-B', 'Available');", (r102,))
+            b102_b = cursor.lastrowid
+            cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, '201-A', 'Available');", (r201,))
+            cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, '201-B', 'Available');", (r201,))
 
-        # Seed Girls Hostel
-        cursor.execute(
-            """INSERT INTO hostels (name, code, hostel_type, address, warden_id, contact_phone, contact_email)
-               VALUES ('Sarojini Naidu Girls Hostel', 'SNH-01', 'Girls', 'South Campus, Green Way', ?, '011-2700102', 'sarojini.hostel@univ.edu');""",
-            (warden_user_id,)
-        )
-        hostel_g_id = cursor.lastrowid
+        else:
+            hostel_id = rth_row["id"]
 
-        cursor.execute("INSERT INTO buildings (hostel_id, name, code, total_floors) VALUES (?, 'Kalpana Chawla Block', 'BLK-G1', 2);", (hostel_g_id,))
-        bldg_g = cursor.lastrowid
+        cursor.execute("SELECT id FROM hostels WHERE code = 'SNH-01';")
+        snh_row = cursor.fetchone()
+        if not snh_row:
+            warden_user_id = user_id_map.get("warden", 3)
+            cursor.execute(
+                """INSERT INTO hostels (name, code, hostel_type, address, warden_id, contact_phone, contact_email)
+                   VALUES ('Sarojini Naidu Girls Hostel', 'SNH-01', 'Girls', 'South Campus, Green Way', ?, '011-2700102', 'sarojini.hostel@univ.edu');""",
+                (warden_user_id,)
+            )
+            hostel_g_id = cursor.lastrowid
 
-        cursor.execute("INSERT INTO floors (building_id, floor_number, floor_name) VALUES (?, 1, 'Ground Floor');", (bldg_g,))
-        flr_g1 = cursor.lastrowid
+            cursor.execute("INSERT INTO buildings (hostel_id, name, code, total_floors) VALUES (?, 'Kalpana Chawla Block', 'BLK-G1', 2);", (hostel_g_id,))
+            bldg_g = cursor.lastrowid
 
-        cursor.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status) VALUES (?, 'G01', 'Double', 2, 4800.0, 'Available');", (flr_g1,))
-        r_g01 = cursor.lastrowid
-        cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, 'G01-A', 'Available');", (r_g01,))
-        cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, 'G01-B', 'Available');", (r_g01,))
+            cursor.execute("INSERT INTO floors (building_id, floor_number, floor_name) VALUES (?, 1, 'Ground Floor');", (bldg_g,))
+            flr_g1 = cursor.lastrowid
+
+            cursor.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status) VALUES (?, 'G01', 'Double', 2, 4800.0, 'Available');", (flr_g1,))
+            r_g01 = cursor.lastrowid
+            cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, 'G01-A', 'Available');", (r_g01,))
+            cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, 'G01-B', 'Available');", (r_g01,))
+
+            for r_num in ['103', '104', '105']:
+                cursor.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status) VALUES (?, ?, 'Double', 2, 4500.0, 'Available');", (flr_1, r_num))
+                r_id = cursor.lastrowid
+                cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, ?, 'Available');", (r_id, f"{r_num}-A"))
+                cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, ?, 'Available');", (r_id, f"{r_num}-B"))
+
+            for r_num in ['202', '203', '204', '205']:
+                cursor.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status) VALUES (?, ?, 'Double', 2, 4500.0, 'Available');", (flr_2, r_num))
+                r_id = cursor.lastrowid
+                cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, ?, 'Available');", (r_id, f"{r_num}-A"))
+                cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, ?, 'Available');", (r_id, f"{r_num}-B"))
+
+
+            for r_num in ['G02', 'G03', 'G04', 'G05']:
+                cursor.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status) VALUES (?, ?, 'Double', 2, 4800.0, 'Available');", (flr_g1, r_num))
+                r_id = cursor.lastrowid
+                cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, ?, 'Available');", (r_id, f"{r_num}-A"))
+                cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, ?, 'Available');", (r_id, f"{r_num}-B"))
 
         cursor.execute("SELECT id FROM hostels WHERE code = 'MTGH-01';")
         if not cursor.fetchone():
@@ -164,13 +192,10 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
             cursor.execute("INSERT INTO floors (building_id, floor_number, floor_name) VALUES (?, 1, 'First Floor');", (bldg_mt,))
             flr_mt1 = cursor.lastrowid
 
-            cursor.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status, is_active) VALUES (?, '101', 'Single', 1, 6500.0, 'Available', 1);", (flr_mt1,))
-            r_mt101 = cursor.lastrowid
-            cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, '101-A', 'Available');", (r_mt101,))
-
-            cursor.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status, is_active) VALUES (?, '102', 'Single', 1, 6500.0, 'Available', 1);", (flr_mt1,))
-            r_mt102 = cursor.lastrowid
-            cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, '102-A', 'Available');", (r_mt102,))
+            for r_num in ['101', '102', '103', '104', '105', '106', '107', '108', '109', '110']:
+                cursor.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status, is_active) VALUES (?, ?, 'Single', 1, 6500.0, 'Available', 1);", (flr_mt1, r_num))
+                r_id = cursor.lastrowid
+                cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, ?, 'Available');", (r_id, f"{r_num}-A"))
 
         # 5. Seed Students (Fictional Demo Records)
         rohan_user_id = user_id_map.get("rohan", 5)
@@ -195,6 +220,16 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
         )
         g_id = cursor.lastrowid
         cursor.execute("INSERT INTO student_guardians (student_id, guardian_id, is_primary) VALUES (?, ?, 1);", (s_rohan, g_id))
+
+        # Resolve beds and rooms for initial demo allocations
+        cursor.execute("SELECT id FROM beds WHERE bed_number = '101-A' LIMIT 1;")
+        b101_a = cursor.fetchone()[0]
+        cursor.execute("SELECT id FROM beds WHERE bed_number = '102-A' LIMIT 1;")
+        b102_a = cursor.fetchone()[0]
+        cursor.execute("SELECT id FROM rooms WHERE room_number = '101' LIMIT 1;")
+        r101 = cursor.fetchone()[0]
+        cursor.execute("SELECT id FROM rooms WHERE room_number = '102' LIMIT 1;")
+        r102 = cursor.fetchone()[0]
 
         # 7. Seed Room Allocations
         cursor.execute(

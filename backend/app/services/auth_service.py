@@ -1001,15 +1001,20 @@ class AuthService:
         try:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM registration_requests WHERE id = ?;", (req_id,))
-            req = cursor.fetchone()
-            if not req:
+            req_row = cursor.fetchone()
+            if not req_row:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Registration request #{req_id} not found.")
+            req = dict(req_row)
 
             if req["status"] != "Pending":
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Registration request #{req_id} is already {req['status']}.")
 
             action_normalized = action.strip().lower()
-            if action_normalized not in ("approve", "reject"):
+            if action_normalized in ("approve", "approved"):
+                action_normalized = "approve"
+            elif action_normalized in ("reject", "rejected"):
+                action_normalized = "reject"
+            else:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Action must be 'approve' or 'reject'.")
 
             user_roles = set(current_user.get("roles", []))
