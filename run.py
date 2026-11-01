@@ -1,9 +1,6 @@
 """Unified Startup Launcher for Hostel Management System Web App.
 
-Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
-Academic Session: 2026-27
-Student: Rohan Bakshi (Roll No: 2410301057)
-Quality Goal: Q05 - Reduce Response Time
+A unified platform for intelligent hostel administration and management.
 """
 
 import sys
