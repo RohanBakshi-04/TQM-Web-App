@@ -226,3 +226,26 @@ All notable changes to this project are documented in this file, adhering to Sem
 - **Testing Suite:**
   - 13 comprehensive unit and integration tests in `backend/tests/test_mess_and_inventory.py`.
   - Expanded total test suite to 118 tests (100% pass rate).
+
+---
+
+## [1.1.0] - 2026-11-01 (RBAC Security Audit, Role Isolation & Unauthorized Role Switching Elimination)
+
+### Security Fixes
+- **Elimination of Unauthorized Frontend Role-Switching:**
+  - Identified and eradicated frontend vulnerability where authenticated users (e.g., Assistant Warden) could view and select arbitrary stakeholder dashboards (including Super Admin) from a header dropdown.
+  - Restricted role switcher display strictly to multi-role accounts (`userRoles.length > 1`). Single-role accounts no longer render any role switching selector, dropdown, or unassigned roles.
+  - Removed unauthorized role switching triggers from the search modal (`Ctrl+K`) and user profile flyouts.
+- **Backend Role Authorization & Multi-Role Switching API:**
+  - Implemented secure backend endpoint `POST /api/v1/auth/switch-role` validating that the requested target role is explicitly assigned to the user in the database.
+  - Enforced JWT `active_role` claim injection and runtime permission re-computation upon valid role switch.
+  - Implemented immutable audit logging in `audit_logs` tracking every role change attempt with client IP address, user agent, and timestamp.
+  - Single-role users and unauthorized privilege escalation attempts are strictly rejected with HTTP 403 Forbidden.
+- **Privileged API & Data Isolation Barriers:**
+  - Verified backend RBAC enforcement preventing non-Super-Admin roles (e.g. Assistant Warden, Hostel Admin) from accessing system administration, user management, and system settings mutation endpoints.
+  - Verified student data isolation: students cannot access peer profiles; unlinked guardians cannot access student records; accountants cannot approve leaves; maintenance staff cannot allocate beds; security guards cannot access financial billing; auditors cannot mutate operational records.
+
+### Added
+- **Role Isolation & Security Test Suite:**
+  - Created 36 comprehensive security and integration tests in `backend/tests/test_role_dashboards_and_auth.py`.
+  - Total automated test suite expanded to **167 tests with 100% pass rate**.

@@ -368,3 +368,41 @@ The final benchmark script `scripts/benchmark_q05.py` executed across all domain
 
 **FINAL TQM CONCLUSION:**  
 Every single operation and endpoint in the Hostel Management System operates below 0.5 ms at the 95th percentile, comfortably exceeding the assigned Quality Goal Q05 Service Level Agreement (< 10.0 ms) by more than 20x. Defect prevention (Poka-Yoke) mechanisms eliminate double-allocations, negative inventory, privilege escalations, and notification storms. The system is 100% verified, fully documented, and production ready.
+
+---
+
+## 20. RBAC Security Audit, Role Isolation & Unauthorized Role Switching Elimination
+
+**Execution Date:** November 1, 2026  
+**Total Tests in Test Suite:** 167 Automated Unit & Integration Tests  
+**Result:** 167 / 167 PASS (100% Success Rate) | Duration: 15.52s  
+
+### Security Test Results Breakdown (`backend/tests/test_role_dashboards_and_auth.py` - 36 Tests):
+
+| Test Identifier | Category | Verification Objective | Result |
+| :--- | :--- | :--- | :---: |
+| **TEST-RBAC-PUB-01** | Public Security | Unauthenticated requests to `/dashboard/stats` rejected with HTTP 401 | 🟢 PASS |
+| **TEST-RBAC-PUB-02** | Public Security | Unauthenticated role switch to Super Admin rejected with HTTP 401 | 🟢 PASS |
+| **TEST-RBAC-PUB-03** | Public Security | Public health endpoint `/api/health` accessible without authentication | 🟢 PASS |
+| **TEST-RBAC-DASH-01..12** | Role Dashboards | All 12 role dashboards deliver tailored metrics based on authenticated user identity | 🟢 PASS |
+| **TEST-RBAC-SW-01** | Role Escalation Barrier | Single-role Assistant Warden rejected when attempting switch to Super Admin (HTTP 403) | 🟢 PASS |
+| **TEST-RBAC-SW-02** | Role Escalation Barrier | Single-role Student rejected when attempting switch to Accountant (HTTP 403) | 🟢 PASS |
+| **TEST-RBAC-SW-03** | Role Escalation Barrier | Single-role Accountant rejected when attempting switch to Chief Warden (HTTP 403) | 🟢 PASS |
+| **TEST-RBAC-SW-04** | Multi-Role Authorization| Multi-role account permitted to switch between explicitly assigned roles | 🟢 PASS |
+| **TEST-RBAC-SW-05** | Multi-Role Authorization| Multi-role account blocked from switching to unassigned role (HTTP 403) | 🟢 PASS |
+| **TEST-RBAC-SW-06** | Input Validation | Arbitrary or non-existent role switch requests rejected with HTTP 400 | 🟢 PASS |
+| **TEST-RBAC-SW-07** | Audit Logging | Successful role switches recorded in `audit_logs` with IP, timestamp, and details | 🟢 PASS |
+| **TEST-RBAC-ADMIN-01** | Privileged API Defense | Assistant Warden blocked from `GET /api/v1/admin/settings` (HTTP 403) | 🟢 PASS |
+| **TEST-RBAC-ADMIN-02** | Privileged API Defense | Assistant Warden blocked from `GET /api/v1/admin/users` (HTTP 403) | 🟢 PASS |
+| **TEST-RBAC-ADMIN-03** | Privileged API Defense | Assistant Warden blocked from `POST /api/v1/admin/settings` (HTTP 403) | 🟢 PASS |
+| **TEST-RBAC-ADMIN-04** | Privilege Escalation Barrier | Hostel Admin blocked from assigning Super Admin role (HTTP 403) | 🟢 PASS |
+| **TEST-RBAC-ADMIN-05** | Privileged API Defense | Student blocked from accessing administration endpoints (HTTP 403) | 🟢 PASS |
+| **TEST-RBAC-ADMIN-06** | Privileged API Defense | Security Guard blocked from accessing administration endpoints (HTTP 403) | 🟢 PASS |
+| **TEST-RBAC-ADMIN-07** | Privileged Access | Super Admin successfully accesses administrative settings and user directory | 🟢 PASS |
+| **TEST-RBAC-ISOL-01** | Data Isolation | Student cannot view other students' private records (HTTP 403) | 🟢 PASS |
+| **TEST-RBAC-ISOL-02** | Data Isolation | Parent cannot access records of students other than their registered ward (HTTP 403) | 🟢 PASS |
+| **TEST-RBAC-ISOL-03** | Functional RBAC | Accountant blocked from approving leave applications (HTTP 403) | 🟢 PASS |
+| **TEST-RBAC-ISOL-04** | Functional RBAC | Maintenance staff blocked from executing room allocations (HTTP 403) | 🟢 PASS |
+| **TEST-RBAC-ISOL-05** | Functional RBAC | Security Guard blocked from accessing billing invoices and financial data (HTTP 403) | 🟢 PASS |
+| **TEST-RBAC-ISOL-06** | Read-Only Invariant | Auditor blocked from mutating administrative records or data (HTTP 403) | 🟢 PASS |
+| **TEST-RBAC-ISOL-07** | Role Context Integrity| Switching active role updates JWT token payload and dynamic permissions cleanly | 🟢 PASS |

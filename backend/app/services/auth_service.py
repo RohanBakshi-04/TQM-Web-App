@@ -480,11 +480,10 @@ class AuthService:
             new_access_token = create_access_token(token_payload)
 
             # Record audit event
-            import json
             cursor.execute("""
-                INSERT INTO audit_logs (user_id, action, entity_type, entity_id, old_values, new_values, ip_address, created_at)
-                VALUES (?, 'ROLE_SWITCH', 'user_session', ?, ?, ?, ?, datetime('now'));
-            """, (user_id, user_id, json.dumps({"switch": "requested"}), json.dumps({"active_role": target_role}), ip_address))
+                INSERT INTO audit_logs (user_id, username, action, entity_name, entity_id, details, ip_address, latency_ms)
+                VALUES (?, ?, 'ROLE_SWITCH', 'user_session', ?, ?, ?, 0.0);
+            """, (user_id, user_row["username"], str(user_id), f"Switched active role to {target_role}", ip_address))
             conn.commit()
 
             return {

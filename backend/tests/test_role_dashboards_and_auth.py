@@ -1,22 +1,43 @@
-"""Comprehensive Integration and Authorization Tests for 12 Role-Based Dashboards.
+"""Comprehensive Integration, Authorization, and RBAC Security Tests for 12 Role-Based Dashboards.
 
 Verifies:
 1. Public landing page availability vs unauthenticated endpoint protection (HTTP 401).
 2. Dedicated authenticated workspace metrics for all 12 stakeholder roles:
    - super_admin, hostel_admin, warden, assistant_warden, student, accountant,
      mess_manager, maintenance_staff, security_guard, admission_officer, parent_guardian, auditor.
-3. Strict student data isolation (Student A cannot inspect Student B's profile).
-4. Guardian isolation (Guardian restricted to linked ward).
-5. Auditor read-only enforcement (Mutations rejected with HTTP 403).
-6. Security guard boundary protection (Restricted from financial billing).
-7. Maintenance staff boundary protection (Restricted from student room allocations).
+3. Role-switching security and multi-role account policies:
+   - Single-role Assistant Warden CANNOT switch to Super Admin (HTTP 403).
+   - Single-role Assistant Warden CANNOT switch to Warden (HTTP 403).
+   - Single-role Student CANNOT switch to Accountant or Super Admin (HTTP 403).
+   - Single-role Accountant CANNOT switch to Super Admin (HTTP 403).
+   - Multi-role user can switch ONLY between assigned roles (HTTP 200).
+   - Multi-role user CANNOT switch to unassigned Super Admin role (HTTP 403).
+   - Role switch operations are recorded in audit logs.
+   - Non-existent/invalid role identifiers are strictly rejected (HTTP 403).
+4. Super Admin privilege protection and direct API defense:
+   - Assistant Warden cannot access admin settings, users, or role management (HTTP 403).
+   - Hostel Admin cannot assign roles or escalate privileges (HTTP 403).
+   - Student cannot access admin settings (HTTP 403).
+   - Security Guard cannot access admin settings (HTTP 403).
+   - Super Admin can legitimately access admin configurations (HTTP 200).
+5. Strict data isolation & functional RBAC boundaries:
+   - Student cannot inspect another student's profile (HTTP 403).
+   - Student can inspect own profile (HTTP 200).
+   - Parent cannot access unlinked student's records (HTTP 403).
+   - Auditor cannot modify records (HTTP 403).
+   - Security Guard cannot access financial billing (HTTP 403).
+   - Maintenance Staff cannot access room allocations (HTTP 403).
+   - Accountant cannot approve student leaves (HTTP 403).
 """
 
+import json
 import unittest
 from fastapi.testclient import TestClient
 
 from backend.app.main import app
+from backend.app.database.connection import get_db_connection
 from backend.app.database.init_db import initialize_database
+from backend.app.services.security import hash_password
 
 
 class TestRoleDashboardsAndAuth(unittest.TestCase):
@@ -52,6 +73,41 @@ class TestRoleDashboardsAndAuth(unittest.TestCase):
                 data = resp.json()
                 cls.tokens[username] = data["access_token"]
                 cls.users[username] = data["user"]
+
+        # Seed a test multi-role user for legitimate role-switching verification
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM users WHERE username = 'multirole_user';")
+            existing = cursor.fetchone()
+            if not existing:
+                cursor.execute("""
+                    INSERT INTO users (username, email, password_hash, salt, first_name, last_name, is_active)
+                    VALUES ('multirole_user', 'multirole@hostel.edu', ?, '', 'Multi', 'Role', 1);
+                """, (hash_password("Password123!"),))
+                user_id = cursor.lastrowid
+
+                # Assign two roles: accountant and hostel_admin
+                cursor.execute("SELECT id FROM roles WHERE name = 'accountant';")
+                r_acc = cursor.fetchone()[0]
+                cursor.execute("SELECT id FROM roles WHERE name = 'hostel_admin';")
+                r_hadmin = cursor.fetchone()[0]
+
+                cursor.execute("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?);", (user_id, r_acc))
+                cursor.execute("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?);", (user_id, r_hadmin))
+                conn.commit()
+
+            # Login as multi-role user
+            resp = cls.client.post("/api/v1/auth/login", json={
+                "username_or_email": "multirole_user",
+                "password": "Password123!"
+            })
+            if resp.status_code == 200:
+                data = resp.json()
+                cls.tokens["multirole_user"] = data["access_token"]
+                cls.users["multirole_user"] = data["user"]
+        finally:
+            conn.close()
 
     def _headers(self, username: str):
         token = self.tokens.get(username)
@@ -178,7 +234,114 @@ class TestRoleDashboardsAndAuth(unittest.TestCase):
         self.assertIn("hostels", data)
 
     # ==========================================
-    # 3. STRICT DATA ISOLATION & RBAC BOUNDARIES
+    # 3. ROLE-SWITCHING SECURITY & MULTI-ROLE TESTS
+    # ==========================================
+
+    def test_single_role_assistant_warden_cannot_switch_to_super_admin(self):
+        """Single-role Assistant Warden cannot switch to Super Admin."""
+        resp = self.client.post("/api/v1/auth/switch-role", json={"role": "super_admin"}, headers=self._headers("asstwarden"))
+        self.assertEqual(resp.status_code, 403)
+        self.assertIn("not assigned", resp.json()["detail"])
+
+    def test_single_role_assistant_warden_cannot_switch_to_warden(self):
+        """Single-role Assistant Warden cannot switch to Chief Warden."""
+        resp = self.client.post("/api/v1/auth/switch-role", json={"role": "warden"}, headers=self._headers("asstwarden"))
+        self.assertEqual(resp.status_code, 403)
+        self.assertIn("not assigned", resp.json()["detail"])
+
+    def test_single_role_student_cannot_switch_roles(self):
+        """Single-role Student cannot switch to Accountant or Super Admin."""
+        resp_acc = self.client.post("/api/v1/auth/switch-role", json={"role": "accountant"}, headers=self._headers("rohan"))
+        self.assertEqual(resp_acc.status_code, 403)
+        self.assertIn("not assigned", resp_acc.json()["detail"])
+
+        resp_admin = self.client.post("/api/v1/auth/switch-role", json={"role": "super_admin"}, headers=self._headers("rohan"))
+        self.assertEqual(resp_admin.status_code, 403)
+
+    def test_single_role_accountant_cannot_switch_to_super_admin(self):
+        """Single-role Accountant cannot switch to Super Admin."""
+        resp = self.client.post("/api/v1/auth/switch-role", json={"role": "super_admin"}, headers=self._headers("accountant"))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_multi_role_user_can_switch_only_between_assigned_roles(self):
+        """User assigned Accountant and Hostel Admin can switch between those two roles, but not to Super Admin."""
+        # Switch to hostel_admin -> 200 OK
+        resp1 = self.client.post("/api/v1/auth/switch-role", json={"role": "hostel_admin"}, headers=self._headers("multirole_user"))
+        self.assertEqual(resp1.status_code, 200)
+        self.assertTrue(resp1.json()["success"])
+        self.assertEqual(resp1.json()["active_role"], "hostel_admin")
+
+        # Switch to accountant -> 200 OK
+        resp2 = self.client.post("/api/v1/auth/switch-role", json={"role": "accountant"}, headers=self._headers("multirole_user"))
+        self.assertEqual(resp2.status_code, 200)
+        self.assertTrue(resp2.json()["success"])
+        self.assertEqual(resp2.json()["active_role"], "accountant")
+
+        # Attempt to switch to unassigned super_admin -> 403 Forbidden!
+        resp3 = self.client.post("/api/v1/auth/switch-role", json={"role": "super_admin"}, headers=self._headers("multirole_user"))
+        self.assertEqual(resp3.status_code, 403)
+        self.assertIn("not assigned", resp3.json()["detail"])
+
+    def test_role_switch_records_audit_log(self):
+        """Legitimate role switch generates an immutable audit log entry."""
+        self.client.post("/api/v1/auth/switch-role", json={"role": "hostel_admin"}, headers=self._headers("multirole_user"))
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT action, details FROM audit_logs WHERE action = 'ROLE_SWITCH' ORDER BY id DESC LIMIT 1;")
+            row = cursor.fetchone()
+            self.assertIsNotNone(row)
+            self.assertEqual(row[0], "ROLE_SWITCH")
+            self.assertIn("hostel_admin", row[1])
+        finally:
+            conn.close()
+
+    def test_invalid_role_identifier_rejected(self):
+        """Attempting to switch to non-existent role returns 403 Forbidden."""
+        resp = self.client.post("/api/v1/auth/switch-role", json={"role": "non_existent_role_xyz"}, headers=self._headers("asstwarden"))
+        self.assertEqual(resp.status_code, 403)
+
+    # ==========================================
+    # 4. SUPER ADMIN DIRECT API DEFENSE TESTS
+    # ==========================================
+
+    def test_assistant_warden_cannot_access_admin_settings(self):
+        """Assistant Warden direct API access to admin settings is blocked."""
+        resp = self.client.get("/api/v1/admin/settings", headers=self._headers("asstwarden"))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_assistant_warden_cannot_access_admin_users(self):
+        """Assistant Warden direct API access to user directory is blocked."""
+        resp = self.client.get("/api/v1/admin/users", headers=self._headers("asstwarden"))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_assistant_warden_cannot_mutate_settings(self):
+        """Assistant Warden cannot modify system settings."""
+        resp = self.client.put("/api/v1/admin/settings", json={"settings": []}, headers=self._headers("asstwarden"))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_hostel_admin_without_super_admin_cannot_assign_roles(self):
+        """Hostel Admin cannot assign or escalate user roles."""
+        resp = self.client.put("/api/v1/admin/users/1/roles", json={"role_names": ["super_admin"]}, headers=self._headers("hosteladmin"))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_student_cannot_access_admin_settings(self):
+        """Student is blocked from administrative configuration endpoints."""
+        resp = self.client.get("/api/v1/admin/settings", headers=self._headers("rohan"))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_security_guard_cannot_access_admin_settings(self):
+        """Security Guard direct API access to admin settings is blocked."""
+        resp = self.client.get("/api/v1/admin/settings", headers=self._headers("security"))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_only_authorized_super_admin_can_access_admin_settings(self):
+        """Explicitly authorized Super Admin account can access admin settings."""
+        resp = self.client.get("/api/v1/admin/settings", headers=self._headers("superadmin"))
+        self.assertEqual(resp.status_code, 200)
+
+    # ==========================================
+    # 5. STRICT DATA ISOLATION & RBAC BOUNDARIES
     # ==========================================
 
     def test_student_isolation_cannot_access_other_student_profile(self):
@@ -193,9 +356,9 @@ class TestRoleDashboardsAndAuth(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["id"], 1)
 
-    def test_student_cannot_access_admin_settings(self):
-        """Student is blocked from administrative configuration endpoints."""
-        resp = self.client.get("/api/v1/admin/settings", headers=self._headers("rohan"))
+    def test_parent_cannot_access_unlinked_student_profile(self):
+        """Parent linked to student 1 cannot access student 2's profile."""
+        resp = self.client.get("/api/v1/students/2/profile", headers=self._headers("parent"))
         self.assertEqual(resp.status_code, 403)
 
     def test_auditor_is_strictly_read_only(self):
@@ -225,6 +388,11 @@ class TestRoleDashboardsAndAuth(unittest.TestCase):
             "bed_id": 1,
             "academic_year": "2026-2027"
         }, headers=self._headers("maintenance"))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_accountant_restricted_from_leave_approvals(self):
+        """Accountant is restricted from approving student leave applications."""
+        resp = self.client.post("/api/v1/leave/1/approve", json={"remarks": "Approved by accountant"}, headers=self._headers("accountant"))
         self.assertEqual(resp.status_code, 403)
 
 

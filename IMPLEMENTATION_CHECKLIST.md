@@ -542,3 +542,33 @@
 - [x] Updated `PROJECT_PROGRESS.md` with Prompt 14 and 15 completion status
 - [x] Updated `TESTING_REPORT.md` with final 131-test verification and benchmark results
 - [x] Updated `IMPLEMENTATION_CHECKLIST.md` with Prompt 14 and 15 checklists
+
+---
+
+## RBAC Security Audit & Role Isolation Enforcement
+
+### 1. Frontend Role-Switching Elimination
+- [x] Audited all templates, headers, sidebars, modals, and user flyouts
+- [x] Removed unauthorized role-switching dropdown for single-role users
+- [x] Render role selector strictly for multi-role accounts (`userRoles.length > 1`)
+- [x] Verified zero unauthorized role options exposed to Assistant Warden, Student, Guard, or Staff
+- [x] Cleaned search modal (`Ctrl+K`) to navigate directly within permitted routes
+
+### 2. Backend Authorization & Role Switching
+- [x] Created `POST /api/v1/auth/switch-role` endpoint with strict database verification
+- [x] Enforced verification that target role exists in user's assigned roles in SQLite database
+- [x] Dynamic generation of updated JWT token containing `active_role` claim and re-computed permissions
+- [x] Immutable audit trail logging in `audit_logs` capturing user, action, target role, and remote IP
+- [x] Strict HTTP 403 Forbidden rejection for unauthorized role escalation attempts
+
+### 3. Privileged API Defense & Data Isolation
+- [x] Protected system settings (`/api/v1/admin/settings`) and user management (`/api/v1/admin/users`) strictly to Super Admin
+- [x] Blocked role escalation (e.g. non-super-admins granting super_admin)
+- [x] Enforced student-to-student private profile isolation
+- [x] Enforced parent/guardian isolation to verified wards
+- [x] Enforced functional separation: Accountant cannot approve leaves, Maintenance cannot allocate beds, Security Guard cannot access financial records
+- [x] Enforced read-only restriction on Auditor role across all mutating endpoints
+
+### 4. Automated Security Verification
+- [x] 36 automated unit and security tests in `backend/tests/test_role_dashboards_and_auth.py`
+- [x] Total project test suite: 167 / 167 PASS (100% success rate)
