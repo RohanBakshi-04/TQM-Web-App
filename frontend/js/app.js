@@ -903,6 +903,8 @@ selectPreset(preset) {
 
         async handleRegister() {
             this.registerError = '';
+
+            // 1. Password validation
             if (this.registerForm.password !== this.registerForm.confirmPassword) {
                 this.registerError = 'Passwords do not match. Please re-enter.';
                 this.showToast(this.registerError, 'error');
@@ -913,6 +915,67 @@ selectPreset(preset) {
                 this.showToast(this.registerError, 'error');
                 return;
             }
+
+            // 2. Name validation (alphabetic only)
+            const nameRegex = /^[a-zA-Z\s'-]{1,50}$/;
+            const firstName = (this.registerForm.first_name || '').trim();
+            const lastName = (this.registerForm.last_name || '').trim();
+            if (!firstName || !nameRegex.test(firstName)) {
+                this.registerError = 'First name must contain only alphabetic letters (no numbers or symbols).';
+                this.showToast(this.registerError, 'error');
+                return;
+            }
+            if (!lastName || !nameRegex.test(lastName)) {
+                this.registerError = 'Last name must contain only alphabetic letters (no numbers or symbols).';
+                this.showToast(this.registerError, 'error');
+                return;
+            }
+
+            // 3. Email validation (must contain @ and valid domain)
+            const emailVal = (this.registerForm.email || '').trim();
+            const emailRegex = /^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/;
+            if (!emailVal || !emailVal.includes('@') || !emailRegex.test(emailVal)) {
+                this.registerError = "Invalid email: must contain '@' and a valid domain (e.g. name@univ.edu).";
+                this.showToast(this.registerError, 'error');
+                return;
+            }
+
+            // 4. Phone number validation (strictly digits 0-9, up to 10 digits)
+            const rawPhone = (this.registerForm.phone || '').trim();
+            if (!rawPhone) {
+                this.registerError = 'Phone number is required. Please provide a 10-digit mobile number.';
+                this.showToast(this.registerError, 'error');
+                return;
+            }
+            if (!/^\d+$/.test(rawPhone)) {
+                this.registerError = "Invalid phone number: only digits (0-9) are allowed. Characters like letters or '@' are not allowed.";
+                this.showToast(this.registerError, 'error');
+                return;
+            }
+            if (rawPhone.length !== 10) {
+                this.registerError = `Phone number must be exactly 10 digits. Provided: ${rawPhone.length} digits.`;
+                this.showToast(this.registerError, 'error');
+                return;
+            }
+
+            // 5. Username validation
+            const usernameVal = (this.registerForm.username || '').trim();
+            if (!/^[a-zA-Z0-9_.-]{3,30}$/.test(usernameVal)) {
+                this.registerError = 'Username must be 3-30 characters containing only letters, numbers, hyphens, or underscores.';
+                this.showToast(this.registerError, 'error');
+                return;
+            }
+
+            // 6. Role-specific validation
+            if (this.registerForm.role === 'student' && this.registerForm.enrollment_no) {
+                const enrollVal = this.registerForm.enrollment_no.trim();
+                if (enrollVal && !/^[a-zA-Z0-9_-]{2,30}$/.test(enrollVal)) {
+                    this.registerError = 'Enrollment / Roll number must be alphanumeric.';
+                    this.showToast(this.registerError, 'error');
+                    return;
+                }
+            }
+
             if (this.registerForm.role === 'parent_guardian' && !this.registerForm.child_identifier) {
                 this.registerError = "Please specify your child's Student Roll Number or University Email.";
                 this.showToast(this.registerError, 'error');
@@ -2090,8 +2153,9 @@ selectPreset(preset) {
                 this.showToast("Please enter visitor's legal name.", "error");
                 return;
             }
-            if (!form.phone || form.phone.trim().length < 7) {
-                this.showToast("Please enter a valid contact phone number.", "error");
+            const phoneDigits = (form.phone || '').replace(/\D/g, '');
+            if (phoneDigits.length !== 10) {
+                this.showToast("Contact phone number must be exactly 10 digits (0-9).", "error");
                 return;
             }
             if (!form.id_proof_number || form.id_proof_number.trim().length < 4) {

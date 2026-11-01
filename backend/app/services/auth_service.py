@@ -5,6 +5,7 @@ Quality Goal: Q05 - Reduce Response Time
 """
 
 import hashlib
+import re
 import sqlite3
 import time
 from datetime import datetime, timedelta, timezone
@@ -540,6 +541,37 @@ class AuthService:
             first_name = payload.first_name.strip()
             last_name = payload.last_name.strip()
             phone = (payload.phone or "").strip()
+
+            # Poka-Yoke Input Validation (Mistake-Proofing)
+            if not email or "@" not in email or not re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", email):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid email address: must contain '@' and a valid domain (e.g. name@univ.edu)."
+                )
+
+            if phone:
+                if not re.match(r"^\d+$", phone):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid phone number: only digits (0-9) are allowed. Letters and special characters are not permitted."
+                    )
+                if len(phone) != 10:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Phone number must be exactly 10 digits. Provided: {len(phone)} digits."
+                    )
+
+            if not re.match(r"^[a-zA-Z\s'-]{1,50}$", first_name) or not re.match(r"^[a-zA-Z\s'-]{1,50}$", last_name):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Names must contain only alphabetic characters, spaces, or hyphens."
+                )
+
+            if not re.match(r"^[a-zA-Z0-9_.-]{3,30}$", uname):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Username must be 3-30 characters containing only letters, numbers, hyphens, or underscores."
+                )
 
             # Disallow administrative role self-registration
             requested_role = (payload.role or "student").strip().lower()

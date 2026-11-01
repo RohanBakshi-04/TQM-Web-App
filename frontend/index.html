@@ -1538,26 +1538,37 @@
                                     <div>
                                         <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">First Name *</label>
                                         <input type="text" x-model="registerForm.first_name" required placeholder="e.g. Rahul"
+                                               pattern="[A-Za-z\s'-]{1,50}"
+                                               @input="registerForm.first_name = registerForm.first_name.replace(/[^A-Za-z\s'-]/g, '')"
                                                class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none focus:border-brand-600 dark:text-white">
                                     </div>
                                     <div>
                                         <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Last Name *</label>
                                         <input type="text" x-model="registerForm.last_name" required placeholder="e.g. Verma"
+                                               pattern="[A-Za-z\s'-]{1,50}"
+                                               @input="registerForm.last_name = registerForm.last_name.replace(/[^A-Za-z\s'-]/g, '')"
                                                class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none focus:border-brand-600 dark:text-white">
                                     </div>
                                 </div>
 
-                                <!-- Email & Phone -->
+                                <!-- Email & Phone (Poka-Yoke Enforced) -->
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
                                         <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Email Address *</label>
                                         <input type="email" x-model="registerForm.email" required placeholder="name@univ.edu"
+                                               pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
                                                class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none focus:border-brand-600 dark:text-white">
+                                        <span class="text-[10px] text-slate-400 mt-0.5 block">Must contain '@' and domain (e.g. name@univ.edu)</span>
                                     </div>
                                     <div>
-                                        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Phone Number</label>
-                                        <input type="text" x-model="registerForm.phone" placeholder="e.g. 9811223344"
+                                        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Phone Number (10 Digits) *</label>
+                                        <input type="tel" x-model="registerForm.phone" required placeholder="e.g. 9811223344"
+                                               inputmode="numeric"
+                                               maxlength="10"
+                                               pattern="[0-9]{10}"
+                                               @input="registerForm.phone = registerForm.phone.replace(/\D/g, '').slice(0, 10)"
                                                class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none focus:border-brand-600 dark:text-white">
+                                        <span class="text-[10px] text-slate-400 mt-0.5 block">Only digits (0-9). Up to 10 digits allowed.</span>
                                     </div>
                                 </div>
 
@@ -4421,8 +4432,12 @@
                                            class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-teal-500" />
                                 </div>
                                 <div>
-                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Contact Phone Number</label>
-                                    <input type="tel" x-model="newVisitor.phone" placeholder="+91 9876543210"
+                                    <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Contact Phone Number (10 Digits)</label>
+                                    <input type="tel" x-model="newVisitor.phone" placeholder="9876543210"
+                                           inputmode="numeric"
+                                           maxlength="10"
+                                           pattern="[0-9]{10}"
+                                           @input="newVisitor.phone = newVisitor.phone.replace(/\D/g, '').slice(0, 10)"
                                            class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-teal-500" />
                                 </div>
                                 <div>

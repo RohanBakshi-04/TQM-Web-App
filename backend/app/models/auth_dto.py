@@ -4,8 +4,9 @@ Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
 Quality Goal: Q05 - Reduce Response Time
 """
 
+import re
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class LoginRequest(BaseModel):
@@ -28,6 +29,61 @@ class RegisterRequest(BaseModel):
     specialization: Optional[str] = Field(None, max_length=50, description="Staff specialty: warden, electrician, plumber, maintenance, mess, security, accountant")
     child_identifier: Optional[str] = Field(None, max_length=100, description="Child's student ID, roll number, or university email (required for parent registration)")
     relationship: Optional[str] = Field("Parent / Guardian", max_length=50, description="Relationship: Father, Mother, Guardian")
+
+    @field_validator("email")
+    @classmethod
+    def validate_email_format(cls, v: str) -> str:
+        if not v or "@" not in v:
+            raise ValueError("Invalid email: must contain '@' symbol.")
+        email_regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+        if not re.match(email_regex, v.strip()):
+            raise ValueError("Invalid email format (e.g. name@univ.edu).")
+        return v.strip().lower()
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone_number(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        v = v.strip()
+        if not v:
+            return None
+        # Strict digits-only check (Poka-Yoke)
+        if not re.match(r"^\d+$", v):
+            raise ValueError("Invalid phone number: only numeric digits (0-9) are allowed, no alphabets or special characters.")
+        if len(v) != 10:
+            raise ValueError(f"Phone number must be exactly 10 digits. Provided: {len(v)} digits.")
+        return v
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def validate_names(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Name cannot be empty.")
+        if not re.match(r"^[a-zA-Z\s'-]{1,50}$", v):
+            raise ValueError("Name must only contain alphabetic letters, spaces, or hyphens.")
+        return v
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        v = v.strip()
+        if not re.match(r"^[a-zA-Z0-9_.-]{3,30}$", v):
+            raise ValueError("Username must be between 3 and 30 characters and contain only letters, numbers, hyphens, or underscores.")
+        return v
+
+    @field_validator("enrollment_no")
+    @classmethod
+    def validate_enrollment_no(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return None
+        v = v.strip()
+        if not v:
+            return None
+        if not re.match(r"^[a-zA-Z0-9_-]{2,30}$", v):
+            raise ValueError("Enrollment / Roll number must be alphanumeric.")
+        return v
 
 
 class RefreshTokenRequest(BaseModel):

@@ -38,7 +38,7 @@ class TestRegistrationApprovalWorkflow(unittest.TestCase):
             "email": f"{username}@univ.edu",
             "password": "Password123!",
             "first_name": "TestStudent",
-            "last_name": uid,
+            "last_name": "Resident",
             "role": "student",
             "branch": "CSE"
         }

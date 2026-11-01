@@ -108,7 +108,13 @@ const API = {
 
         const data = await response.json();
         if (!response.ok) {
-            throw new Error(data.detail || "Registration failed.");
+            let errorMsg = "Registration failed.";
+            if (typeof data.detail === "string") {
+                errorMsg = data.detail;
+            } else if (Array.isArray(data.detail)) {
+                errorMsg = data.detail.map(e => (e.msg || "").replace(/^Value error,\s*/i, "")).join(". ");
+            }
+            throw new Error(errorMsg);
         }
 
         this.setToken(data.access_token);
