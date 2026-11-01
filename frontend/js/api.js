@@ -1858,7 +1858,8 @@ const API = {
         const res = await response.json();
         if (!response.ok) throw new Error(res.detail || "Failed to restore database backup.");
         return res;
-    }
+    },
+
     async getPendingRegistrations() {
         const response = await fetch(`${this.baseUrl}/api/v1/registrations/pending`, {
             headers: this.getHeaders()
