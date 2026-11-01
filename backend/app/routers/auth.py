@@ -16,7 +16,9 @@ from backend.app.models.auth_dto import (
     MessageResponse,
     RefreshTokenRequest,
     ResetPasswordRequest,
-    UserProfileResponse
+    UserProfileResponse,
+    SwitchRoleRequest,
+    SwitchRoleResponse
 )
 from backend.app.services.auth_dependencies import (
     get_current_user,
@@ -129,6 +131,23 @@ def logout(
 
     response.delete_cookie(key="refresh_token")
     return {"success": True, "message": "Successfully logged out. Refresh token revoked."}
+
+
+
+@router.post("/auth/switch-role", response_model=SwitchRoleResponse)
+def switch_role(
+    dto: SwitchRoleRequest,
+    request: Request,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """Validate and switch active role for multi-role accounts with audit logging."""
+    ip, ua = get_client_ip_and_ua(request)
+    return AuthService.switch_user_role(
+        user_id=current_user["id"],
+        target_role=dto.role,
+        ip_address=ip,
+        user_agent=ua
+    )
 
 
 @router.get("/auth/me", response_model=UserProfileResponse)

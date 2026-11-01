@@ -40,8 +40,21 @@ class UserProfileResponse(BaseModel):
     last_name: str
     roles: List[str]
     permissions: List[str]
+    active_role: Optional[str] = None
     linked_student_id: Optional[int] = None
     linked_hostel_id: Optional[int] = None
+
+
+class SwitchRoleRequest(BaseModel):
+    role: str = Field(..., min_length=2, description="Target role to switch active context to")
+
+
+class SwitchRoleResponse(BaseModel):
+    success: bool
+    active_role: str
+    access_token: str
+    permissions: List[str]
+    message: str
 
 
 class AuthResponse(BaseModel):

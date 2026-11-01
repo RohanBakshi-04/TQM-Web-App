@@ -175,10 +175,16 @@ class AuthService:
         conn: Optional[sqlite3.Connection] = None
     ) -> Dict[str, Any]:
         """Issue JWT access token and store rotated refresh token."""
+        active_role = user.get("active_role")
+        if not active_role or active_role not in user["roles"]:
+            active_role = user["roles"][0] if user["roles"] else "student"
+        user["active_role"] = active_role
+
         token_payload = {
             "sub": user["username"],
             "user_id": user["id"],
             "roles": user["roles"],
+            "active_role": active_role,
             "linked_student_id": user.get("linked_student_id"),
             "linked_hostel_id": user.get("linked_hostel_id")
         }
@@ -429,3 +435,64 @@ class AuthService:
         finally:
             if should_close:
                 conn.close()
+
+    @classmethod
+    def switch_user_role(
+        cls,
+        user_id: int,
+        target_role: str,
+        ip_address: str = "",
+        user_agent: str = ""
+    ) -> Dict[str, Any]:
+        """Validate and switch active role for multi-role accounts with audit logging."""
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, username, is_active FROM users WHERE id = ?;", (user_id,))
+            user_row = cursor.fetchone()
+            if not user_row or not user_row["is_active"]:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User account not found or inactive.")
+
+            roles, all_permissions = cls.get_user_roles_and_permissions(conn, user_id)
+            if target_role not in roles:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Unauthorized role switch: Role '{target_role}' is not assigned to your account."
+                )
+
+            # Calculate permissions specifically associated with the target active role
+            cursor.execute("""
+                SELECT DISTINCT p.name
+                FROM permissions p
+                JOIN role_permissions rp ON p.id = rp.permission_id
+                JOIN roles r ON rp.role_id = r.id
+                WHERE r.name = ?;
+            """, (target_role,))
+            target_permissions = [row[0] for row in cursor.fetchall()]
+
+            # Issue new token with updated active_role
+            token_payload = {
+                "sub": user_row["username"],
+                "user_id": user_id,
+                "roles": roles,
+                "active_role": target_role
+            }
+            new_access_token = create_access_token(token_payload)
+
+            # Record audit event
+            import json
+            cursor.execute("""
+                INSERT INTO audit_logs (user_id, action, entity_type, entity_id, old_values, new_values, ip_address, created_at)
+                VALUES (?, 'ROLE_SWITCH', 'user_session', ?, ?, ?, ?, datetime('now'));
+            """, (user_id, user_id, json.dumps({"switch": "requested"}), json.dumps({"active_role": target_role}), ip_address))
+            conn.commit()
+
+            return {
+                "success": True,
+                "active_role": target_role,
+                "access_token": new_access_token,
+                "permissions": target_permissions,
+                "message": f"Successfully switched active context to {target_role}."
+            }
+        finally:
+            conn.close()

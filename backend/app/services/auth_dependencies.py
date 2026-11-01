@@ -57,6 +57,11 @@ def get_current_user(
 
         roles, permissions = AuthService.get_user_roles_and_permissions(conn, user_id)
 
+        # Resolve active_role from token payload or default to primary assigned role
+        active_role = payload.get("active_role")
+        if not active_role or active_role not in roles:
+            active_role = roles[0] if roles else "student"
+
         return {
             "id": user_row["id"],
             "username": user_row["username"],
@@ -65,6 +70,7 @@ def get_current_user(
             "last_name": user_row["last_name"],
             "phone": user_row["phone"],
             "roles": roles,
+            "active_role": active_role,
             "permissions": list(permissions),
             "linked_student_id": user_row["linked_student_id"],
             "linked_hostel_id": user_row["linked_hostel_id"]
