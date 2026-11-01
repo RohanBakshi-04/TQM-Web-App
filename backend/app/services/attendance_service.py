@@ -48,12 +48,14 @@ class AttendanceService:
     @staticmethod
     def _enforce_staff_hostel_access(current_user: Dict[str, Any], hostel_id: Optional[int]) -> None:
         """Validate that warden/assistant warden only manages attendance for their assigned hostel."""
-        role = current_user.get("role")
-        user_hostel_id = current_user.get("hostel_id")
+        user_roles = set(current_user.get("roles", []))
+        if current_user.get("role"):
+            user_roles.add(current_user["role"])
+        user_hostel_id = current_user.get("hostel_id") or current_user.get("linked_hostel_id")
 
-        if role in ["super_admin", "auditor"]:
+        if user_roles.intersection({"super_admin", "auditor"}):
             return
-        if role in ["hostel_admin", "warden", "assistant_warden", "security_guard"]:
+        if user_roles.intersection({"hostel_admin", "warden", "assistant_warden", "security_guard"}):
             if user_hostel_id and hostel_id and int(user_hostel_id) != int(hostel_id):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -63,8 +65,10 @@ class AttendanceService:
     @classmethod
     def mark_attendance(cls, payload: AttendanceRecordCreate, current_user: Dict[str, Any]) -> Dict[str, Any]:
         """Record daily attendance for a single student."""
-        role = current_user.get("role")
-        if role not in ["super_admin", "hostel_admin", "warden", "assistant_warden", "security_guard"]:
+        user_roles = set(current_user.get("roles", []))
+        if current_user.get("role"):
+            user_roles.add(current_user["role"])
+        if not user_roles.intersection({"super_admin", "hostel_admin", "warden", "assistant_warden", "security_guard"}):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Unauthorized: Only hostel staff can record attendance."
@@ -139,8 +143,10 @@ class AttendanceService:
     @classmethod
     def bulk_mark_attendance(cls, payload: AttendanceBulkMarkRequest, current_user: Dict[str, Any]) -> Dict[str, Any]:
         """Atomically record attendance for multiple students for a specific date."""
-        role = current_user.get("role")
-        if role not in ["super_admin", "hostel_admin", "warden", "assistant_warden", "security_guard"]:
+        user_roles = set(current_user.get("roles", []))
+        if current_user.get("role"):
+            user_roles.add(current_user["role"])
+        if not user_roles.intersection({"super_admin", "hostel_admin", "warden", "assistant_warden", "security_guard"}):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Unauthorized: Only hostel staff can record attendance."
@@ -473,12 +479,26 @@ class AttendanceService:
         if current_user.get("role"):
             user_roles.add(current_user["role"])
         user_hostel_id = current_user.get("hostel_id") or current_user.get("linked_hostel_id")
-        if user_roles.intersection({"warden", "assistant_warden"}) and user_hostel_id and not hostel_id:
-            hostel_id = int(user_hostel_id)
 
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
+
+            # Strictly isolate warden to their assigned hostel
+            if user_roles.intersection({"warden", "assistant_warden"}):
+                if not user_hostel_id:
+                    cursor.execute("SELECT linked_hostel_id FROM users WHERE id = ?;", (current_user.get("id") or current_user.get("user_id"),))
+                    u_row = cursor.fetchone()
+                    if u_row and u_row["linked_hostel_id"]:
+                        user_hostel_id = u_row["linked_hostel_id"]
+                    else:
+                        cursor.execute("SELECT id FROM hostels WHERE warden_id = ? LIMIT 1;", (current_user.get("id") or current_user.get("user_id"),))
+                        h_row = cursor.fetchone()
+                        if h_row:
+                            user_hostel_id = h_row["id"]
+
+                # Enforce strictly: hostel_id must be user_hostel_id (or -1 if none assigned)
+                hostel_id = int(user_hostel_id) if user_hostel_id else -1
 
             # Active resident students count
             hostel_clause = "AND bld.hostel_id = ?" if hostel_id else ""
@@ -557,12 +577,26 @@ class AttendanceService:
         if current_user.get("role"):
             user_roles.add(current_user["role"])
         user_hostel_id = current_user.get("hostel_id") or current_user.get("linked_hostel_id")
-        if user_roles.intersection({"warden", "assistant_warden"}) and user_hostel_id and not hostel_id:
-            hostel_id = int(user_hostel_id)
 
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
+
+            # Strictly isolate warden to their assigned hostel
+            if user_roles.intersection({"warden", "assistant_warden"}):
+                if not user_hostel_id:
+                    cursor.execute("SELECT linked_hostel_id FROM users WHERE id = ?;", (current_user.get("id") or current_user.get("user_id"),))
+                    u_row = cursor.fetchone()
+                    if u_row and u_row["linked_hostel_id"]:
+                        user_hostel_id = u_row["linked_hostel_id"]
+                    else:
+                        cursor.execute("SELECT id FROM hostels WHERE warden_id = ? LIMIT 1;", (current_user.get("id") or current_user.get("user_id"),))
+                        h_row = cursor.fetchone()
+                        if h_row:
+                            user_hostel_id = h_row["id"]
+
+                # Enforce strictly: hostel_id must be user_hostel_id (or -1 if none assigned)
+                hostel_id = int(user_hostel_id) if user_hostel_id else -1
             hostel_clause = "AND bld.hostel_id = ?" if hostel_id else ""
             h_params = [hostel_id] if hostel_id else []
 
@@ -646,12 +680,26 @@ class AttendanceService:
         if current_user.get("role"):
             user_roles.add(current_user["role"])
         user_hostel_id = current_user.get("hostel_id") or current_user.get("linked_hostel_id")
-        if user_roles.intersection({"warden", "assistant_warden"}) and user_hostel_id and not hostel_id:
-            hostel_id = int(user_hostel_id)
 
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
+
+            # Strictly isolate warden to their assigned hostel
+            if user_roles.intersection({"warden", "assistant_warden"}):
+                if not user_hostel_id:
+                    cursor.execute("SELECT linked_hostel_id FROM users WHERE id = ?;", (current_user.get("id") or current_user.get("user_id"),))
+                    u_row = cursor.fetchone()
+                    if u_row and u_row["linked_hostel_id"]:
+                        user_hostel_id = u_row["linked_hostel_id"]
+                    else:
+                        cursor.execute("SELECT id FROM hostels WHERE warden_id = ? LIMIT 1;", (current_user.get("id") or current_user.get("user_id"),))
+                        h_row = cursor.fetchone()
+                        if h_row:
+                            user_hostel_id = h_row["id"]
+
+                # Enforce strictly: hostel_id must be user_hostel_id (or -1 if none assigned)
+                hostel_id = int(user_hostel_id) if user_hostel_id else -1
             where_clauses = ["ra.allocation_status = 'Active'"]
             params: List[Any] = [target_date, target_date]
 

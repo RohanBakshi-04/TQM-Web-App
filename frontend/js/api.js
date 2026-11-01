@@ -336,10 +336,20 @@ const API = {
     /**
      * Change current user's password.
      */
+    async getAuthorizedHostels() {
+        const response = await fetch(${this.baseUrl}/api/v1/auth/authorized-hostels);
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.detail || "Failed to load authorized hostels.");
+        }
+        return data;
+    },
+
     async changePassword(currentPassword, newPassword) {
-        const response = await fetch(`${this.baseUrl}/api/v1/auth/change-password`, {
+        const response = await fetch(${this.baseUrl}/api/v1/auth/change-password, {
             method: "POST",
             headers: this.getHeaders(),
+            credentials: "include",
             body: JSON.stringify({
                 current_password: currentPassword,
                 new_password: newPassword
@@ -348,6 +358,9 @@ const API = {
         const data = await response.json();
         if (!response.ok) {
             throw new Error(data.detail || "Failed to change password.");
+        }
+        if (data.access_token) {
+            localStorage.setItem('auth_token', data.access_token);
         }
         return data;
     },

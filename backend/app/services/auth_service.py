@@ -391,6 +391,58 @@ class AuthService:
                 conn.close()
 
     @classmethod
+    def get_authorized_hostels(cls, conn: Optional[sqlite3.Connection] = None) -> List[Dict[str, Any]]:
+        """Retrieve all active hostels with real-time warden capacity and availability."""
+        should_close = False
+        if conn is None:
+            conn = get_db_connection()
+            should_close = True
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT h.id, h.name, h.code, h.hostel_type, h.address, h.contact_phone, h.contact_email
+                FROM hostels h
+                WHERE h.is_active = 1
+                ORDER BY h.id ASC;
+            """)
+            hostels = [dict(r) for r in cursor.fetchall()]
+
+            for h in hostels:
+                hid = h["id"]
+                # Count active assigned wardens
+                cursor.execute("""
+                    SELECT COUNT(DISTINCT u.id)
+                    FROM users u
+                    JOIN user_roles ur ON u.id = ur.user_id
+                    JOIN roles r ON ur.role_id = r.id
+                    WHERE r.name IN ('warden', 'assistant_warden')
+                      AND u.linked_hostel_id = ?
+                      AND u.is_active = 1;
+                """, (hid,))
+                active_wardens = cursor.fetchone()[0]
+
+                # Count pending warden requests
+                cursor.execute("""
+                    SELECT COUNT(*)
+                    FROM registration_requests
+                    WHERE (requested_role IN ('warden', 'assistant_warden') OR specialization IN ('warden', 'hostel_warden'))
+                      AND hostel_id = ?
+                      AND status = 'Pending';
+                """, (hid,))
+                pending_wardens = cursor.fetchone()[0]
+
+                h["warden_count"] = active_wardens
+                h["pending_wardens"] = pending_wardens
+                h["max_wardens"] = 2
+                h["is_full"] = (active_wardens + pending_wardens) >= 2
+                h["available_for_warden"] = (active_wardens + pending_wardens) < 2
+
+            return hostels
+        finally:
+            if should_close:
+                conn.close()
+
+    @classmethod
     def change_user_password(
         cls,
         user_id: int,
@@ -635,6 +687,42 @@ class AuthService:
                 target_role = "student"
 
             # Check if username already exists in users or pending registrations
+            # Poka-Yoke: Hostel selection and maximum 2 wardens constraint
+            assigned_hostel_id = getattr(payload, 'hostel_id', None)
+            if target_role == "warden" or (payload.specialization or "").lower() in ("warden", "hostel_warden"):
+                if assigned_hostel_id:
+                    cursor.execute("SELECT id, name FROM hostels WHERE id = ? AND is_active = 1;", (assigned_hostel_id,))
+                    h_target = cursor.fetchone()
+                    if not h_target:
+                        raise HTTPException(status_code=400, detail="Selected hostel is invalid or inactive.")
+                    h_target_name = h_target["name"]
+
+                    cursor.execute("""
+                        SELECT COUNT(DISTINCT u.id)
+                        FROM users u
+                        JOIN user_roles ur ON u.id = ur.user_id
+                        JOIN roles r ON ur.role_id = r.id
+                        WHERE r.name IN ('warden', 'assistant_warden')
+                          AND u.linked_hostel_id = ?
+                          AND u.is_active = 1;
+                    """, (assigned_hostel_id,))
+                    active_w_count = cursor.fetchone()[0]
+
+                    cursor.execute("""
+                        SELECT COUNT(*)
+                        FROM registration_requests
+                        WHERE (requested_role IN ('warden', 'assistant_warden') OR specialization IN ('warden', 'hostel_warden'))
+                          AND hostel_id = ?
+                          AND status = 'Pending';
+                    """, (assigned_hostel_id,))
+                    pend_w_count = cursor.fetchone()[0]
+
+                    if active_w_count + pend_w_count >= 2:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Hostel '{h_target_name}' has reached its institutional maximum quota of 2 hostel wardens (active/pending). Please select another authorized hostel."
+                        )
+
             cursor.execute("SELECT id FROM users WHERE username = ?;", (uname,))
             if cursor.fetchone():
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username is already taken.")
@@ -776,8 +864,8 @@ class AuthService:
                     requested_role, specialization, student_roll_no, branch,
                     linked_student_id, relationship, status,
                     admin_warden_approval_status, student_approval_status,
-                    staff_id, gender
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    staff_id, gender, hostel_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """, (
                 user_id, uname, email, first_name, last_name, phone,
                 target_role, payload.specialization,
@@ -786,7 +874,7 @@ class AuthService:
                 linked_student_id,
                 getattr(payload, 'relationship', 'Parent'),
                 status_str, admin_warden_status, student_status,
-                assigned_staff_id, gender_val
+                assigned_staff_id, gender_val, assigned_hostel_id
             ))
             req_id = cursor.lastrowid
 
@@ -856,9 +944,10 @@ class AuthService:
             if "student" in user_roles and not user_roles.intersection({"super_admin", "hostel_admin", "warden"}):
                 linked_s_id = current_user.get("linked_student_id")
                 cursor.execute("""
-                    SELECT rr.*, s.first_name as student_first_name, s.last_name as student_last_name, s.student_id as student_roll_no_display
+                    SELECT rr.*, s.first_name as student_first_name, s.last_name as student_last_name, s.student_id as student_roll_no_display, h.name as hostel_name, h.code as hostel_code, h.hostel_type
                     FROM registration_requests rr
                     LEFT JOIN students s ON rr.linked_student_id = s.id
+                    LEFT JOIN hostels h ON rr.hostel_id = h.id
                     WHERE rr.linked_student_id = ? AND rr.status = 'Pending' AND rr.student_approval_status = 'Pending'
                     ORDER BY rr.id DESC;
                 """, (linked_s_id,))
@@ -867,9 +956,10 @@ class AuthService:
             # 2. Warden view: can approve Students and Parents (NOT Staff)
             if user_roles.intersection({"warden", "assistant_warden"}) and not user_roles.intersection({"super_admin", "hostel_admin"}):
                 cursor.execute("""
-                    SELECT rr.*, s.first_name as student_first_name, s.last_name as student_last_name, s.student_id as student_roll_no_display
+                    SELECT rr.*, s.first_name as student_first_name, s.last_name as student_last_name, s.student_id as student_roll_no_display, h.name as hostel_name, h.code as hostel_code, h.hostel_type
                     FROM registration_requests rr
                     LEFT JOIN students s ON rr.linked_student_id = s.id
+                    LEFT JOIN hostels h ON rr.hostel_id = h.id
                     WHERE rr.requested_role IN ('student', 'parent_guardian')
                       AND rr.status = 'Pending'
                       AND rr.admin_warden_approval_status = 'Pending'
@@ -880,9 +970,10 @@ class AuthService:
             # 3. Super Admin & Hostel Admin: all pending registrations
             if user_roles.intersection({"super_admin", "hostel_admin"}):
                 cursor.execute("""
-                    SELECT rr.*, s.first_name as student_first_name, s.last_name as student_last_name, s.student_id as student_roll_no_display
+                    SELECT rr.*, s.first_name as student_first_name, s.last_name as student_last_name, s.student_id as student_roll_no_display, h.name as hostel_name, h.code as hostel_code, h.hostel_type
                     FROM registration_requests rr
                     LEFT JOIN students s ON rr.linked_student_id = s.id
+                    LEFT JOIN hostels h ON rr.hostel_id = h.id
                     WHERE rr.status = 'Pending'
                     ORDER BY rr.id DESC;
                 """)
@@ -993,6 +1084,26 @@ class AuthService:
                     conn.commit()
                     return {"success": True, "status": "Rejected", "message": "Staff registration request rejected."}
 
+                # If staff member is a warden and hostel_id was selected:
+                req_hid = req["hostel_id"] if ("hostel_id" in req.keys() and req["hostel_id"]) else None
+                if (target_role in ("warden", "assistant_warden") or (req.get("specialization") or "").lower() in ("warden", "hostel_warden")) and req_hid:
+                    cursor.execute("""
+                        SELECT COUNT(DISTINCT u.id)
+                        FROM users u
+                        JOIN user_roles ur ON u.id = ur.user_id
+                        JOIN roles r ON ur.role_id = r.id
+                        WHERE r.name IN ('warden', 'assistant_warden')
+                          AND u.linked_hostel_id = ?
+                          AND u.is_active = 1
+                          AND u.id != ?;
+                    """, (req_hid, req["user_id"]))
+                    if cursor.fetchone()[0] >= 2:
+                        raise HTTPException(status_code=400, detail="Cannot approve: Selected hostel already has 2 active wardens assigned.")
+                    cursor.execute("UPDATE users SET is_active = 1, linked_hostel_id = ? WHERE id = ?;", (req_hid, req["user_id"]))
+                    cursor.execute("UPDATE hostels SET warden_id = ? WHERE id = ? AND warden_id IS NULL;", (req["user_id"], req_hid))
+                else:
+                    cursor.execute("UPDATE users SET is_active = 1 WHERE id = ?;", (req["user_id"],))
+
                 cursor.execute("""
                     UPDATE registration_requests
                     SET status = 'Approved', admin_warden_approval_status = 'Approved',
@@ -1000,7 +1111,6 @@ class AuthService:
                         updated_at = ?
                     WHERE id = ?;
                 """, (current_user["id"], now_str, now_str, req_id))
-                cursor.execute("UPDATE users SET is_active = 1 WHERE id = ?;", (req["user_id"],))
                 conn.commit()
                 return {"success": True, "status": "Approved", "message": f"Staff registration approved! {req['first_name']} {req['last_name']} account is now Active."}
 

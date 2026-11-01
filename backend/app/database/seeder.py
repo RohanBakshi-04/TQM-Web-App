@@ -150,6 +150,28 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
         cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, 'G01-A', 'Available');", (r_g01,))
         cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, 'G01-B', 'Available');", (r_g01,))
 
+        cursor.execute("SELECT id FROM hostels WHERE code = 'MTGH-01';")
+        if not cursor.fetchone():
+            cursor.execute(
+                """INSERT INTO hostels (name, code, hostel_type, address, contact_phone, contact_email, is_active)
+                   VALUES ('Mother Teresa Girls Hostel', 'MTGH-01', 'Girls', 'South Campus, Block C, University Enclave', '011-2700103', 'teresa.girls@univ.edu', 1);"""
+            )
+            hostel_mt_id = cursor.lastrowid
+
+            cursor.execute("INSERT INTO buildings (hostel_id, name, code, total_floors, is_active) VALUES (?, 'Mother Teresa Wing', 'BLK-MTG', 2, 1);", (hostel_mt_id,))
+            bldg_mt = cursor.lastrowid
+
+            cursor.execute("INSERT INTO floors (building_id, floor_number, floor_name) VALUES (?, 1, 'First Floor');", (bldg_mt,))
+            flr_mt1 = cursor.lastrowid
+
+            cursor.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status, is_active) VALUES (?, '101', 'Single', 1, 6500.0, 'Available', 1);", (flr_mt1,))
+            r_mt101 = cursor.lastrowid
+            cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, '101-A', 'Available');", (r_mt101,))
+
+            cursor.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status, is_active) VALUES (?, '102', 'Single', 1, 6500.0, 'Available', 1);", (flr_mt1,))
+            r_mt102 = cursor.lastrowid
+            cursor.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, '102-A', 'Available');", (r_mt102,))
+
         # 5. Seed Students (Fictional Demo Records)
         rohan_user_id = user_id_map.get("rohan", 5)
         students_data = [

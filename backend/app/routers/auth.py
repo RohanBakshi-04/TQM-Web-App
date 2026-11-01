@@ -1,3 +1,4 @@
+from backend.app.services.security import create_access_token, create_refresh_token
 """Authentication and RBAC API Router.
 
 Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
@@ -170,26 +171,64 @@ def switch_role(
     )
 
 
+@router.get("/auth/authorized-hostels", response_model=List[Dict[str, Any]])
+def get_authorized_hostels() -> List[Dict[str, Any]]:
+    """Retrieve authorized active hostels and their real-time warden capacities."""
+    return AuthService.get_authorized_hostels()
+
+
 @router.get("/auth/me", response_model=UserProfileResponse)
 def get_me(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     """Return currently authenticated user profile, roles, and resolved permissions."""
     return current_user
 
 
-@router.post("/auth/change-password", response_model=MessageResponse)
+@router.post("/auth/change-password")
 def change_password(
     dto: ChangePasswordRequest,
     response: Response,
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Dict[str, Any]:
-    """Change current user's password, rehash with bcrypt, and revoke all active refresh tokens."""
+    """Change current user's password, rehash with bcrypt, and issue fresh access token for continuous login."""
     AuthService.change_user_password(
         user_id=current_user["id"],
         old_password=dto.current_password,
         new_password=dto.new_password
     )
-    response.delete_cookie(key="refresh_token")
-    return {"success": True, "message": "Password changed successfully. All active sessions have been revoked."}
+    # Generate fresh access token and refresh token
+    token_payload = {
+        "sub": current_user["username"],
+        "user_id": current_user["id"],
+        "roles": current_user.get("roles", []),
+        "active_role": current_user.get("role"),
+        "linked_student_id": current_user.get("linked_student_id"),
+        "linked_hostel_id": current_user.get("linked_hostel_id")
+    }
+    new_access_token = create_access_token(token_payload)
+    raw_refresh, token_hash, exp_dt = create_refresh_token(current_user["id"])
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("INSERT INTO refresh_tokens (user_id, token_hash, expires_at, is_revoked) VALUES (?, ?, ?, 0);",
+                    (current_user["id"], token_hash, exp_dt.strftime("%Y-%m-%d %H:%M:%S")))
+        conn.commit()
+    finally:
+        conn.close()
+
+    response.set_cookie(
+        key="refresh_token",
+        value=raw_refresh,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=7 * 86400
+    )
+    return {
+        "success": True,
+        "message": "Password changed successfully. Your security credentials have been updated.",
+        "access_token": new_access_token,
+        "token_type": "bearer"
+    }
 
 
 @router.post("/auth/forgot-password")
@@ -303,7 +342,8 @@ def get_student_profile(
         # Also fetch active room allocation if any
         cursor.execute("""
             SELECT ra.id as allocation_id, ra.start_date, ra.allocation_status,
-                   b.bed_number, r.room_number, fl.floor_number, bl.name as building_name, h.name as hostel_name
+                   b.bed_number, r.room_number, r.room_type, fl.floor_number, bl.name as building_name,
+                   bl.hostel_id as hostel_id, h.name as hostel_name, h.code as hostel_code
             FROM room_allocations ra
             JOIN beds b ON ra.bed_id = b.id
             JOIN rooms r ON b.room_id = r.id
@@ -312,11 +352,26 @@ def get_student_profile(
             JOIN hostels h ON bl.hostel_id = h.id
             WHERE ra.student_id = ? AND ra.allocation_status = 'Active'
             LIMIT 1;
-        """, (student_id,))
+        """, (student["id"],))
         alloc = cursor.fetchone()
 
         result = dict(student)
-        result["allocation"] = dict(alloc) if alloc else None
+        if alloc:
+            alloc_dict = dict(alloc)
+            # Query assigned wardens for this hostel
+            cursor.execute("""
+                SELECT u.id, u.staff_id, u.first_name || ' ' || u.last_name as full_name,
+                       u.email, u.phone, r.name as role_name
+                FROM users u
+                JOIN user_roles ur ON u.id = ur.user_id
+                JOIN roles r ON ur.role_id = r.id
+                WHERE u.linked_hostel_id = ? AND r.name IN ('warden', 'assistant_warden') AND u.is_active = 1
+                ORDER BY r.name DESC;
+            """, (alloc["hostel_id"],))
+            alloc_dict["wardens"] = [dict(w) for w in cursor.fetchall()]
+            result["allocation"] = alloc_dict
+        else:
+            result["allocation"] = None
         return result
     finally:
         conn.close()

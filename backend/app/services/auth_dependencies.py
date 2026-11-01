@@ -76,6 +76,25 @@ def get_current_user(
         if not staff_id_val and any(r in roles for r in staff_roles):
             staff_id_val = f"STF-{user_row['id']:04d}"
 
+        # Resolve linked hostel info if applicable
+        hostel_name = None
+        hostel_code = None
+        hostel_type = None
+        linked_hid = user_row["linked_hostel_id"]
+        if not linked_hid and any(r in roles for r in ('warden', 'assistant_warden')):
+            cursor.execute("SELECT id FROM hostels WHERE warden_id = ? LIMIT 1;", (user_row["id"],))
+            hw = cursor.fetchone()
+            if hw:
+                linked_hid = hw["id"] if isinstance(hw, dict) or hasattr(hw, 'keys') else hw[0]
+
+        if linked_hid:
+            cursor.execute("SELECT name, code, hostel_type FROM hostels WHERE id = ?;", (linked_hid,))
+            h_info = cursor.fetchone()
+            if h_info:
+                hostel_name = h_info["name"] if isinstance(h_info, dict) or hasattr(h_info, 'keys') else h_info[0]
+                hostel_code = h_info["code"] if isinstance(h_info, dict) or hasattr(h_info, 'keys') else h_info[1]
+                hostel_type = h_info["hostel_type"] if isinstance(h_info, dict) or hasattr(h_info, 'keys') else h_info[2]
+
         return {
             "id": user_row["id"],
             "user_id": user_row["id"],
@@ -84,12 +103,17 @@ def get_current_user(
             "first_name": user_row["first_name"],
             "last_name": user_row["last_name"],
             "phone": user_row["phone"],
+            "gender": user_row["gender"] if "gender" in user_row.keys() else "Male",
             "roles": roles,
             "role": active_role,
             "active_role": active_role,
             "permissions": list(permissions),
             "linked_student_id": user_row["linked_student_id"],
-            "linked_hostel_id": user_row["linked_hostel_id"],
+            "linked_hostel_id": linked_hid,
+            "hostel_id": linked_hid,
+            "hostel_name": hostel_name,
+            "hostel_code": hostel_code,
+            "hostel_type": hostel_type,
             "staff_id": staff_id_val,
             "student_id": resolved_student_id
         }

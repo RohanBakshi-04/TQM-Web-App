@@ -131,7 +131,8 @@ document.addEventListener("alpine:init", () => {
             branch: 'CSE',
             specialization: 'warden',
             child_identifier: '',
-            relationship: 'Father'
+            relationship: 'Father',
+            hostel_id: ''
         },
         pendingRegistrations: [],
         pendingRegistrationsLoading: false,
@@ -683,6 +684,9 @@ document.addEventListener("alpine:init", () => {
         },
 
         async init() {
+            // Load authorized hostels for warden registrations and room allocations
+            this.loadAuthorizedHostels();
+
             // Apply stored theme
             if (this.darkMode) {
                 document.documentElement.classList.add("dark");
@@ -869,6 +873,63 @@ selectPreset(preset) {
             this.loginNotice = `Loaded credentials for ${preset.label} (${preset.username})`;
         },
 
+        async loadAuthorizedHostels() {
+            try {
+                this.authorizedHostelsList = await window.API.getAuthorizedHostels();
+            } catch (err) {
+                console.warn("Could not load authorized hostels:", err);
+            }
+        },
+
+        openChangePasswordModal() {
+            this.changePasswordForm = {
+                current_password: '',
+                new_password: '',
+                confirm_password: '',
+                show_current: false,
+                show_new: false,
+                show_confirm: false
+            };
+            this.changePasswordModalOpen = true;
+        },
+
+        async submitChangePassword() {
+            const cur = (this.changePasswordForm.current_password || '').trim();
+            const np = (this.changePasswordForm.new_password || '').trim();
+            const cp = (this.changePasswordForm.confirm_password || '').trim();
+
+            if (!cur) {
+                this.showToast("Please enter your current password.", "warning");
+                return;
+            }
+            if (np.length < 8) {
+                this.showToast("New password must be at least 8 characters long.", "warning");
+                return;
+            }
+            if (np !== cp) {
+                this.showToast("New password and confirmation do not match.", "warning");
+                return;
+            }
+
+            this.changePasswordLoading = true;
+            try {
+                const res = await window.API.changePassword(cur, np);
+                this.showToast(res.message || "Password updated successfully! Your credentials have been saved.", "success");
+                this.changePasswordModalOpen = false;
+                this.changePasswordForm = {
+                    current_password: '',
+                    new_password: '',
+                    confirm_password: '',
+                    show_current: false,
+                    show_new: false,
+                    show_confirm: false
+                };
+            } catch (err) {
+                this.showToast(err.message || "Failed to change password. Please verify your current password.", "error");
+            } finally {
+                this.changePasswordLoading = false;
+            }
+        },
         async handleLogin() {
             this.loginLoading = true;
             this.loginError = "";
@@ -1015,6 +1076,14 @@ selectPreset(preset) {
                 }
             }
 
+            if (this.registerForm.role === 'staff' && (this.registerForm.specialization === 'warden' || this.registerForm.specialization === 'hostel_warden')) {
+                if (!this.registerForm.hostel_id) {
+                    this.registerError = "Please select an authorized campus hostel for the Hostel Warden assignment.";
+                    this.showToast(this.registerError, 'error');
+                    return;
+                }
+            }
+
             if (this.registerForm.role === 'parent_guardian' && !this.registerForm.child_identifier) {
                 this.registerError = "Please specify your child's Student Roll Number or University Email.";
                 this.showToast(this.registerError, 'error');
@@ -1034,6 +1103,7 @@ selectPreset(preset) {
                     enrollment_no: this.registerForm.role === 'student' ? (this.registerForm.enrollment_no || null) : null,
                     branch: this.registerForm.role === 'student' ? this.registerForm.branch : null,
                     specialization: this.registerForm.role === 'staff' ? this.registerForm.specialization : null,
+                    hostel_id: (this.registerForm.role === 'staff' && this.registerForm.hostel_id) ? parseInt(this.registerForm.hostel_id) : null,
                     child_identifier: this.registerForm.role === 'parent_guardian' ? this.registerForm.child_identifier : null,
                     relationship: this.registerForm.role === 'parent_guardian' ? this.registerForm.relationship : null
                 };
