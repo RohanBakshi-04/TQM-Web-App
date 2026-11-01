@@ -128,7 +128,7 @@ document.addEventListener("alpine:init", () => {
             { role: "hostel_admin", username: "hosteladmin", label: "Hostel Admin", icon: "fa-hotel", desc: "Campus facilities oversight" },
             { role: "warden", username: "warden", label: "Chief Warden", icon: "fa-user-tie", desc: "Student welfare & discipline" },
             { role: "assistant_warden", username: "asstwarden", label: "Asst Warden", icon: "fa-clipboard-user", desc: "Daily operational rounds" },
-            { role: "student", username: "rohan", label: "Student (Rohan)", icon: "fa-graduation-cap", desc: "Resident self-service portal" },
+            { role: "student", username: "rohan", label: "Student", icon: "fa-graduation-cap", desc: "Resident self-service portal" },
             { role: "accountant", username: "accountant", label: "Accountant", icon: "fa-calculator", desc: "Fee invoices & billing" },
             { role: "mess_manager", username: "messmanager", label: "Mess Manager", icon: "fa-utensils", desc: "Dietary plans & meal attendance" },
             { role: "maintenance_staff", username: "maintenance", label: "Maintenance", icon: "fa-wrench", desc: "Facility repairs & tasks" },
@@ -137,6 +137,109 @@ document.addEventListener("alpine:init", () => {
             { role: "parent_guardian", username: "parent", label: "Parent/Guardian", icon: "fa-people-roof", desc: "Ward academic & fee tracking" },
             { role: "auditor", username: "evaluator", label: "Auditor", icon: "fa-chart-line", desc: "Compliance & audit review" }
         ],
+        // Role-Specific Navigation Mappings
+        roleNavigationMap: {
+            super_admin: [
+                { id: "dashboard", label: "System Overview", icon: "fa-gauge-high" },
+                { id: "allocations", label: "Room Allocations", icon: "fa-bed" },
+                { id: "attendance", label: "Attendance Control", icon: "fa-clipboard-user" },
+                { id: "leaves", label: "Leaves & Outpasses", icon: "fa-id-badge" },
+                { id: "visitors", label: "Visitor Management", icon: "fa-user-clock" },
+                { id: "finance", label: "Fee & Finance", icon: "fa-file-invoice-dollar" },
+                { id: "mess", label: "Mess & Dining", icon: "fa-utensils" },
+                { id: "inventory", label: "Inventory & Stock", icon: "fa-boxes-stacked" },
+                { id: "announcements", label: "Announcements", icon: "fa-bullhorn" },
+                { id: "admin", label: "System Admin", icon: "fa-sliders" },
+                { id: "architecture", label: "System Architecture", icon: "fa-microchip" }
+            ],
+            hostel_admin: [
+                { id: "dashboard", label: "Hostel Dashboard", icon: "fa-gauge-high" },
+                { id: "allocations", label: "Rooms & Allocations", icon: "fa-bed" },
+                { id: "attendance", label: "Student Attendance", icon: "fa-clipboard-user" },
+                { id: "leaves", label: "Leaves & Outpass", icon: "fa-id-badge" },
+                { id: "visitors", label: "Hostel Visitors", icon: "fa-user-clock" },
+                { id: "mess", label: "Hostel Mess", icon: "fa-utensils" },
+                { id: "inventory", label: "Hostel Supplies", icon: "fa-boxes-stacked" },
+                { id: "announcements", label: "Announcements", icon: "fa-bullhorn" }
+            ],
+            warden: [
+                { id: "dashboard", label: "Warden Dashboard", icon: "fa-gauge-high" },
+                { id: "attendance", label: "Daily Roll-Call", icon: "fa-clipboard-user" },
+                { id: "leaves", label: "Leave Approvals", icon: "fa-id-badge" },
+                { id: "visitors", label: "Visitor Management", icon: "fa-user-clock" },
+                { id: "allocations", label: "Resident Directory", icon: "fa-bed" },
+                { id: "announcements", label: "Broadcast Notices", icon: "fa-bullhorn" }
+            ],
+            assistant_warden: [
+                { id: "dashboard", label: "Floor Dashboard", icon: "fa-gauge-high" },
+                { id: "attendance", label: "Block Roll-Call", icon: "fa-clipboard-user" },
+                { id: "leaves", label: "Leave Review Queue", icon: "fa-id-badge" },
+                { id: "allocations", label: "Room Checks", icon: "fa-bed" },
+                { id: "announcements", label: "Hostel Notices", icon: "fa-bullhorn" }
+            ],
+            student: [
+                { id: "dashboard", label: "My Dashboard", icon: "fa-gauge-high" },
+                { id: "allocations", label: "My Room & Bed", icon: "fa-bed" },
+                { id: "attendance", label: "My Attendance", icon: "fa-clipboard-user" },
+                { id: "leaves", label: "My Leaves & Outpasses", icon: "fa-id-badge" },
+                { id: "finance", label: "My Fees & Receipts", icon: "fa-file-invoice-dollar" },
+                { id: "mess", label: "Mess Menu", icon: "fa-utensils" },
+                { id: "announcements", label: "Announcements", icon: "fa-bullhorn" }
+            ],
+            accountant: [
+                { id: "dashboard", label: "Finance Dashboard", icon: "fa-gauge-high" },
+                { id: "finance", label: "Invoices & Billing", icon: "fa-file-invoice-dollar" },
+                { id: "announcements", label: "Fee Circulars", icon: "fa-bullhorn" }
+            ],
+            mess_manager: [
+                { id: "dashboard", label: "Mess Dashboard", icon: "fa-gauge-high" },
+                { id: "mess", label: "Weekly Menu & Meals", icon: "fa-utensils" },
+                { id: "inventory", label: "Pantry & Stock", icon: "fa-boxes-stacked" },
+                { id: "announcements", label: "Mess Notices", icon: "fa-bullhorn" }
+            ],
+            maintenance_staff: [
+                { id: "dashboard", label: "Maintenance Console", icon: "fa-gauge-high" },
+                { id: "inventory", label: "Tools & Spares", icon: "fa-boxes-stacked" },
+                { id: "announcements", label: "Announcements", icon: "fa-bullhorn" }
+            ],
+            security_guard: [
+                { id: "dashboard", label: "Gate Security Console", icon: "fa-gauge-high" },
+                { id: "leaves", label: "Gate Outpass Check", icon: "fa-id-badge" },
+                { id: "visitors", label: "Visitor Passes", icon: "fa-user-clock" },
+                { id: "announcements", label: "Announcements", icon: "fa-bullhorn" }
+            ],
+            admission_officer: [
+                { id: "dashboard", label: "Admissions Dashboard", icon: "fa-gauge-high" },
+                { id: "allocations", label: "Room Availability", icon: "fa-bed" },
+                { id: "announcements", label: "Admissions Notices", icon: "fa-bullhorn" }
+            ],
+            parent_guardian: [
+                { id: "dashboard", label: "Ward Dashboard", icon: "fa-gauge-high" },
+                { id: "attendance", label: "Ward Attendance", icon: "fa-clipboard-user" },
+                { id: "leaves", label: "Ward Leaves", icon: "fa-id-badge" },
+                { id: "finance", label: "Fee Dues & Receipts", icon: "fa-file-invoice-dollar" },
+                { id: "announcements", label: "Announcements", icon: "fa-bullhorn" }
+            ],
+            auditor: [
+                { id: "dashboard", label: "Compliance Dashboard", icon: "fa-gauge-high" },
+                { id: "admin", label: "System Audit Logs", icon: "fa-sliders" },
+                { id: "finance", label: "Financial Ledger Audit", icon: "fa-file-invoice-dollar" },
+                { id: "architecture", label: "System Architecture", icon: "fa-microchip" }
+            ]
+        },
+
+        get authorizedNavItems() {
+            if (!this.isAuthenticated) {
+                return [
+                    { id: "welcome", label: "Overview", icon: "fa-compass" },
+                    { id: "architecture", label: "System Architecture", icon: "fa-microchip" },
+                    { id: "login", label: "Sign In", icon: "fa-right-to-bracket" }
+                ];
+            }
+            const roleKey = this.activeRoleView || (this.userRoles && this.userRoles[0]) || "student";
+            return this.roleNavigationMap[roleKey] || this.roleNavigationMap["student"];
+        },
+
 
         // Role-Specific Loaded Data
         rolesList: [],
@@ -685,7 +788,26 @@ document.addEventListener("alpine:init", () => {
             }
         },
 
-        selectPreset(preset) {
+        
+        async quickDemoLogin(roleKey) {
+            const preset = this.rolePresets.find(p => p.role === roleKey);
+            if (!preset) return;
+            this.loginCredentials.username = preset.username;
+            this.loginCredentials.password = "Password123!";
+            try {
+                this.loginLoading = true;
+                const authData = await window.API.login(this.loginCredentials.username, this.loginCredentials.password);
+                this.onAuthenticated(authData.user);
+                this.activeRoleView = roleKey;
+                this.activeSection = "dashboard";
+                this.showToast(`Logged in as ${preset.label}`, "success");
+            } catch (err) {
+                this.showToast(err.message || "Login failed", "error");
+            } finally {
+                this.loginLoading = false;
+            }
+        },
+selectPreset(preset) {
             this.loginCredentials.username = preset.username;
             this.loginCredentials.password = "Password123!";
             this.loginError = "";
@@ -1045,6 +1167,28 @@ document.addEventListener("alpine:init", () => {
 
         navigateTo(section) {
             if (this.activeSection === section) return;
+
+            // Route guard: unauthenticated users cannot access operational sections
+            if (!this.isAuthenticated) {
+                if (section !== "welcome" && section !== "architecture" && section !== "login") {
+                    this.showToast("Please sign in to access operational modules.", "info");
+                    this.activeSection = "login";
+                    this.mobileMenuOpen = false;
+                    return;
+                }
+            } else {
+                // Route guard for authenticated users: verify permission for section
+                if (section !== "welcome" && section !== "dashboard" && section !== "architecture") {
+                    const allowed = this.authorizedNavItems.some(item => item.id === section);
+                    if (!allowed && !this.hasRole("super_admin")) {
+                        this.showToast("Access Restricted: This section is not authorized for your role.", "error");
+                        this.activeSection = "dashboard";
+                        this.mobileMenuOpen = false;
+                        return;
+                    }
+                }
+            }
+
             const t0 = performance.now();
             this.activeSection = section;
             this.mobileMenuOpen = false;
