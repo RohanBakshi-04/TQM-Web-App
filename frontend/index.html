@@ -1073,145 +1073,41 @@
             </div>
 
             <!-- Sidebar Navigation Links -->
-            <div class="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+            <div class="flex-1 overflow-y-auto px-3 py-4 space-y-4">
 
-                <!-- Primary System Views -->
-                <div class="space-y-1">
-                    <div x-show="!sidebarCollapsed" class="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
-                        Application
-                    </div>
-
-                    <button @click="navigateTo('welcome')"
-                            :class="activeSection === 'welcome' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
-                            class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
-                        <i class="fa-solid fa-compass w-5 text-center text-sm"></i>
-                        <span x-show="!sidebarCollapsed" class="truncate">Overview</span>
-                    </button>
-
-                    <template x-if="!isAuthenticated">
-                        <button @click="navigateTo('login')"
-                                :class="activeSection === 'login' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
-                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
-                            <i class="fa-solid fa-right-to-bracket w-5 text-center text-sm"></i>
-                            <span x-show="!sidebarCollapsed" class="truncate">Stakeholder Sign In</span>
-                        </button>
-                    </template>
-
-                    <template x-if="isAuthenticated">
-                        <button @click="navigateTo('dashboard')"
-                                :class="activeSection === 'dashboard' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
-                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
-                            <i class="fa-solid fa-gauge-high w-5 text-center text-sm"></i>
-                            <span x-show="!sidebarCollapsed" class="truncate">Control Dashboard</span>
-                        </button>
-                    </template>
-
-                    <template x-if="isAuthenticated">
-                        <button @click="navigateTo('allocations')"
-                                :class="activeSection === 'allocations' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
-                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
-                            <i class="fa-solid fa-bed w-5 text-center text-sm"></i>
-                            <span x-show="!sidebarCollapsed" class="truncate">Room Allocations</span>
-                        </button>
-                    </template>
-
-                    <template x-if="isAuthenticated">
-                        <button @click="navigateTo('attendance')"
-                                :class="activeSection === 'attendance' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
-                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
-                            <i class="fa-solid fa-clipboard-user w-5 text-center text-sm"></i>
-                            <span x-show="!sidebarCollapsed" class="truncate">Attendance</span>
-                        </button>
-                    </template>
-
-                    <template x-if="isAuthenticated">
-                        <button @click="navigateTo('leaves')"
-                                :class="activeSection === 'leaves' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
-                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
-                            <i class="fa-solid fa-id-badge w-5 text-center text-sm"></i>
-                            <span x-show="!sidebarCollapsed" class="truncate">Leaves & Outpass</span>
-                        </button>
-                    </template>
-
-                    <template x-if="isAuthenticated">
-                        <button @click="navigateTo('visitors')"
-                                :class="activeSection === 'visitors' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
-                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
-                            <i class="fa-solid fa-user-clock w-5 text-center text-sm"></i>
-                            <span x-show="!sidebarCollapsed" class="truncate">Visitor Management</span>
-                        </button>
-                    </template>
-
-                    <template x-if="isAuthenticated">
-                        <button @click="navigateTo('finance')"
-                                :class="activeSection === 'finance' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
-                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
-                            <i class="fa-solid fa-file-invoice-dollar w-5 text-center text-sm"></i>
-                            <span x-show="!sidebarCollapsed" class="truncate">Fee & Finance</span>
-                        </button>
-                    </template>
-
-                    <template x-if="isAuthenticated">
-                        <button @click="navigateTo('mess')"
-                                :class="activeSection === 'mess' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
-                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
-                            <i class="fa-solid fa-utensils w-5 text-center text-sm"></i>
-                            <span x-show="!sidebarCollapsed" class="truncate">Mess & Dining</span>
-                        </button>
-                    </template>
-
-                    <template x-if="isAuthenticated">
-                        <button @click="navigateTo('inventory')"
-                                :class="activeSection === 'inventory' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
-                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
-                            <i class="fa-solid fa-boxes-stacked w-5 text-center text-sm"></i>
-                            <span x-show="!sidebarCollapsed" class="truncate">Inventory & Stock</span>
-                        </button>
-                    </template>
-
-                    <template x-if="isAuthenticated">
-                        <button @click="navigateTo('announcements')"
-                                :class="activeSection === 'announcements' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
-                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
-                            <i class="fa-solid fa-bullhorn w-5 text-center text-sm"></i>
-                            <span x-show="!sidebarCollapsed" class="truncate">Announcements</span>
-                        </button>
-                    </template>
-
-                    <template x-if="isAuthenticated && (activeRoleView === 'super_admin' || activeRoleView === 'hostel_admin' || activeRoleView === 'auditor')">
-                        <button @click="navigateTo('admin')"
-                                :class="activeSection === 'admin' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
-                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
-                            <i class="fa-solid fa-sliders w-5 text-center text-sm"></i>
-                            <span x-show="!sidebarCollapsed" class="truncate">System Admin</span>
-                        </button>
-                    </template>
-
-                    <button @click="navigateTo('architecture')"
-                            :class="activeSection === 'architecture' ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
-                            class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
-                        <i class="fa-solid fa-microchip w-5 text-center text-sm"></i>
-                        <span x-show="!sidebarCollapsed" class="truncate">System Architecture</span>
-                    </button>
-                </div>
-
-                <!-- 12-Role Navigation Switcher -->
+                <!-- Dynamic Role Navigation Menu -->
                 <div class="space-y-1">
                     <div x-show="!sidebarCollapsed" class="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 flex items-center justify-between">
-                        <span>All 12 Dashboards</span>
-                        <span class="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">RBAC</span>
+                        <span x-text="isAuthenticated ? ((rolePresets.find(p => p.role === activeRoleView)?.label || activeRoleView) + ' Menu') : 'Portal Navigation'"></span>
+                        <template x-if="isAuthenticated">
+                            <span class="text-[9px] px-1.5 py-0.5 rounded bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300 font-extrabold uppercase">Role</span>
+                        </template>
+                    </div>
+
+                    <template x-for="item in authorizedNavItems" :key="item.id">
+                        <button @click="navigateTo(item.id); mobileMenuOpen = false;"
+                                :class="activeSection === item.id ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold ring-1 ring-brand-200 dark:ring-brand-900' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
+                                class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs transition">
+                            <i :class="'fa-solid ' + item.icon + ' w-5 text-center text-sm'"></i>
+                            <span x-show="!sidebarCollapsed" class="truncate" x-text="item.label"></span>
+                        </button>
+                    </template>
+                </div>
+
+                <!-- Evaluator Demo Switcher (Only visible to Super Admin or when evaluating) -->
+                <div x-show="isAuthenticated && (hasRole('super_admin') || hasRole('auditor'))" class="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
+                    <div x-show="!sidebarCollapsed" class="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 flex items-center justify-between">
+                        <span>Demo Stakeholder Views</span>
+                        <span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 font-bold">Audit</span>
                     </div>
 
                     <div class="space-y-0.5">
-                        <template x-for="preset in rolePresets" :key="preset.role">
-                            <button @click="switchRoleDashboard(preset.role); mobileMenuOpen = false;"
-                                    :title="preset.label + ' — ' + preset.desc"
-                                    :class="(activeSection === 'dashboard' && activeRoleView === preset.role) ? 'bg-brand-600 text-white font-bold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'"
-                                    class="w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs transition">
-                                <i :class="'fa-solid ' + preset.icon + ' w-5 text-center text-sm'"></i>
-                                <span x-show="!sidebarCollapsed" class="truncate" x-text="preset.label"></span>
-                            </button>
-                        </template>
+                        <select @change="switchRoleDashboard($event.target.value)" :value="activeRoleView"
+                                class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-[11px] font-semibold text-slate-700 dark:text-slate-200 outline-none">
+                            <template x-for="preset in rolePresets" :key="preset.role">
+                                <option :value="preset.role" x-text="preset.label" :selected="activeRoleView === preset.role"></option>
+                            </template>
+                        </select>
                     </div>
                 </div>
 
@@ -1315,9 +1211,13 @@
                     <div class="relative" @click.outside="userMenuOpen = false">
                         <template x-if="isAuthenticated">
                             <button type="button" @click="userMenuOpen = !userMenuOpen"
-                                    class="flex items-center space-x-2 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                                    class="flex items-center space-x-2.5 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition">
                                 <div class="w-8 h-8 rounded-xl bg-brand-700 text-white font-bold flex items-center justify-center text-xs shadow-xs">
-                                    <span x-text="currentUser.first_name[0] + currentUser.last_name[0]"></span>
+                                    <span x-text="(currentUser?.first_name ? currentUser.first_name[0] : '') + (currentUser?.last_name ? currentUser.last_name[0] : '')"></span>
+                                </div>
+                                <div class="text-left hidden sm:block">
+                                    <div class="text-xs font-bold text-slate-900 dark:text-white leading-tight" x-text="currentUser?.first_name + ' ' + currentUser?.last_name"></div>
+                                    <div class="text-[10px] font-extrabold uppercase text-brand-600 dark:text-brand-400" x-text="(rolePresets.find(p => p.role === activeRoleView)?.label || activeRoleView)"></div>
                                 </div>
                                 <i class="fa-solid fa-chevron-down text-[10px] text-slate-400 hidden sm:block"></i>
                             </button>
@@ -1381,7 +1281,7 @@
                             <div class="pt-2 flex flex-wrap gap-3">
                                 <button @click="activeSection = isAuthenticated ? 'dashboard' : 'login'"
                                         class="px-5 py-2.5 rounded-xl bg-white text-brand-900 hover:bg-brand-50 font-bold text-sm shadow-sm transition flex items-center space-x-2">
-                                    <span x-text="isAuthenticated ? 'Open Control Dashboard' : 'Open Stakeholder Sign In'"></span>
+                                    <span x-text="isAuthenticated ? 'Go to My Dashboard' : 'Sign In'"></span>
                                     <i class="fa-solid fa-arrow-right text-xs"></i>
                                 </button>
                                 <a href="/docs" target="_blank" class="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm border border-white/20 transition flex items-center space-x-2">
@@ -1457,6 +1357,46 @@
                             </p>
                         </div>
                     </div>
+                
+                    <!-- Explore Demo Stakeholders Section -->
+                    <div class="bg-slate-50 dark:bg-slate-900/60 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 space-y-6">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-4">
+                            <div>
+                                <div class="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 mb-1">
+                                    <i class="fa-solid fa-bolt"></i>
+                                    <span>Demonstration Environment</span>
+                                </div>
+                                <h3 class="text-xl font-extrabold text-slate-900 dark:text-white">Explore by Stakeholder Role</h3>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">Select any stakeholder below to immediately test the system in that authenticated role:</p>
+                            </div>
+                            <button @click="activeSection = 'login'" class="text-xs font-bold text-brand-600 dark:text-brand-400 hover:underline flex items-center space-x-1 self-start sm:self-auto">
+                                <span>Custom Login</span>
+                                <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                            <template x-for="preset in rolePresets" :key="preset.role">
+                                <button type="button" @click="quickDemoLogin(preset.role)"
+                                        class="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-brand-600 hover:shadow-md transition text-left space-y-2 group">
+                                    <div class="flex items-center justify-between">
+                                        <div class="w-9 h-9 rounded-xl bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300 flex items-center justify-center text-sm group-hover:scale-110 transition">
+                                            <i :class="'fa-solid ' + preset.icon"></i>
+                                        </div>
+                                        <span class="text-[10px] font-bold text-brand-600 dark:text-brand-400 flex items-center space-x-1">
+                                            <span>Explore</span>
+                                            <i class="fa-solid fa-arrow-right text-[9px]"></i>
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <div class="font-extrabold text-sm text-slate-900 dark:text-white" x-text="preset.label"></div>
+                                        <div class="text-[11px] text-slate-500 dark:text-slate-400 leading-snug line-clamp-2" x-text="preset.desc"></div>
+                                    </div>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+
                 </section>
 
                 <!-- 2. STAKEHOLDER SIGN IN SECTION -->

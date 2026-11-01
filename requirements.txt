@@ -1,6 +1,5 @@
-# Hostel Management System Web App - Dependencies
-# Course: BBAT104 Fundamentals of TQM
-# Assigned Quality Goal: Q05 - Reduce Response Time
+# Hostel Management System - Dependencies
+# Modern, Scalable, Secure Hostel Administration Platform
 
 fastapi>=0.110.0
 uvicorn[standard]>=0.28.0
@@ -8,3 +7,4 @@ pydantic>=2.0.0
 python-dotenv>=1.0.0
 bcrypt>=4.0.0
 pyjwt>=2.8.0
+httpx>=0.27.0
