@@ -2,35 +2,54 @@
 # Course: BBAT104 Fundamentals of Total Quality Management (TQM)
 # Quality Goal: Q05 - Response Time < 10ms SLA
 
-FROM python:3.11-slim as base
+# Stage 1: Build & Dependency Resolution
+FROM python:3.11-slim as builder
 
-# Set environment variables
+WORKDIR /build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Stage 2: Hardened Lean Runtime
+FROM python:3.11-slim as runtime
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     APP_ENV=production \
     PORT=8000 \
-    HOST=0.0.0.0
+    HOST=0.0.0.0 \
+    PATH=/home/appuser/.local/bin:$PATH
 
 WORKDIR /app
 
-# Install system dependencies
+# Install minimal runtime dependencies (curl for health check, sqlite3 for inspection)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     sqlite3 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Create dedicated non-root application user
+RUN groupadd -g 10001 appgroup && \
+    useradd -u 10001 -g appgroup -m -s /bin/bash appuser
+
+# Copy installed python dependencies from builder
+COPY --from=builder /root/.local /home/appuser/.local
 
 # Copy application source code
-COPY backend/ ./backend/
-COPY frontend/ ./frontend/
-COPY scripts/ ./scripts/
-COPY run.py .
+COPY --chown=appuser:appgroup backend/ ./backend/
+COPY --chown=appuser:appgroup frontend/ ./frontend/
+COPY --chown=appuser:appgroup scripts/ ./scripts/
+COPY --chown=appuser:appgroup run.py .
 
-# Create volume directories
-RUN mkdir -p data data/backups data/uploads
+# Create volume directories with proper ownership for non-root user
+RUN mkdir -p data data/backups data/uploads && \
+    chown -R appuser:appgroup /app /home/appuser
+
+USER appuser
 
 # Expose web service port
 EXPOSE 8000

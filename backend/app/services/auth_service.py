@@ -6,11 +6,13 @@ Quality Goal: Q05 - Reduce Response Time
 
 import hashlib
 import re
+import secrets
 import sqlite3
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
 from fastapi import HTTPException, status
+from backend.app.config import settings
 from backend.app.database.connection import get_db_connection
 from backend.app.services.security import (
     hash_password,
@@ -257,7 +259,7 @@ class AuthService:
             "access_token": access_token,
             "refresh_token": raw_refresh,
             "token_type": "bearer",
-            "expires_in": 1800, # 30 minutes in seconds
+            "expires_in": settings.access_token_expire_minutes * 60,
             "user": user
         }
 
@@ -366,7 +368,7 @@ class AuthService:
                 "access_token": access_token,
                 "refresh_token": raw_new_refresh,
                 "token_type": "bearer",
-                "expires_in": 1800,
+                "expires_in": settings.access_token_expire_minutes * 60,
                 "user": user_dict
             }
         finally:
@@ -477,30 +479,58 @@ class AuthService:
                 conn.close()
 
     @classmethod
-    def initiate_password_reset(cls, email: str, conn: Optional[sqlite3.Connection] = None) -> str:
-        """Create a password reset token for the specified user email."""
+    def initiate_password_reset(cls, email: str, conn: Optional[sqlite3.Connection] = None) -> Dict[str, Any]:
+        """Create a cryptographically secure, single-use password reset token with rate limiting."""
         should_close = False
         if conn is None:
             conn = get_db_connection()
             should_close = True
         try:
             cursor = conn.cursor()
-            cursor.execute("SELECT id FROM users WHERE email = ? AND is_active = 1;", (email.strip().lower(),))
+            clean_email = email.strip().lower()
+            cursor.execute("SELECT id, username FROM users WHERE email = ? AND is_active = 1;", (clean_email,))
             user = cursor.fetchone()
-            if not user:
-                # Return dummy token or success message to prevent user enumeration
-                return "reset-token-sent"
 
-            raw_token = hashlib.sha256(f"{user['id']}-{time.time()}".encode()).hexdigest()[:32]
-            token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
-            expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+            raw_token = None
+            if user:
+                # Rate-limiting: maximum 3 password reset requests per 15 minutes per user
+                cursor.execute("""
+                    SELECT COUNT(*) FROM password_resets
+                    WHERE user_id = ? AND created_at > datetime('now', '-15 minutes');
+                """, (user["id"],))
+                recent_count = cursor.fetchone()[0]
+                if recent_count >= 3:
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail="Too many password reset requests. Please wait 15 minutes before requesting another reset."
+                    )
 
-            cursor.execute("""
-                INSERT INTO password_resets (user_id, reset_token_hash, expires_at)
-                VALUES (?, ?, ?);
-            """, (user["id"], token_hash, expires_at.isoformat()))
-            conn.commit()
-            return raw_token
+                # Invalidate previous unused reset tokens for this user
+                cursor.execute("""
+                    UPDATE password_resets
+                    SET is_used = 1
+                    WHERE user_id = ? AND is_used = 0;
+                """, (user["id"],))
+
+                # Cryptographically secure random token (256-bit entropy)
+                raw_token = secrets.token_urlsafe(32)
+                token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+                expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+
+                cursor.execute("""
+                    INSERT INTO password_resets (user_id, reset_token_hash, expires_at)
+                    VALUES (?, ?, ?);
+                """, (user["id"], token_hash, expires_at.isoformat()))
+                conn.commit()
+                logger.info(f"Secure password reset initiated for user #{user['id']} ({user['username']})")
+
+            # Always return a generic success message to prevent user enumeration
+            generic_message = "If an account with that email exists, password reset instructions have been generated."
+            return {
+                "success": True,
+                "message": generic_message,
+                "dev_token": raw_token if (settings.app_env != "production" and settings.debug) else None
+            }
         finally:
             if should_close:
                 conn.close()

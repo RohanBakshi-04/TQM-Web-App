@@ -1,3 +1,4 @@
+from backend.app.config import settings
 from backend.app.services.security import create_access_token, create_refresh_token
 """Authentication and RBAC API Router.
 
@@ -69,13 +70,16 @@ def login(login_dto: LoginRequest, request: Request, response: Response) -> Dict
     )
 
     # Set secure HttpOnly cookie for refresh token rotation
-    response.set_cookie(
-        key="refresh_token",
-        value=token_data["refresh_token"],
-        httponly=True,
-        samesite="lax",
-        max_age=7 * 24 * 3600  # 7 days
-    )
+    raw_refresh = token_data.pop("refresh_token", None)
+    if raw_refresh:
+        response.set_cookie(
+            key="refresh_token",
+            value=raw_refresh,
+            httponly=True,
+            secure=(settings.app_env == "production"),
+            samesite="lax",
+            max_age=settings.refresh_token_expire_days * 24 * 3600
+        )
 
     return token_data
 
@@ -86,13 +90,15 @@ def register(register_dto: RegisterRequest, request: Request, response: Response
     ip, ua = get_client_ip_and_ua(request)
     auth_data = AuthService.register_user(register_dto, ip, ua)
 
-    if auth_data.get("refresh_token"):
+    raw_refresh = auth_data.pop("refresh_token", None)
+    if raw_refresh:
         response.set_cookie(
             key="refresh_token",
-            value=auth_data["refresh_token"],
+            value=raw_refresh,
             httponly=True,
+            secure=(settings.app_env == "production"),
             samesite="lax",
-            max_age=7 * 24 * 3600
+            max_age=settings.refresh_token_expire_days * 24 * 3600
         )
     return auth_data
 
@@ -123,13 +129,16 @@ def refresh_token(
         device_info=ua
     )
 
-    response.set_cookie(
-        key="refresh_token",
-        value=token_data["refresh_token"],
-        httponly=True,
-        samesite="lax",
-        max_age=7 * 24 * 3600
-    )
+    raw_new_refresh = token_data.pop("refresh_token", None)
+    if raw_new_refresh:
+        response.set_cookie(
+            key="refresh_token",
+            value=raw_new_refresh,
+            httponly=True,
+            secure=(settings.app_env == "production"),
+            samesite="lax",
+            max_age=settings.refresh_token_expire_days * 24 * 3600
+        )
 
     return token_data
 
@@ -150,7 +159,7 @@ def logout(
     if raw_token:
         AuthService.revoke_refresh_token(raw_token)
 
-    response.delete_cookie(key="refresh_token")
+    response.delete_cookie(key="refresh_token", httponly=True, secure=(settings.app_env == "production"), samesite="lax")
     return {"success": True, "message": "Successfully logged out. Refresh token revoked."}
 
 
@@ -219,7 +228,7 @@ def change_password(
         key="refresh_token",
         value=raw_refresh,
         httponly=True,
-        secure=False,
+        secure=(settings.app_env == "production"),
         samesite="lax",
         max_age=7 * 86400
     )
@@ -234,12 +243,16 @@ def change_password(
 @router.post("/auth/forgot-password")
 def forgot_password(dto: ForgotPasswordRequest) -> Dict[str, Any]:
     """Initiate self-service password reset."""
-    reset_token = AuthService.initiate_password_reset(dto.email)
-    return {
+    result = AuthService.initiate_password_reset(dto.email)
+    response_payload = {
         "success": True,
-        "message": "Password reset instructions initiated.",
-        "reset_token": reset_token
+        "message": result.get("message", "If an account with that email exists, password reset instructions have been generated.")
     }
+    # In non-production testing/dev mode, expose dev token for automated tests
+    if settings.app_env != "production" and result.get("dev_token"):
+        response_payload["dev_token"] = result["dev_token"]
+        response_payload["reset_token"] = result["dev_token"]
+    return response_payload
 
 
 @router.post("/auth/reset-password", response_model=MessageResponse)

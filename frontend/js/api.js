@@ -3,30 +3,30 @@
  * High-Performance REST API Client for Hostel Management System
  */
 
+// Module-level in-memory token storage (Zero persistence in localStorage or sessionStorage)
+let _inMemoryAccessToken = null;
+let _refreshPromise = null;
+
 const API = {
     baseUrl: window.location.origin,
-    accessToken: localStorage.getItem("hms_access_token") || null,
 
-    setToken(token, refreshToken = null) {
-        this.accessToken = token;
-        if (token) {
-            localStorage.setItem("hms_access_token", token);
-        } else {
+    setToken(token) {
+        _inMemoryAccessToken = token || null;
+        // Strict poka-yoke: purge any legacy persistent storage
+        try {
+            sessionStorage.removeItem("hms_access_token");
             localStorage.removeItem("hms_access_token");
-        }
-        if (refreshToken) {
-            localStorage.setItem("hms_refresh_token", refreshToken);
-        } else if (token === null) {
             localStorage.removeItem("hms_refresh_token");
-        }
+        } catch (_) {}
     },
 
     getRefreshToken() {
-        return localStorage.getItem("hms_refresh_token");
+        // Refresh token is delivered and maintained exclusively in secure HttpOnly SameSite cookie
+        return null;
     },
 
     getToken() {
-        return this.accessToken || localStorage.getItem("hms_access_token");
+        return _inMemoryAccessToken;
     },
 
     getHeaders(extraHeaders = {}) {
@@ -48,7 +48,7 @@ const API = {
 
         let response = await fetch(url, options);
 
-        if (response.status === 401) {
+        if (response.status === 401 && !url.includes("/api/v1/auth/login") && !url.includes("/api/v1/auth/refresh") && !url.includes("/api/v1/auth/logout")) {
             // Attempt single silent automatic token refresh
             const refreshed = await this.refreshToken();
             if (refreshed && refreshed.access_token) {
@@ -149,22 +149,19 @@ const API = {
 
 
     /**
-     * Rotate refresh token and update access token.
+     * Rotate refresh token and update access token via secure HttpOnly cookie.
      */
-    _refreshPromise: null,
     async refreshToken() {
-        if (this._refreshPromise) {
-            return this._refreshPromise;
+        if (_refreshPromise) {
+            return _refreshPromise;
         }
-        this._refreshPromise = (async () => {
+        _refreshPromise = (async () => {
             try {
-                const storedRefresh = this.getRefreshToken();
-                const bodyPayload = storedRefresh ? { refresh_token: storedRefresh } : {};
                 const response = await fetch(`${this.baseUrl}/api/v1/auth/refresh`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json", "Accept": "application/json" },
                     credentials: "include",
-                    body: JSON.stringify(bodyPayload)
+                    body: JSON.stringify({})
                 });
 
                 if (!response.ok) {
@@ -176,16 +173,16 @@ const API = {
 
                 const data = await response.json();
                 if (data && data.access_token) {
-                    this.setToken(data.access_token, data.refresh_token || storedRefresh);
+                    this.setToken(data.access_token);
                 }
                 return data;
             } catch (err) {
                 return null;
             } finally {
-                this._refreshPromise = null;
+                _refreshPromise = null;
             }
         })();
-        return this._refreshPromise;
+        return _refreshPromise;
     },
 
     /**
@@ -227,6 +224,9 @@ const API = {
     },
 
     async getMe() {
+        if (!_inMemoryAccessToken) {
+            await this.refreshToken();
+        }
         const response = await this.request(`${this.baseUrl}/api/v1/auth/me`, {
             headers: this.getHeaders(),
             credentials: "include"

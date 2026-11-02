@@ -6,6 +6,7 @@ Quality Goal: Q05 - Reduce Response Time
 
 import os
 import time
+import uuid
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -65,10 +66,12 @@ async def add_latency_header(request: Request, call_next):
     try:
         response = await call_next(request)
     except Exception as exc:
-        logger.error(f"Unhandled exception during {request.method} {request.url.path}: {exc}", exc_info=True)
+        request_id = str(uuid.uuid4())[:8]
+        logger.error(f"[{request_id}] Unhandled exception during {request.method} {request.url.path}: {exc}", exc_info=True)
+        detail_msg = f"Internal server error: {str(exc)}" if settings.debug else "An internal server error occurred. Please contact the administrator."
         response = JSONResponse(
             status_code=500,
-            content={"detail": f"Internal server error: {str(exc)}"}
+            content={"detail": detail_msg, "request_id": request_id}
         )
     duration_ms = (time.perf_counter() - t0) * 1000.0
     response.headers["X-Response-Time-Ms"] = f"{duration_ms:.3f}"
@@ -124,6 +127,7 @@ def serve_frontend():
 def on_startup():
     """Initialize database and verify configuration on application startup."""
     logger.info(f"Starting {settings.app_name} in {settings.app_env} mode...")
+    settings.validate_production_secrets()
     initialize_database()
     try:
         from backend.app.database.connection import get_db_connection

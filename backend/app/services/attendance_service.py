@@ -1,3 +1,4 @@
+from backend.app.services.auth_dependencies import get_parent_authorized_ward_ids
 """Attendance Management Service.
 
 Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
@@ -338,13 +339,8 @@ class AttendanceService:
                     return {"total": 0, "records": []}
                 where_clauses.append("a.student_id = ?")
                 params.append(st["id"])
-            elif role == "parent":
-                cursor.execute("""
-                    SELECT sg.student_id FROM student_guardians sg
-                    JOIN guardians g ON g.id = sg.guardian_id
-                    WHERE g.user_id = ?;
-                """, (current_user.get("user_id"),))
-                wards = [r[0] for r in cursor.fetchall()]
+            elif role in ("parent", "parent_guardian"):
+                wards = get_parent_authorized_ward_ids(conn, current_user)
                 if not wards:
                     return {"total": 0, "records": []}
                 placeholders = ",".join("?" for _ in wards)

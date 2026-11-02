@@ -14,6 +14,8 @@ ENV/
 data/*.db
 data/*.db-wal
 data/*.db-shm
+data/backups/*.db
+backend/data/
 
 # IDE & OS
 .vscode/

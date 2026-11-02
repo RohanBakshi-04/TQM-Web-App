@@ -31,7 +31,7 @@ class TestAuthAPI(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertIn("access_token", data)
-        self.assertIn("refresh_token", data)
+        self.assertNotIn("refresh_token", data)
         self.assertEqual(data["user"]["username"], "superadmin")
         self.assertIn("super_admin", data["user"]["roles"])
         self.assertIn("refresh_token", res.cookies)
@@ -69,20 +69,21 @@ class TestAuthAPI(unittest.TestCase):
         self.assertEqual(res.status_code, 401)
 
     def test_refresh_token_rotation(self):
-        """Test refreshing token returns new pair and rotates refresh token."""
+        """Test refreshing token returns new access token and rotates HttpOnly cookie."""
         login_res = self.client.post("/api/v1/auth/login", json={
             "username_or_email": "accountant",
             "password": "Password123!"
         })
-        refresh_token = login_res.json()["refresh_token"]
+        self.assertIn("refresh_token", login_res.cookies)
+        refresh_cookie = login_res.cookies["refresh_token"]
 
-        res = self.client.post("/api/v1/auth/refresh", json={
-            "refresh_token": refresh_token
-        })
+        res = self.client.post("/api/v1/auth/refresh", cookies={"refresh_token": refresh_cookie})
         self.assertEqual(res.status_code, 200)
         new_data = res.json()
         self.assertIn("access_token", new_data)
-        self.assertNotEqual(new_data["refresh_token"], refresh_token)
+        self.assertNotIn("refresh_token", new_data)
+        self.assertIn("refresh_token", res.cookies)
+        self.assertNotEqual(res.cookies["refresh_token"], refresh_cookie)
 
     def test_logout_revokes_token(self):
         """Test logout revokes token and clears cookie."""
@@ -90,17 +91,14 @@ class TestAuthAPI(unittest.TestCase):
             "username_or_email": "messmanager",
             "password": "Password123!"
         })
-        refresh_token = login_res.json()["refresh_token"]
+        self.assertIn("refresh_token", login_res.cookies)
+        refresh_cookie = login_res.cookies["refresh_token"]
 
-        res = self.client.post("/api/v1/auth/logout", json={
-            "refresh_token": refresh_token
-        })
+        res = self.client.post("/api/v1/auth/logout", cookies={"refresh_token": refresh_cookie})
         self.assertEqual(res.status_code, 200)
 
-        # Attempting refresh with revoked token must fail
-        refresh_res = self.client.post("/api/v1/auth/refresh", json={
-            "refresh_token": refresh_token
-        })
+        # Attempting refresh with revoked cookie must fail
+        refresh_res = self.client.post("/api/v1/auth/refresh", cookies={"refresh_token": refresh_cookie})
         self.assertEqual(refresh_res.status_code, 401)
 
     def test_roles_directory(self):

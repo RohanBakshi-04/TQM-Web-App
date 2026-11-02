@@ -50,7 +50,7 @@ All operations achieve an empirical P95 latency below 0.5 milliseconds:
 
 - **Backend:** Python 3.10+ / FastAPI (Asynchronous REST API Engine)
 - **Application Server:** Uvicorn ASGI Server
-- **Database Engine:** SQLite 3 with Write-Ahead Logging (`WAL` mode), Foreign Key constraints, 48 B-Tree composite indexes, and FTS5 full-text virtual indexing
+- **Database Engine:** SQLite 3 with Write-Ahead Logging (`WAL` mode), Foreign Key constraints, 102 B-Tree composite indexes, and FTS5 full-text virtual indexing across 58 schema tables
 - **Caching Layer:** Centralized in-memory thread-safe LRU cache with multi-tag invalidation
 - **Frontend Architecture:** Alpine.js reactive state controller + Tailwind CSS + Lucide icons (No heavy Webpack/Node build steps)
 - **Containerization:** Docker multi-stage build + Docker Compose orchestration
@@ -92,11 +92,11 @@ Access the application at `http://localhost:8000`.
 
 ## 🧪 Automated Testing & Verification
 
-Run the complete test suite (131 automated unit and integration tests):
+Run the complete test suite (203 automated unit and integration tests):
 ```bash
 python -m unittest discover -s backend/tests -t .
 ```
-**Result:** `Ran 131 tests in 8.894s — OK (100% Pass Rate)`.
+**Result:** `Ran 203 tests in 29.551s — OK (100% Pass Rate)`.
 
 Run the Q05 performance benchmark suite:
 ```bash
@@ -112,7 +112,7 @@ python scripts/benchmark_q05.py
 - [REST API Documentation](docs/API_DOCUMENTATION.md) — Endpoint specifications for all 21 modules
 - [Production Deployment Guide](docs/DEPLOYMENT_GUIDE.md) — Nginx reverse proxy, SSL, systemd, and backup policies
 - [TQM Final Project Report](docs/TQM_FINAL_PROJECT_REPORT.md) — Academic report on TQM methodology, Q05 SLA, and Poka-Yoke
-- [Database Schema Specification](docs/DATABASE_SCHEMA.md) — 39 relational tables and data dictionaries
+- [Database Schema Specification](docs/DATABASE_SCHEMA.md) — 58 database tables (52 domain tables + FTS5 search index) and data dictionaries
 - [Database Indexes Catalog](docs/DATABASE_INDEXES.md) — 48 B-Tree composite indexes and query execution plans
 - [Entity-Relationship Diagram](docs/ER_DIAGRAM.md) — Mermaid visual schema relationships
 - [Q05 Caching & Quick Navigation](docs/Q05_CACHED_DASHBOARD.md) — Cache invalidation and multi-tenant isolation

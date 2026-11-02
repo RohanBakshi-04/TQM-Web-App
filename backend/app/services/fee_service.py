@@ -1,3 +1,5 @@
+from backend.app.utils.currency import to_paise, from_paise, paise_to_float
+from backend.app.services.auth_dependencies import get_parent_authorized_ward_ids
 import sqlite3
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
@@ -44,11 +46,14 @@ class FeeService:
                     detail="A fee structure with identical name, academic year, hostel, and room type already exists."
                 )
 
+            amt_paise = to_paise(payload.amount)
+            late_fine_paise = to_paise(payload.late_fine_amount)
             cursor.execute("""
                 INSERT INTO fee_structures (
                     name, fee_category, hostel_id, room_type, academic_year, semester,
-                    amount, payment_frequency, is_mandatory, late_fine_amount, description, is_active
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1);
+                    amount, amount_paise, payment_frequency, is_mandatory, late_fine_amount, late_fine_amount_paise,
+                    description, is_active
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1);
             """, (
                 payload.name.strip(),
                 payload.fee_category,
@@ -56,10 +61,12 @@ class FeeService:
                 payload.room_type,
                 payload.academic_year.strip(),
                 payload.semester,
-                round(payload.amount, 2),
+                paise_to_float(amt_paise),
+                amt_paise,
                 payload.payment_frequency,
                 1 if payload.is_mandatory else 0,
-                round(payload.late_fine_amount, 2),
+                paise_to_float(late_fine_paise),
+                late_fine_paise,
                 payload.description or ""
             ))
             fs_id = cursor.lastrowid
@@ -173,6 +180,8 @@ class FeeService:
             if payload.amount is not None:
                 updates.append("amount = ?")
                 params.append(round(payload.amount, 2))
+                updates.append("amount_paise = ?")
+                params.append(to_paise(payload.amount))
             if payload.payment_frequency is not None:
                 updates.append("payment_frequency = ?")
                 params.append(payload.payment_frequency)
@@ -182,6 +191,8 @@ class FeeService:
             if payload.late_fine_amount is not None:
                 updates.append("late_fine_amount = ?")
                 params.append(round(payload.late_fine_amount, 2))
+                updates.append("late_fine_amount_paise = ?")
+                params.append(to_paise(payload.late_fine_amount))
             if payload.description is not None:
                 updates.append("description = ?")
                 params.append(payload.description)
@@ -319,13 +330,16 @@ class FeeService:
                 seq += 1
 
             status_val = payload.status if payload.status in ["Draft", "Issued"] else "Issued"
+            total_amount_paise = to_paise(total_amount)
+            discount_amount_paise = to_paise(discount)
 
             cursor.execute("""
                 INSERT INTO invoices (
                     invoice_number, student_id, fee_structure_id, issue_date, due_date,
-                    total_amount, paid_amount, discount_amount, discount_reason, fine_amount,
+                    total_amount, total_amount_paise, paid_amount, paid_amount_paise,
+                    discount_amount, discount_amount_paise, discount_reason, fine_amount, fine_amount_paise,
                     status, remarks
-                ) VALUES (?, ?, ?, ?, ?, ?, 0.0, ?, ?, 0.0, ?, ?);
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 0.0, 0, ?, ?, ?, 0.0, 0, ?, ?);
             """, (
                 invoice_number,
                 payload.student_id,
@@ -333,19 +347,22 @@ class FeeService:
                 payload.issue_date,
                 payload.due_date,
                 total_amount,
+                total_amount_paise,
                 discount,
+                discount_amount_paise,
                 payload.discount_reason or "",
                 status_val,
                 payload.remarks or ""
             ))
             invoice_id = cursor.lastrowid
 
-            # Insert line items
+            # Insert line items with paise
             for it in items:
+                it_paise = to_paise(it["amount"])
                 cursor.execute("""
-                    INSERT INTO invoice_items (invoice_id, title, amount)
-                    VALUES (?, ?, ?);
-                """, (invoice_id, it["title"], it["amount"]))
+                    INSERT INTO invoice_items (invoice_id, title, amount, amount_paise)
+                    VALUES (?, ?, ?, ?);
+                """, (invoice_id, it["title"], it["amount"], it_paise))
 
             # Notify student
             if student["user_id"]:
@@ -456,20 +473,22 @@ class FeeService:
                         break
                     seq += 1
 
-                amount = round(fs["amount"], 2)
+                amount_paise = fs["amount_paise"] if ("amount_paise" in fs.keys() and fs["amount_paise"] is not None) else to_paise(fs["amount"])
+                amount = paise_to_float(amount_paise)
                 cursor.execute("""
                     INSERT INTO invoices (
                         invoice_number, student_id, fee_structure_id, issue_date, due_date,
-                        total_amount, paid_amount, discount_amount, fine_amount, status, remarks
-                    ) VALUES (?, ?, ?, ?, ?, ?, 0.0, 0.0, 0.0, 'Issued', ?);
-                """, (inv_num, s_id, payload.fee_structure_id, payload.issue_date, payload.due_date, amount, payload.remarks or ""))
+                        total_amount, total_amount_paise, paid_amount, paid_amount_paise,
+                        discount_amount, discount_amount_paise, fine_amount, fine_amount_paise, status, remarks
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 0.0, 0, 0.0, 0, 0.0, 0, 'Issued', ?);
+                """, (inv_num, s_id, payload.fee_structure_id, payload.issue_date, payload.due_date, amount, amount_paise, payload.remarks or ""))
                 inv_id = cursor.lastrowid
 
-                # Line item
+                # Line item with paise
                 cursor.execute("""
-                    INSERT INTO invoice_items (invoice_id, title, amount)
-                    VALUES (?, ?, ?);
-                """, (inv_id, fs["name"], amount))
+                    INSERT INTO invoice_items (invoice_id, title, amount, amount_paise)
+                    VALUES (?, ?, ?, ?);
+                """, (inv_id, fs["name"], amount, amount_paise))
 
                 # Student notification
                 if st["user_id"]:
@@ -524,26 +543,32 @@ class FeeService:
             if inv["status"] in ["Paid", "Cancelled"]:
                 raise HTTPException(status_code=400, detail=f"Cannot apply discount to an invoice in '{inv['status']}' status.")
 
-            discount = round(payload.discount_amount, 2)
-            net_payable = round(inv["total_amount"] + inv["fine_amount"] - inv["paid_amount"], 2)
+            inv_total_paise = inv["total_amount_paise"] if ("total_amount_paise" in inv.keys() and inv["total_amount_paise"] is not None) else to_paise(inv["total_amount"])
+            inv_fine_paise = inv["fine_amount_paise"] if ("fine_amount_paise" in inv.keys() and inv["fine_amount_paise"] is not None) else to_paise(inv["fine_amount"])
+            inv_paid_paise = inv["paid_amount_paise"] if ("paid_amount_paise" in inv.keys() and inv["paid_amount_paise"] is not None) else to_paise(inv["paid_amount"])
+            inv_discount_paise = inv["discount_amount_paise"] if ("discount_amount_paise" in inv.keys() and inv["discount_amount_paise"] is not None) else to_paise(inv["discount_amount"])
 
-            if discount > net_payable:
+            discount_paise = to_paise(payload.discount_amount)
+            discount = paise_to_float(discount_paise)
+            net_payable_paise = inv_total_paise + inv_fine_paise - inv_paid_paise
+
+            if discount_paise > net_payable_paise:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Discount of INR {discount:.2f} exceeds outstanding balance of INR {net_payable:.2f}."
+                    detail=f"Discount of INR {paise_to_float(discount_paise):.2f} exceeds outstanding balance of INR {paise_to_float(net_payable_paise):.2f}."
                 )
 
-            # Update discount
-            new_discount = round(inv["discount_amount"] + discount, 2)
-            # Recompute status if discount completely settles the remaining balance
-            new_balance = round(inv["total_amount"] + inv["fine_amount"] - inv["paid_amount"] - new_discount, 2)
-            new_status = "Paid" if new_balance <= 0 else inv["status"]
+            # Update discount with integer paise
+            new_discount_paise = inv_discount_paise + discount_paise
+            new_balance_paise = inv_total_paise + inv_fine_paise - inv_paid_paise - new_discount_paise
+            new_status = "Paid" if new_balance_paise <= 0 else inv["status"]
+            new_discount = paise_to_float(new_discount_paise)
 
             cursor.execute("""
                 UPDATE invoices
-                SET discount_amount = ?, discount_reason = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+                SET discount_amount = ?, discount_amount_paise = ?, discount_reason = ?, status = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?;
-            """, (new_discount, payload.discount_reason.strip(), new_status, invoice_id))
+            """, (new_discount, new_discount_paise, payload.discount_reason.strip(), new_status, invoice_id))
 
             cursor.execute("""
                 INSERT INTO audit_logs (user_id, username, action, entity_name, entity_id, details, latency_ms)
@@ -622,13 +647,8 @@ class FeeService:
                     return {"total": 0, "records": []}
                 where_clauses.append("inv.student_id = ?")
                 params.append(st["id"])
-            elif role == "parent":
-                cursor.execute("""
-                    SELECT sg.student_id FROM student_guardians sg
-                    JOIN guardians g ON g.id = sg.guardian_id
-                    WHERE g.user_id = ?;
-                """, (current_user.get("user_id"),))
-                wards = [r[0] for r in cursor.fetchall()]
+            elif role in ("parent", "parent_guardian"):
+                wards = get_parent_authorized_ward_ids(conn, current_user)
                 if not wards:
                     return {"total": 0, "records": []}
                 placeholders = ",".join("?" for _ in wards)

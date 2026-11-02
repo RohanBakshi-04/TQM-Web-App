@@ -6,6 +6,7 @@ Quality Goal: Q05 - Reduce Response Time (<10ms SLA)
 
 import threading
 import time
+from collections import OrderedDict
 from typing import Any, Callable, Dict, List, Optional, Set
 
 
@@ -29,10 +30,11 @@ class CacheEntry:
 class CacheService:
     """Thread-safe, high-speed in-memory caching engine designed for sub-millisecond retrieval."""
 
-    def __init__(self, default_ttl: float = 60.0):
+    def __init__(self, default_ttl: float = 60.0, max_size: int = 1000):
         self._default_ttl = default_ttl
+        self._max_size = max_size
         self._lock = threading.RLock()
-        self._store: Dict[str, CacheEntry] = {}
+        self._store: OrderedDict[str, CacheEntry] = OrderedDict()
         self._tag_index: Dict[str, Set[str]] = {}  # tag -> set of keys
 
         # Telemetry & Performance Counters
@@ -55,6 +57,7 @@ class CacheService:
                 self._misses += 1
                 return None
 
+            self._store.move_to_end(key)
             self._hits += 1
             return entry.value
 
@@ -73,8 +76,17 @@ class CacheService:
                         if not self._tag_index[tag]:
                             del self._tag_index[tag]
 
+            # Enforce bounded capacity via LRU eviction
+            if len(self._store) >= self._max_size and key not in self._store:
+                self.cleanup_expired()
+                while len(self._store) >= self._max_size:
+                    oldest_key, _ = next(iter(self._store.items()))
+                    self._evict_entry(oldest_key)
+                    self._evictions += 1
+
             entry = CacheEntry(key, value, ttl_val, tags_list)
             self._store[key] = entry
+            self._store.move_to_end(key)
 
             # Index by tags for instant group invalidation
             for tag in entry.tags:
