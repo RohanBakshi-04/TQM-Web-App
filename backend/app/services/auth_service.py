@@ -688,7 +688,7 @@ class AuthService:
 
             # Check if username already exists in users or pending registrations
             # Poka-Yoke: Hostel selection and maximum 2 wardens constraint
-            assigned_hostel_id = getattr(payload, 'hostel_id', None)
+            assigned_hostel_id = getattr(payload, "hostel_id", None)
             if target_role == "warden" or (payload.specialization or "").lower() in ("warden", "hostel_warden"):
                 if assigned_hostel_id:
                     cursor.execute("SELECT id, name FROM hostels WHERE id = ? AND is_active = 1;", (assigned_hostel_id,))
@@ -720,7 +720,7 @@ class AuthService:
                     if active_w_count + pend_w_count >= 2:
                         raise HTTPException(
                             status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"Hostel '{h_target_name}' has reached its institutional maximum quota of 2 hostel wardens (active/pending). Please select another authorized hostel."
+                            detail=f"Not Required: Hostel '{h_target_name}' has reached its institutional maximum quota of 2 hostel wardens ({active_w_count} active, {pend_w_count} pending). Warden capacity is full."
                         )
 
             cursor.execute("SELECT id FROM users WHERE username = ?;", (uname,))

@@ -1646,7 +1646,7 @@
                                             <i class="fa-solid fa-graduation-cap text-base block text-brand-600"></i>
                                             <div class="text-[11px] font-bold">Student</div>
                                         </button>
-                                        <button type="button" @click="registerForm.role = 'staff'"
+                                        <button type="button" @click="registerForm.role = 'staff'; loadAuthorizedHostels()"
                                                 :class="registerForm.role === 'staff' ? 'border-brand-600 bg-brand-50 dark:bg-brand-950/60 text-brand-900 dark:text-brand-200 font-bold ring-1 ring-brand-600' : 'border-slate-200 dark:border-slate-750 text-slate-600 dark:text-slate-300'"
                                                 class="p-2.5 border rounded-xl text-center transition space-y-1">
                                             <i class="fa-solid fa-user-gear text-base block text-amber-500"></i>
@@ -1735,46 +1735,52 @@
 
                                 <!-- Conditional Fields: Staff -->
                                 <template x-if="registerForm.role === 'staff'">
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-amber-50/50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-900/50">
-                                        <div>
-                                            <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Gender *</label>
-                                            <select x-model="registerForm.gender" required class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white font-medium">
-                                                <option value="Male">Male</option>
-                                                <option value="Female">Female</option>
-                                                <option value="Other">Other</option>
-                                            </select>
+                                    <div class="p-3 bg-amber-50/50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-900/50 space-y-3">
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Gender *</label>
+                                                <select x-model="registerForm.gender" required class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white font-medium">
+                                                    <option value="Male">Male</option>
+                                                    <option value="Female">Female</option>
+                                                    <option value="Other">Other</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Staff Specialization / Role *</label>
+                                                <select x-model="registerForm.specialization" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white font-medium">
+                                                    <option value="warden">Hostel Warden (Administration & Oversight)</option>
+                                                    <option value="electrician">Electrician (Electrical Systems)</option>
+                                                    <option value="plumber">Plumber (Water & Sanitation)</option>
+                                                    <option value="maintenance_staff">General Facility & Carpentry</option>
+                                                    <option value="mess_manager">Chef / Mess Dining Operations</option>
+                                                    <option value="security_guard">Campus Gate Security Guard</option>
+                                                    <option value="accountant">Accounts & Billing Clerk</option>
+                                                </select>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Staff Specialization / Role *</label>
-                                            <select x-model="registerForm.specialization" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
-                                                <option value="warden">Hostel Warden (Administration & Oversight)</option>
-                                                <option value="electrician">Electrician (Electrical Systems)</option>
-                                                <option value="plumber">Plumber (Water & Sanitation)</option>
-                                                <option value="maintenance_staff">General Facility & Carpentry</option>
-                                                <option value="mess_manager">Chef / Mess Dining Operations</option>
-                                                <option value="security_guard">Campus Gate Security Guard</option>
-                                                <option value="accountant">Accounts & Billing Clerk</option>
+
+                                        <!-- Authorized Campus Hostel Dropdown (Hostel Warden Assignment) -->
+                                        <div x-show="registerForm.specialization === 'warden' || registerForm.specialization === 'hostel_warden'" class="pt-2 border-t border-amber-200/60 dark:border-amber-900/40">
+                                            <div class="flex items-center justify-between mb-1">
+                                                <label class="block font-semibold text-slate-700 dark:text-slate-300">
+                                                    Authorized Campus Hostel Assignment * <span class="text-amber-600 dark:text-amber-400 font-bold">(Warden Capacity: Max 2 / Hostel)</span>
+                                                </label>
+                                                <button type="button" @click="loadAuthorizedHostels()" class="text-[10px] text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1 font-semibold">
+                                                    <i class="fa-solid fa-rotate text-[9px]"></i> Refresh Hostels
+                                                </button>
+                                            </div>
+                                            <select x-model="registerForm.hostel_id"
+                                                    class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white font-medium">
+                                                <option value="">-- Select Authorized Campus Hostel --</option>
+                                                <template x-for="h in authorizedHostelsList" :key="h.id">
+                                                    <option :value="h.id" :disabled="h.is_full"
+                                                            x-text="(h.is_full ? 'Not Required - ' : '') + h.name + ' (' + h.hostel_type + ') — ' + (h.is_full ? 'Warden Capacity is Full (2/2)' : h.warden_count + '/2 Wardens [Available]')">
+                                                    </option>
+                                                </template>
                                             </select>
+                                            <span class="text-[10px] text-slate-400 mt-1 block">Institutional Policy (Poka-Yoke): Each hostel allows at most 2 wardens. If a hostel already has 2 wardens, it is marked as 'Not Required' with warden capacity full.</span>
                                         </div>
                                     </div>
-                                        <!-- Authorized Campus Hostel Dropdown (Hostel Warden Assignment) -->
-                                        <template x-if="registerForm.specialization === 'warden'">
-                                            <div class="col-span-full pt-2 border-t border-amber-200/60 dark:border-amber-900/40">
-                                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                                                    Authorized Campus Hostel Assignment * <span class="text-amber-600 dark:text-amber-400 font-bold">(Max 2 Wardens / Hostel)</span>
-                                                </label>
-                                                <select x-model="registerForm.hostel_id" required
-                                                        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white font-medium">
-                                                    <option value="">-- Select Authorized Campus Hostel --</option>
-                                                    <template x-for="h in authorizedHostelsList" :key="h.id">
-                                                        <option :value="h.id" :disabled="h.is_full"
-                                                                x-text="h.name + ' (' + h.hostel_type + ') — ' + h.warden_count + '/2 Wardens' + (h.is_full ? ' [MAX CAPACITY - FULL]' : ' [AVAILABLE]')">
-                                                        </option>
-                                                    </template>
-                                                </select>
-                                                <span class="text-[10px] text-slate-400 mt-1 block">Institutional Policy (Poka-Yoke): Each hostel allows at most 2 wardens. Full hostels cannot accept new registrations.</span>
-                                            </div>
-                                        </template>
                                 </template>
 
                                 <!-- Conditional Fields: Parent / Guardian -->

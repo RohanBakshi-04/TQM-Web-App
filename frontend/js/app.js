@@ -134,6 +134,7 @@ document.addEventListener("alpine:init", () => {
             relationship: 'Father',
             hostel_id: ''
         },
+        authorizedHostelsList: [],
         pendingRegistrations: [],
         pendingRegistrationsLoading: false,
 
@@ -1079,6 +1080,12 @@ selectPreset(preset) {
             if (this.registerForm.role === 'staff' && (this.registerForm.specialization === 'warden' || this.registerForm.specialization === 'hostel_warden')) {
                 if (!this.registerForm.hostel_id) {
                     this.registerError = "Please select an authorized campus hostel for the Hostel Warden assignment.";
+                    this.showToast(this.registerError, 'error');
+                    return;
+                }
+                const chosenHostel = (this.authorizedHostelsList || []).find(h => String(h.id) === String(this.registerForm.hostel_id));
+                if (chosenHostel && chosenHostel.is_full) {
+                    this.registerError = `Not Required: ${chosenHostel.name} has already reached maximum warden capacity (${chosenHostel.warden_count}/${chosenHostel.max_wardens || 2}). Warden capacity is full. Please select another authorized hostel.`;
                     this.showToast(this.registerError, 'error');
                     return;
                 }
