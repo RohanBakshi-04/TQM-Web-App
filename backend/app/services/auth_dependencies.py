@@ -222,51 +222,27 @@ def require_permissions(*required_permissions):
 def verify_student_isolation(student_id: Union[str, int], current_user: Dict[str, Any]) -> None:
     """Enforce strict student-level and guardian-level data isolation and hostel-scoped staff oversight.
 
-    A student must NEVER access another student's private records by changing an ID in an API request.
-    Parents can only access their linked wards.
-    Wardens and Assistant Wardens can only access students residing within their assigned hostel facility.
+    - Active role takes absolute precedence.
+    - Super Admin has campus-wide oversight.
+    - Students are isolated to their own records.
+    - Parents/Guardians are isolated to their linked wards.
+    - Wardens and Assistant Wardens MUST have an assigned hostel facility, the student MUST exist,
+      and the student MUST have an active room allocation in the warden's assigned facility.
+    - Accountants/Auditors must possess relevant read permissions.
     """
-    user_roles = set(current_user.get("roles", []))
-    active_role = current_user.get("active_role") or current_user.get("role")
     s_val = str(student_id).strip()
+    active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+    user_roles = {r.strip().lower() for r in current_user.get("roles", []) if r}
+    if active_role:
+        user_roles.add(active_role)
+    user_perms = {p.strip().lower() for p in current_user.get("permissions", []) if p}
 
-    # Super Admin and global administrators have campus-wide access
-    if "super_admin" in user_roles or active_role == "super_admin":
+    # 1. Super Admin: Campus-wide oversight
+    if active_role == "super_admin":
         return
 
-    # Accountant and Auditor have read/accounting oversight
-    if "accountant" in user_roles or "auditor" in user_roles:
-        return
-
-    # Hostel Warden & Assistant Warden: Must verify student belongs to warden's assigned hostel
-    if "warden" in user_roles or "assistant_warden" in user_roles:
-        user_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
-        if user_hid:
-            conn = get_db_connection()
-            try:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT bld.hostel_id
-                    FROM room_allocations ra
-                    JOIN rooms rm ON rm.id = ra.room_id
-                    JOIN floors fl ON fl.id = rm.floor_id
-                    JOIN buildings bld ON bld.id = fl.building_id
-                    WHERE (ra.student_id = ? OR ra.student_id = (SELECT id FROM students WHERE student_id = ?))
-                      AND ra.allocation_status = 'Active';
-                """, (s_val, s_val))
-                row = cursor.fetchone()
-                if row and row[0] != int(user_hid):
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail=f"Access Denied: Student is allocated to hostel facility #{row[0]}, outside your assigned facility (#{user_hid})."
-                    )
-                return
-            finally:
-                conn.close()
-        return
-
-    # Student resident isolation check
-    if "student" in user_roles or active_role == "student":
+    # 2. Student Role (takes precedence if active_role is student)
+    if active_role == "student":
         linked_s_id = current_user.get("linked_student_id")
         user_student_id = current_user.get("student_id")
         is_match = False
@@ -282,8 +258,8 @@ def verify_student_isolation(student_id: Union[str, int], current_user: Dict[str
             )
         return
 
-    # Parent/Guardian ward isolation check
-    if "parent_guardian" in user_roles or "parent" in user_roles or active_role in ("parent_guardian", "parent"):
+    # 3. Parent / Guardian Role
+    if active_role in ("parent_guardian", "parent"):
         conn = get_db_connection()
         try:
             wards = get_parent_authorized_ward_ids(conn, current_user)
@@ -300,5 +276,74 @@ def verify_student_isolation(student_id: Union[str, int], current_user: Dict[str
             return
         finally:
             conn.close()
+
+    # 4. Warden / Assistant Warden Role
+    if active_role in ("warden", "assistant_warden"):
+        user_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+        if not user_hid:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access Denied: Staff member has no assigned hostel facility."
+            )
+
+        try:
+            user_hid_int = int(user_hid)
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access Denied: Staff member has an invalid assigned hostel facility."
+            )
+
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            # Verify student existence
+            cursor.execute("SELECT id FROM students WHERE id = ? OR student_id = ?;", (s_val, s_val))
+            st = cursor.fetchone()
+            if not st:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access Denied: Student record not found or inaccessible."
+                )
+            db_student_id = st[0]
+
+            # Verify active room allocation in the assigned hostel facility
+            cursor.execute("""
+                SELECT bld.hostel_id
+                FROM room_allocations ra
+                JOIN rooms rm ON rm.id = ra.room_id
+                JOIN floors fl ON fl.id = rm.floor_id
+                JOIN buildings bld ON bld.id = fl.building_id
+                WHERE ra.student_id = ? AND ra.allocation_status = 'Active';
+            """, (db_student_id,))
+            row = cursor.fetchone()
+            if not row:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access Denied: Student has no active room allocation in your assigned hostel."
+                )
+
+            if row[0] != user_hid_int:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Access Denied: Student is allocated to hostel facility #{row[0]}, outside your assigned facility (#{user_hid_int})."
+                )
+            return
+        finally:
+            conn.close()
+
+    # 5. Financial / Audit Roles
+    if active_role in ("accountant", "auditor"):
+        has_perm = bool(user_perms.intersection({"finance:read", "audit:read", "billing:read", "reports:read"}))
+        if not has_perm:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access Denied: Active role '{active_role}' lacks required read permissions."
+            )
+        return
+
+    # 6. Fallback if active_role is super_admin in user_roles:
+    if "super_admin" in user_roles:
+        return
 
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")

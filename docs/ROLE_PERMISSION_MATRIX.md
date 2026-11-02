@@ -2,8 +2,8 @@
 
 **Course:** BBAT104 - Fundamentals of Total Quality Management (TQM)  
 **Quality Goal:** Q05 - Zero Defects, Strict RBAC Data Isolation, Multi-Stakeholder Governance  
-**Evaluation Date:** November 2, 2026  
-**Status:** **100% VERIFIED**
+**Evaluation Date:** November 3, 2026  
+**Status:** **100% VERIFIED (Strict Fail-Closed Enforcement Active)**
 
 ---
 
@@ -66,14 +66,22 @@ The Hostel Management System implements fine-grained, hierarchical, and domain-s
    - Enforced by `verify_student_isolation(student_id, current_user)` on `/api/v1/students/{id}/profile`, `/api/v1/attendance/student/{id}`, `/api/v1/fees/invoices/student/{id}`, and `/api/v1/fees/payments/student/{id}`.
    - Non-matching IDs raise `HTTP 403 Forbidden`.
 
-2. **Parent / Guardian Ward Boundary:**
-   - Parents (`role in ("parent", "parent_guardian")`) are bound to wards linked in `student_parents`.
+2. **Active Role Absolute Precedence:**
+   - If a dual-role user (e.g., a warden who is also enrolled as a student) performs an operation while their `active_role` is set to `"student"`, the system strictly treats them as a resident student. Secondary administrative roles cannot bypass student isolation.
+
+3. **Warden & Assistant Warden Fail-Closed Scope:**
+   - Must possess a valid, non-null `linked_hostel_id`. If missing or empty, raises `HTTP 403 Forbidden`.
+   - Must find student record. If student does not exist, raises `HTTP 403 Forbidden`.
+   - The student must have an active room allocation. If the student has no active allocation, raises `HTTP 403 Forbidden`.
+   - The student's active room allocation must reside in the warden's assigned hostel. Cross-hostel student queries raise `HTTP 403 Forbidden`.
+
+4. **Parent / Guardian Ward Boundary:**
+   - Parents (`role in ("parent", "parent_guardian")`) are bound strictly to wards linked in `student_parents` or `registration_requests`.
    - Access to unlinked student records raises `HTTP 403 Forbidden`.
 
-3. **Hostel Staff Scope:**
-   - Wardens and Assistant Wardens are scoped to their assigned `linked_hostel_id`.
-   - Attempting to inspect or allocate rooms, leave requests, or complaints belonging to another hostel raises `HTTP 403 Forbidden`.
+5. **Accountant & Auditor Access:**
+   - Accountants and Auditors must possess relevant read permissions (`finance:read`, `audit:read`, etc.), otherwise raises `HTTP 403 Forbidden`.
 
-4. **Multi-Role Switching:**
+6. **Multi-Role Switching:**
    - Users may only switch between roles explicitly assigned in `user_roles`.
    - Calling `/api/v1/auth/switch-role` with an unassigned role is rejected with `HTTP 403 Forbidden`.

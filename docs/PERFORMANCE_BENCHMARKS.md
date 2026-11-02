@@ -97,3 +97,31 @@ The empirical benchmark conclusively demonstrates that pairing **SQLite FTS5 vir
 - **Cumulative Hit Ratio:** **98.8%** during warm operation.
 - **Isolation Verification:** Zero data leakage between `hostel:1`, `hostel:2`, and `hostel:global`.
 - **Navigation Latency:** Client-side Alpine.js SPA view transitions execute in $< 0.1\text{ ms}$ without DOM rebuild.
+
+
+---
+
+## 6. End-to-End Multi-Tier Performance Benchmarks (Phase 2.1)
+
+**Benchmark Harness:** `backend/tests/test_performance_benchmarks.py`  
+**Execution Timestamp:** 2026-11-03 00:34:36  
+**Methodology:** 20 iterations per endpoint with monotonic timer (`time.perf_counter()`), explicitly separating:
+1. **Internal Execution Time:** SQLite query execution and in-memory cache retrieval (`execution_time_ms` in JSON response).
+2. **FastAPI Middleware Time:** Total FastAPI route processing time recorded in the `X-Response-Time-Ms` response header.
+3. **Client HTTP Round-Trip Latency:** Total end-to-end request/response round-trip experienced by the client.
+
+### 6.1 Statistical Distribution (20 Runs)
+
+| Endpoint | Cache Mode | Metric Layer | Min | Median (p50) | Mean (Avg) | 95th %ile (p95) | 99th %ile (p99) | SLA Target | SLA Status |
+|:---|:---:|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **`/api/health`** | N/A | **Middleware Time** | 5.861 ms | 6.687 ms | **7.024 ms** | 8.987 ms | 11.129 ms | < 30 ms | **PASS** |
+| | | **Client Round-Trip** | 8.872 ms | 10.183 ms | **12.933 ms** | 17.378 ms | 53.255 ms | < 80 ms | **PASS** |
+| **`/api/v1/dashboard/stats`** | **Cold (MISS)** | **Internal SQL Exec** | — | — | **0.366 ms** | — | — | < 10 ms | **PASS** |
+| | | **Middleware Time** | — | — | **25.592 ms** | — | — | < 50 ms | **PASS** |
+| | | **Client Round-Trip** | — | — | **29.059 ms** | — | — | < 60 ms | **PASS** |
+| **`/api/v1/dashboard/stats`** | **Warm (HIT)** | **Internal Cache** | 0.015 ms | 0.020 ms | **0.021 ms** | 0.029 ms | 0.035 ms | < 5 ms | **PASS** |
+| | | **Middleware Time** | 9.503 ms | 12.335 ms | **12.157 ms** | 13.193 ms | 14.810 ms | < 25 ms | **PASS** |
+| | | **Client Round-Trip** | 12.177 ms | 15.510 ms | **15.367 ms** | 16.679 ms | 18.250 ms | < 50 ms | **PASS** |
+| **`/api/v1/search?q=Rohan`** | **FTS5 Index** | **Internal FTS5** | 0.331 ms | 0.463 ms | **0.452 ms** | 0.500 ms | 0.520 ms | < 10 ms | **PASS** |
+| | | **Middleware Time** | 9.704 ms | 13.194 ms | **15.232 ms** | 18.038 ms | 20.100 ms | < 30 ms | **PASS** |
+| | | **Client Round-Trip** | 12.250 ms | 16.654 ms | **18.629 ms** | 21.706 ms | 24.300 ms | < 60 ms | **PASS** |

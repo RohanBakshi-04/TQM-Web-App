@@ -2,22 +2,24 @@
 
 **Course:** BBAT104 - Fundamentals of Total Quality Management (TQM)  
 **Quality Goal:** Q05 - Zero Defects, Transparent Auditing, and Systematic Reliability  
-**Evaluation Date:** November 2, 2026  
+**Evaluation Date:** November 3, 2026  
 **Status:** **All Verified Source Code Defects Resolved; Operational Constraints Documented**
 
 ---
 
 ## 1. Resolved Source Code Defects
 
-During Phase 2 acceptance testing, the following defects were systematically identified, logged, and permanently repaired:
+During Phase 2 and Phase 2.1 acceptance testing, the following defects were systematically identified, logged, and permanently repaired:
 
 | Defect ID | Severity | Category | Description | Root Cause | Resolution | Status |
 |---|---|---|---|---|---|:---:|
 | **DEF-01** | **Critical** | Security (IDOR) | Endpoint `GET /api/v1/fees/invoices/student/{student_id}` allowed students to inspect another student's billing records. | Missing student isolation verification dependency call in router. | Imported and invoked `verify_student_isolation(student_id, current_user)` in `backend/app/routers/fees.py`. | **FIXED / VERIFIED** |
 | **DEF-02** | **Critical** | Security (IDOR) | Endpoint `GET /api/v1/fees/payments/student/{student_id}` allowed students to inspect payment transactions of other residents. | Missing `verify_student_isolation` check in `backend/app/routers/fees.py`. | Added `verify_student_isolation(student_id, current_user)` check before querying ledger. | **FIXED / VERIFIED** |
 | **DEF-03** | **Critical** | Security (IDOR) | Endpoint `GET /api/v1/attendance/student/{student_id}` allowed unlinked parents and students to view foreign attendance logs. | Missing `verify_student_isolation` check in `backend/app/routers/attendance.py`. | Added `verify_student_isolation(student_id, current_user)` to enforce strict ward/resident boundary. | **FIXED / VERIFIED** |
-| **DEF-04** | **Medium** | Database Integrity | SQLite `PRAGMA foreign_key_check` reported 81 violations on `data/hostel_web.db`. | Past manual test deletions executed while foreign keys were turned off left dangling IDs in child tables. | Introduced Migration `015_enforce_referential_integrity_and_clean_orphans`. Cleaned dangling rows. FK violations reduced to 0. | **FIXED / VERIFIED** |
+| **DEF-04** | **Medium** | Database Integrity | SQLite `PRAGMA foreign_key_check` reported 81 violations on `data/hostel_web.db`. | Past manual test deletions executed while foreign keys were turned off left dangling IDs in child tables. | Introduced Migration `015` and `016`. Created `historical_orphan_archives` table. Archived all 81 historical records with original FK metadata and JSON payload. FK violations reduced to 0. | **FIXED / VERIFIED** |
 | **DEF-05** | **Low** | Data Model | Fee structure creation failed when `payment_frequency` was provided as `"Per Semester"`. | SQLite CHECK constraint strictly requires `'Semester'`, `'Monthly'`, `'Quarterly'`, `'Annual'`, or `'One_Time'`. | Standardized payload and client validation to use canonical enum values. | **FIXED / VERIFIED** |
+| **DEF-06** | **High** | Data Preservation | Migration 015 deleted historical orphans destructively without audit trail and assigned placeholder warden to Mother Teresa Hostel. | Migration script lacked archival mechanism. | Implemented `historical_orphan_archives` table. Serialized all 81 records. Set unassigned `hostels.warden_id = NULL` without fake warden creation. Reconciled visitor 101. Added rollback on migration errors. | **FIXED / VERIFIED** |
+| **DEF-07** | **High** | Security (RBAC) | Dual-role accounts (e.g. warden + student) could bypass student isolation, and wardens could query unallocated or foreign hostel students. | `verify_student_isolation()` checked `user_roles` membership rather than enforcing `active_role` priority and lacked hostel-allocation validation. | Hardened `verify_student_isolation()` to enforce `active_role` precedence and require student active allocation matching warden's `linked_hostel_id`. | **FIXED / VERIFIED** |
 
 ---
 

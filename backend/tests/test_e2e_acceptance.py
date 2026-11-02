@@ -21,6 +21,7 @@ from fastapi.testclient import TestClient
 # Import application components
 from backend.app.main import app
 from backend.app.database.connection import get_db_connection
+from backend.app.database.init_db import initialize_database
 from backend.app.database.migrations import run_migrations
 
 
@@ -29,28 +30,19 @@ class TestE2EAcceptance(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        """Provision isolated temporary database clone for destructive acceptance testing."""
+        """Provision isolated temporary database with migrations and deterministic fixtures."""
         cls.temp_dir = tempfile.mkdtemp(prefix="hms_e2e_")
         cls.db_path = os.path.join(cls.temp_dir, "test_acceptance.db")
-
-        # Copy existing live database if present to test real migrations/state
-        source_db = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "hostel_web.db"))
-        if os.path.exists(source_db):
-            shutil.copy2(source_db, cls.db_path)
-        else:
-            # Create fresh if not found
-            conn = sqlite3.connect(cls.db_path)
-            conn.close()
 
         # Set database path so application points to isolated DB
         from backend.app.config import settings
         cls.orig_db_path = settings.database_path
         settings.database_path = cls.db_path
 
-        # Run all migrations up to 015
+        # Initialize fresh schema, apply all migrations, and seed deterministic demonstration records
         conn = sqlite3.connect(cls.db_path)
         conn.row_factory = sqlite3.Row
-        run_migrations(conn)
+        initialize_database(conn, seed=True)
         conn.close()
 
         cls.client = TestClient(app)
