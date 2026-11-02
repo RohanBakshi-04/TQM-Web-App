@@ -6,13 +6,14 @@ Quality Goal: Q05 - Reduce Response Time
 
 import sqlite3
 from typing import Optional
+from backend.app.config import settings
 from backend.app.database.connection import get_db_connection
 from backend.app.database.migrations import run_migrations
 from backend.app.database.seeder import seed_database
 from backend.app.utils.logger import logger
 
 
-def initialize_database(conn: Optional[sqlite3.Connection] = None, seed: bool = True) -> bool:
+def initialize_database(conn: Optional[sqlite3.Connection] = None, seed: Optional[bool] = None) -> bool:
     """Run migrations and optionally populate demonstration data."""
     should_close = False
     if conn is None:
@@ -42,9 +43,12 @@ def initialize_database(conn: Optional[sqlite3.Connection] = None, seed: bool = 
         cursor.execute("INSERT OR REPLACE INTO system_metadata (key, value) VALUES ('schema_stage', 'prompt_01_initialized');")
         conn.commit()
 
-        # Seed demonstration records if requested
-        if seed:
+        # Seed demonstration records if requested and permitted by environment configuration
+        should_seed = seed if seed is not None else settings.enable_demo_seeding
+        if should_seed:
             seed_database(conn)
+        else:
+            logger.info("Demo seeding skipped (disabled by configuration or production environment mode).")
 
         # Synchronize Fast Search FTS5 Virtual Index
         try:

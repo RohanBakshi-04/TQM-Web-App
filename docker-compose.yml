@@ -16,8 +16,12 @@ services:
       - HOST=0.0.0.0
       - PORT=8000
       - SECRET_KEY=prod_super_secret_jwt_signing_key_replace_me_randomly_12345
+      - JWT_SECRET_KEY=prod_super_secret_jwt_signing_key_replace_me_randomly_12345
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - REFRESH_TOKEN_EXPIRE_DAYS=7
       - DATABASE_PATH=data/hostel_web.db
       - ENABLE_SQLITE_WAL=True
+      - ENABLE_DEMO_SEEDING=False
     volumes:
       - hostel_data:/app/data
       - hostel_backups:/app/data/backups

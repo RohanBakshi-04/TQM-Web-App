@@ -6,7 +6,7 @@ Quality Goal: Q05 - Reduce Response Time (<10ms SLA)
 
 import sqlite3
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 from backend.app.services.cache_service import cache_service, make_dashboard_cache_key
 from backend.app.utils.logger import logger
 

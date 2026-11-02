@@ -4,6 +4,7 @@ Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
 Quality Goal: Q05 - Reduce Response Time
 """
 
+import sqlite3
 from typing import Any, Dict, List, Optional, Union
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -121,6 +122,47 @@ def get_current_user(
         conn.close()
 
 
+
+def get_parent_authorized_ward_ids(conn: sqlite3.Connection, current_user: Dict[str, Any]) -> List[int]:
+    """Return all authorized student IDs linked to a parent/guardian user."""
+    ward_ids = set()
+
+    # 1. Check primary linked student ID on users record
+    linked_sid = current_user.get("linked_student_id")
+    if linked_sid:
+        ward_ids.add(int(linked_sid))
+
+    cursor = conn.cursor()
+
+    # 2. Check student_guardians join via guardian email or phone
+    user_email = (current_user.get("email") or "").strip().lower()
+    user_phone = (current_user.get("phone") or "").strip()
+    user_id = current_user.get("id") or current_user.get("user_id")
+
+    if user_email or user_phone:
+        cursor.execute("""
+            SELECT DISTINCT sg.student_id
+            FROM student_guardians sg
+            JOIN guardians g ON g.id = sg.guardian_id
+            WHERE (LOWER(g.email) = ? AND ? != '') OR (g.phone = ? AND ? != '');
+        """, (user_email, user_email, user_phone, user_phone))
+        for r in cursor.fetchall():
+            ward_ids.add(r[0])
+
+    # 3. Check registration_requests where parent was approved
+    if user_id:
+        cursor.execute("""
+            SELECT DISTINCT linked_student_id
+            FROM registration_requests
+            WHERE user_id = ? AND status = 'Approved' AND linked_student_id IS NOT NULL;
+        """, (user_id,))
+        for r in cursor.fetchall():
+            if r[0]:
+                ward_ids.add(r[0])
+
+    return sorted(list(ward_ids))
+
+
 def require_roles(*allowed_roles):
     """Enforce that authenticated user belongs to at least one of the specified roles."""
     flat_roles = set()
@@ -131,19 +173,22 @@ def require_roles(*allowed_roles):
             flat_roles.add(r)
 
     def role_checker(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+        active_role = current_user.get("active_role") or current_user.get("role")
         user_roles = set(current_user.get("roles", []))
-        if current_user.get("role"):
-            user_roles.add(current_user["role"])
-        # Super admin always has access
-        if "super_admin" in user_roles:
+        if active_role:
+            user_roles.add(active_role)
+
+        # Super admin active role always has access
+        if active_role == "super_admin" or "super_admin" in user_roles:
             return current_user
 
-        if not user_roles.intersection(flat_roles):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access denied. Required role(s): {', '.join(sorted(flat_roles))}. Your role(s): {', '.join(user_roles)}"
-            )
-        return current_user
+        if active_role in flat_roles or user_roles.intersection(flat_roles):
+            return current_user
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Access denied. Required role(s): {', '.join(sorted(flat_roles))}. Your active role: '{active_role}'."
+        )
     return role_checker
 
 
@@ -175,22 +220,53 @@ def require_permissions(*required_permissions):
 
 
 def verify_student_isolation(student_id: Union[str, int], current_user: Dict[str, Any]) -> None:
-    """Enforce strict student-level and guardian-level data isolation.
+    """Enforce strict student-level and guardian-level data isolation and hostel-scoped staff oversight.
 
     A student must NEVER access another student's private records by changing an ID in an API request.
-    Supports both internal integer ID and university/system Student ID string (e.g. STU-202611-0089).
+    Parents can only access their linked wards.
+    Wardens and Assistant Wardens can only access students residing within their assigned hostel facility.
     """
     user_roles = set(current_user.get("roles", []))
-
-    # Super Admin, Hostel Admin, Warden, Assistant Warden, and Accountant have oversight
-    privileged_roles = {"super_admin", "hostel_admin", "warden", "assistant_warden", "accountant", "auditor"}
-    if user_roles.intersection(privileged_roles):
-        return
-
+    active_role = current_user.get("active_role") or current_user.get("role")
     s_val = str(student_id).strip()
 
-    # Student can only access their own linked record
-    if "student" in user_roles:
+    # Super Admin and global administrators have campus-wide access
+    if "super_admin" in user_roles or active_role == "super_admin":
+        return
+
+    # Accountant and Auditor have read/accounting oversight
+    if "accountant" in user_roles or "auditor" in user_roles:
+        return
+
+    # Hostel Warden & Assistant Warden: Must verify student belongs to warden's assigned hostel
+    if "warden" in user_roles or "assistant_warden" in user_roles:
+        user_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+        if user_hid:
+            conn = get_db_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT bld.hostel_id
+                    FROM room_allocations ra
+                    JOIN rooms rm ON rm.id = ra.room_id
+                    JOIN floors fl ON fl.id = rm.floor_id
+                    JOIN buildings bld ON bld.id = fl.building_id
+                    WHERE (ra.student_id = ? OR ra.student_id = (SELECT id FROM students WHERE student_id = ?))
+                      AND ra.allocation_status = 'Active';
+                """, (s_val, s_val))
+                row = cursor.fetchone()
+                if row and row[0] != int(user_hid):
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=f"Access Denied: Student is allocated to hostel facility #{row[0]}, outside your assigned facility (#{user_hid})."
+                    )
+                return
+            finally:
+                conn.close()
+        return
+
+    # Student resident isolation check
+    if "student" in user_roles or active_role == "student":
         linked_s_id = current_user.get("linked_student_id")
         user_student_id = current_user.get("student_id")
         is_match = False
@@ -206,21 +282,23 @@ def verify_student_isolation(student_id: Union[str, int], current_user: Dict[str
             )
         return
 
-    # Parent/Guardian can only access their linked ward
-    if "parent_guardian" in user_roles:
-        linked_s_id = current_user.get("linked_student_id")
-        user_student_id = current_user.get("student_id")
-        is_match = False
-        if linked_s_id is not None and str(linked_s_id) == s_val:
-            is_match = True
-        elif user_student_id and user_student_id.strip().upper() == s_val.upper():
-            is_match = True
+    # Parent/Guardian ward isolation check
+    if "parent_guardian" in user_roles or "parent" in user_roles or active_role in ("parent_guardian", "parent"):
+        conn = get_db_connection()
+        try:
+            wards = get_parent_authorized_ward_ids(conn, current_user)
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM students WHERE id = ? OR student_id = ?;", (s_val, s_val))
+            st_row = cursor.fetchone()
+            target_id = st_row[0] if st_row else None
 
-        if not is_match:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Security Violation: You are not authorized to view this student's records."
-            )
-        return
+            if not target_id or target_id not in wards:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Security Violation: You are not authorized to view this student's records."
+                )
+            return
+        finally:
+            conn.close()
 
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")

@@ -11,7 +11,8 @@ from typing import Any, Dict, List, Optional
 from backend.app.database.connection import get_db_path, get_db_connection
 from backend.app.utils.logger import logger
 
-BACKUP_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "backups")
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+BACKUP_DIR = os.getenv("BACKUP_DIR") or os.path.join(PROJECT_ROOT, "data", "backups")
 
 
 class BackupService:
@@ -109,7 +110,17 @@ class BackupService:
     def restore_backup(cls, backup_filename: str) -> Dict[str, Any]:
         """Safely restore database from a verified backup with pre-restore safety snapshot."""
         backup_dir = cls._ensure_backup_dir()
-        backup_path = os.path.join(backup_dir, backup_filename)
+
+        # Security: Prevent path traversal and invalid file extensions
+        clean_filename = os.path.basename(backup_filename)
+        if clean_filename != backup_filename or not clean_filename.endswith(".db"):
+            raise ValueError("Invalid backup filename. Directory traversal characters and non-.db extensions are prohibited.")
+
+        backup_path = os.path.join(backup_dir, clean_filename)
+        real_backup_path = os.path.realpath(backup_path)
+        real_backup_dir = os.path.realpath(backup_dir)
+        if not real_backup_path.startswith(real_backup_dir):
+            raise ValueError("Access denied: Backup path escapes authorized backup directory.")
 
         if not os.path.exists(backup_path):
             raise FileNotFoundError(f"Backup file '{backup_filename}' does not exist.")

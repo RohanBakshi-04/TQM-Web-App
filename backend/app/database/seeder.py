@@ -95,6 +95,10 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
             user_id_map[uname] = u_id
             r_id = role_id_map[role_name]
             cursor.execute("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?);", (u_id, r_id))
+            staff_roles = {'super_admin', 'hostel_admin', 'warden', 'assistant_warden', 'accountant', 'mess_manager', 'maintenance_staff', 'security_guard', 'admission_officer', 'auditor'}
+            if role_name in staff_roles:
+                s_id = f"STF-{u_id:04d}"
+                cursor.execute("UPDATE users SET staff_id = ? WHERE id = ?;", (s_id, u_id))
 
         # 4. Seed Hostel, Buildings, Floors, Rooms & Beds
         cursor.execute("SELECT id FROM hostels WHERE code = 'RTH-01';")
@@ -259,23 +263,23 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
 
         # 9. Seed Financials: Fee Structure, Invoice & Payment
         cursor.execute(
-            """INSERT INTO fee_structures (name, room_type, academic_year, semester, amount, payment_frequency)
-               VALUES ('Semester 5 Single Occupancy Fee', 'Single', '2026-27', '5th', 6000.0, 'Monthly');"""
+            """INSERT INTO fee_structures (name, room_type, academic_year, semester, amount, amount_paise, payment_frequency)
+               VALUES ('Semester 5 Single Occupancy Fee', 'Single', '2026-27', '5th', 6000.0, 600000, 'Monthly');"""
         )
         fee_id = cursor.lastrowid
 
         cursor.execute(
-            """INSERT INTO invoices (invoice_number, student_id, fee_structure_id, issue_date, due_date, total_amount, paid_amount, status)
-               VALUES ('INV-2026-08-001', ?, ?, '2026-08-01', '2026-08-15', 6000.0, 6000.0, 'Paid');""",
+            """INSERT INTO invoices (invoice_number, student_id, fee_structure_id, issue_date, due_date, total_amount, total_amount_paise, paid_amount, paid_amount_paise, status)
+               VALUES ('INV-2026-08-001', ?, ?, '2026-08-01', '2026-08-15', 6000.0, 600000, 6000.0, 600000, 'Paid');""",
             (s_rohan, fee_id)
         )
         inv_id = cursor.lastrowid
 
-        cursor.execute("INSERT INTO invoice_items (invoice_id, title, amount) VALUES (?, 'Room 101 Monthly Rent', 6000.0);", (inv_id,))
+        cursor.execute("INSERT INTO invoice_items (invoice_id, title, amount, amount_paise) VALUES (?, 'Room 101 Monthly Rent', 6000.0, 600000);", (inv_id,))
 
         cursor.execute(
-            """INSERT INTO payments (payment_reference, invoice_id, student_id, amount, payment_method, payment_date, transaction_id, status)
-               VALUES ('PAY-2026-08-01-ROH', ?, ?, 6000.0, 'UPI', '2026-08-05', 'UPI-TXN-99887766', 'Completed');""",
+            """INSERT INTO payments (payment_reference, invoice_id, student_id, amount, amount_paise, payment_method, payment_date, transaction_id, status)
+               VALUES ('PAY-2026-08-01-ROH', ?, ?, 6000.0, 600000, 'UPI', '2026-08-05', 'UPI-TXN-99887766', 'Completed');""",
             (inv_id, s_rohan)
         )
 

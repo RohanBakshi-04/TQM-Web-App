@@ -142,7 +142,6 @@ class SwitchRoleResponse(BaseModel):
 
 class AuthResponse(BaseModel):
     access_token: str
-    refresh_token: str
     token_type: str = "bearer"
     expires_in: int = 1800
     user: UserProfileResponse
@@ -157,7 +156,6 @@ class RegisterResponse(BaseModel):
     status: str = "Pending_Approval"
     message: str
     access_token: Optional[str] = ""
-    refresh_token: Optional[str] = ""
     token_type: str = "bearer"
     expires_in: int = 0
     user: UserProfileResponse

@@ -1,3 +1,4 @@
+from backend.app.services.auth_dependencies import get_parent_authorized_ward_ids
 import csv
 import io
 import sqlite3
@@ -40,13 +41,8 @@ class FinancialReportService:
                     row = cursor.fetchone()
                     student_id = row[0] if row else None
                 else:
-                    cursor.execute("""
-                        SELECT sg.student_id FROM student_guardians sg
-                        JOIN guardians g ON g.id = sg.guardian_id
-                        WHERE g.user_id = ?;
-                    """, (user_id,))
-                    row = cursor.fetchone()
-                    student_id = row[0] if row else None
+                    wards = get_parent_authorized_ward_ids(conn, {"id": user_id, "user_id": user_id})
+                    student_id = wards[0] if wards else None
 
                 if not student_id:
                     return {

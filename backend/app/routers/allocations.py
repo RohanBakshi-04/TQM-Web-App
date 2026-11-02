@@ -1,3 +1,4 @@
+from backend.app.services.auth_dependencies import get_parent_authorized_ward_ids, verify_student_isolation
 """Room Allocation and Poka-Yoke System REST API Router.
 
 Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
@@ -35,6 +36,26 @@ def create_room_allocation(
     """Allocate a student to a hostel room and bed with strict 10-layer Poka-Yoke error prevention."""
     conn = get_db_connection()
     try:
+        # Check hostel scope for warden and assistant warden
+        user_roles = set(current_user.get("roles", []))
+        active_role = current_user.get("active_role") or current_user.get("role")
+        user_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+        if (active_role in ("warden", "assistant_warden") or ("warden" in user_roles and "super_admin" not in user_roles)) and user_hid:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT bld.hostel_id
+                FROM beds b
+                JOIN rooms r ON r.id = b.room_id
+                JOIN floors f ON f.id = f.id AND f.id = r.floor_id
+                JOIN buildings bld ON bld.id = f.building_id
+                WHERE b.id = ?;
+            """, (data.bed_id,))
+            row = cursor.fetchone()
+            if row and row[0] != int(user_hid):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Access Denied: Bed #{data.bed_id} belongs to hostel facility #{row[0]}, which is outside your assigned facility (#{user_hid})."
+                )
         return AllocationService.create_allocation(conn, data, allocated_by_user_id=current_user["id"])
     finally:
         conn.close()
@@ -57,9 +78,30 @@ def list_allocations(
     conn = get_db_connection()
     try:
         user_roles = set(current_user.get("roles", []))
-        # If student role, isolate strictly to own allocations
-        if "student" in user_roles and not user_roles.intersection({"super_admin", "hostel_admin", "warden", "assistant_warden", "accountant", "auditor"}):
+        active_role = current_user.get("active_role") or current_user.get("role")
+
+        # Student role isolation
+        if active_role == "student" or ("student" in user_roles and not user_roles.intersection({"super_admin", "hostel_admin", "warden", "assistant_warden", "accountant", "auditor"})):
             student_id = current_user.get("linked_student_id")
+
+        # Parent / Guardian role isolation
+        elif active_role in ("parent_guardian", "parent") or "parent_guardian" in user_roles or "parent" in user_roles:
+            wards = get_parent_authorized_ward_ids(conn, current_user)
+            if not wards:
+                return []
+            if student_id:
+                if int(student_id) not in wards:
+                    raise HTTPException(status_code=403, detail="Access Denied: You are not authorized to view allocations for this student.")
+            else:
+                student_id = wards[0] if len(wards) == 1 else None
+
+        # Warden and Assistant Warden hostel scope enforcement
+        if active_role in ("warden", "assistant_warden") or ("warden" in user_roles and "super_admin" not in user_roles):
+            user_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+            if user_hid:
+                if hostel_id and int(hostel_id) != int(user_hid):
+                    raise HTTPException(status_code=403, detail=f"Access Denied: Unauthorized hostel #{hostel_id}. Your assigned facility is #{user_hid}.")
+                hostel_id = int(user_hid)
 
         return AllocationService.get_allocations(
             conn=conn,
@@ -110,6 +152,7 @@ def get_allocation_suggestions(
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> List[Dict[str, Any]]:
     """Intelligent automated room and bed suggestion engine with multi-criteria scoring."""
+    verify_student_isolation(student_id, current_user)
     conn = get_db_connection()
     try:
         return AllocationService.get_allocation_suggestions(

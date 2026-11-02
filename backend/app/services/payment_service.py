@@ -1,3 +1,12 @@
+from backend.app.utils.currency import to_paise, from_paise, paise_to_float
+from decimal import Decimal, ROUND_HALF_UP
+
+def _to_dec(val) -> Decimal:
+    if val is None:
+        return Decimal("0.00")
+    return Decimal(str(val)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+from backend.app.services.auth_dependencies import get_parent_authorized_ward_ids
 import sqlite3
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
@@ -47,15 +56,28 @@ class PaymentService:
                     detail=f"Cannot record payment for an invoice with status '{inv['status']}'."
                 )
 
-            total_due = round(inv["total_amount"] + inv["fine_amount"] - inv["discount_amount"], 2)
-            current_outstanding = round(total_due - inv["paid_amount"], 2)
-            payment_amount = round(payload.amount, 2)
+            inv_total_paise = inv["total_amount_paise"] if ("total_amount_paise" in inv.keys() and inv["total_amount_paise"] is not None) else to_paise(inv["total_amount"])
+            inv_fine_paise = inv["fine_amount_paise"] if ("fine_amount_paise" in inv.keys() and inv["fine_amount_paise"] is not None) else to_paise(inv["fine_amount"])
+            inv_discount_paise = inv["discount_amount_paise"] if ("discount_amount_paise" in inv.keys() and inv["discount_amount_paise"] is not None) else to_paise(inv["discount_amount"])
+            inv_paid_paise = inv["paid_amount_paise"] if ("paid_amount_paise" in inv.keys() and inv["paid_amount_paise"] is not None) else to_paise(inv["paid_amount"])
 
-            if payment_amount > current_outstanding:
+            total_due_paise = inv_total_paise + inv_fine_paise - inv_discount_paise
+            current_outstanding_paise = total_due_paise - inv_paid_paise
+            payment_amount_paise = to_paise(payload.amount)
+
+            if payment_amount_paise <= 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Payment amount INR {payment_amount:.2f} exceeds outstanding balance of INR {current_outstanding:.2f}."
+                    detail="Payment amount must be strictly greater than zero."
                 )
+
+            if payment_amount_paise > current_outstanding_paise:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Payment amount INR {paise_to_float(payment_amount_paise):.2f} exceeds outstanding balance of INR {paise_to_float(current_outstanding_paise):.2f}."
+                )
+
+            payment_amount = paise_to_float(payment_amount_paise)
 
             # 2. Poka-Yoke: Check duplicate transaction_id if provided
             if payload.transaction_id and payload.transaction_id.strip():
@@ -84,17 +106,18 @@ class PaymentService:
 
             receipt_num = f"RCP-{today_prefix}-{seq:04d}"
 
-            # 4. Insert payment
+            # 4. Insert payment with dual-written integer paise
             cursor.execute("""
                 INSERT INTO payments (
-                    payment_reference, invoice_id, student_id, amount, payment_method,
+                    payment_reference, invoice_id, student_id, amount, amount_paise, payment_method,
                     payment_date, transaction_id, receipt_number, status, notes, recorded_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Completed', ?, ?);
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Completed', ?, ?);
             """, (
                 payment_ref,
                 payload.invoice_id,
                 inv["student_id"],
                 payment_amount,
+                payment_amount_paise,
                 payload.payment_method,
                 payload.payment_date,
                 payload.transaction_id or "",
@@ -104,16 +127,18 @@ class PaymentService:
             ))
             payment_id = cursor.lastrowid
 
-            # 5. Update invoice paid_amount and status
-            new_paid = round(inv["paid_amount"] + payment_amount, 2)
-            new_balance = round(total_due - new_paid, 2)
-            new_status = "Paid" if new_balance <= 0 else "Partially_Paid"
+            # 5. Update invoice paid_amount and paid_amount_paise authoritatively
+            new_paid_paise = inv_paid_paise + payment_amount_paise
+            new_balance_paise = total_due_paise - new_paid_paise
+            new_status = "Paid" if new_balance_paise <= 0 else "Partially_Paid"
+            new_paid = paise_to_float(new_paid_paise)
+            new_balance = paise_to_float(new_balance_paise)
 
             cursor.execute("""
                 UPDATE invoices
-                SET paid_amount = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+                SET paid_amount = ?, paid_amount_paise = ?, status = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?;
-            """, (new_paid, new_status, payload.invoice_id))
+            """, (new_paid, new_paid_paise, new_status, payload.invoice_id))
 
             # 6. Notify student
             if inv["student_user_id"]:
@@ -165,13 +190,8 @@ class PaymentService:
                     return {"total": 0, "records": []}
                 where_clauses.append("p.student_id = ?")
                 params.append(st["id"])
-            elif role == "parent":
-                cursor.execute("""
-                    SELECT sg.student_id FROM student_guardians sg
-                    JOIN guardians g ON g.id = sg.guardian_id
-                    WHERE g.user_id = ?;
-                """, (current_user.get("user_id"),))
-                wards = [r[0] for r in cursor.fetchall()]
+            elif role in ("parent", "parent_guardian"):
+                wards = get_parent_authorized_ward_ids(conn, current_user)
                 if not wards:
                     return {"total": 0, "records": []}
                 placeholders = ",".join("?" for _ in wards)
@@ -314,16 +334,22 @@ class PaymentService:
                 WHERE id = ?;
             """, (payload.reversal_reason.strip(), current_user.get("user_id"), payment_id))
 
-            # Deduct from invoice paid_amount
-            new_paid = max(0.0, round(pay["paid_amount"] - pay["amount"], 2))
-            total_due = round(pay["total_amount"] + pay["fine_amount"] - pay["discount_amount"], 2)
-            new_status = "Unpaid" if new_paid <= 0 else "Partially_Paid"
+            # Deduct from invoice paid_amount using integer paise
+            pay_amount_paise = pay["amount_paise"] if ("amount_paise" in pay.keys() and pay["amount_paise"] is not None) else to_paise(pay["amount"])
+            inv_paid_paise = pay["paid_amount_paise"] if ("paid_amount_paise" in pay.keys() and pay["paid_amount_paise"] is not None) else to_paise(pay["paid_amount"])
+            inv_total_paise = pay["total_amount_paise"] if ("total_amount_paise" in pay.keys() and pay["total_amount_paise"] is not None) else to_paise(pay["total_amount"])
+            inv_fine_paise = pay["fine_amount_paise"] if ("fine_amount_paise" in pay.keys() and pay["fine_amount_paise"] is not None) else to_paise(pay["fine_amount"])
+            inv_discount_paise = pay["discount_amount_paise"] if ("discount_amount_paise" in pay.keys() and pay["discount_amount_paise"] is not None) else to_paise(pay["discount_amount"])
+
+            new_paid_paise = max(0, inv_paid_paise - pay_amount_paise)
+            new_status = "Unpaid" if new_paid_paise <= 0 else "Partially_Paid"
+            new_paid = paise_to_float(new_paid_paise)
 
             cursor.execute("""
                 UPDATE invoices
-                SET paid_amount = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+                SET paid_amount = ?, paid_amount_paise = ?, status = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?;
-            """, (new_paid, new_status, pay["invoice_id"]))
+            """, (new_paid, new_paid_paise, new_status, pay["invoice_id"]))
 
             # Audit log
             cursor.execute("""
@@ -418,17 +444,19 @@ class PaymentService:
                     break
                 seq += 1
 
+            req_amount_paise = to_paise(req_amount)
             cursor.execute("""
                 INSERT INTO refunds (
-                    refund_reference, payment_id, invoice_id, student_id, amount,
+                    refund_reference, payment_id, invoice_id, student_id, amount, amount_paise,
                     reason, refund_method, status, requested_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'Requested', ?);
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Requested', ?);
             """, (
                 ref_number,
                 payload.payment_id,
                 pay["inv_id"],
                 pay["student_id"],
                 req_amount,
+                req_amount_paise,
                 payload.reason.strip(),
                 payload.refund_method,
                 current_user.get("user_id")
@@ -460,8 +488,8 @@ class PaymentService:
         try:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT r.*, p.amount as original_payment_amount, p.invoice_id,
-                       inv.paid_amount as inv_paid_amount, inv.total_amount as inv_total_amount,
+                SELECT r.*, p.amount as original_payment_amount, p.amount_paise as original_payment_amount_paise, p.invoice_id,
+                       inv.paid_amount as inv_paid_amount, inv.paid_amount_paise as inv_paid_amount_paise, inv.total_amount as inv_total_amount,
                        s.user_id as student_user_id
                 FROM refunds r
                 JOIN payments p ON p.id = r.payment_id
@@ -506,14 +534,17 @@ class PaymentService:
                     WHERE id = ?;
                 """, (current_user.get("user_id"), now_str, tx_ref, refund_id))
 
-                # Adjust invoice balances
-                new_paid = max(0.0, round(ref["inv_paid_amount"] - ref["amount"], 2))
-                new_status = "Partially_Paid" if new_paid > 0 else "Unpaid"
+                # Adjust invoice balances with authoritative integer paise
+                ref_amount_paise = ref["amount_paise"] if ("amount_paise" in ref.keys() and ref["amount_paise"] is not None) else to_paise(ref["amount"])
+                inv_paid_paise = ref["inv_paid_amount_paise"] if ("inv_paid_amount_paise" in ref.keys() and ref["inv_paid_amount_paise"] is not None) else to_paise(ref["inv_paid_amount"])
+                new_paid_paise = max(0, inv_paid_paise - ref_amount_paise)
+                new_paid = paise_to_float(new_paid_paise)
+                new_status = "Partially_Paid" if new_paid_paise > 0 else "Unpaid"
                 cursor.execute("""
                     UPDATE invoices
-                    SET paid_amount = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+                    SET paid_amount = ?, paid_amount_paise = ?, status = ?, updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?;
-                """, (new_paid, new_status, ref["invoice_id"]))
+                """, (new_paid, new_paid_paise, new_status, ref["invoice_id"]))
 
                 # Check if entire original payment was refunded
                 cursor.execute("""

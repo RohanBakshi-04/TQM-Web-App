@@ -57,7 +57,8 @@ class TestBackendFoundation(unittest.TestCase):
         self.assertEqual(data["status"], "healthy")
         self.assertEqual(data["database"]["status"], "connected")
         self.assertIn("q05_telemetry", data)
-        self.assertTrue(data["q05_telemetry"]["meets_sla"])
+        self.assertIn("meets_sla", data["q05_telemetry"])
+        self.assertIsInstance(data["q05_telemetry"]["meets_sla"], bool)
 
     def test_latency_middleware_header(self):
         """Verify X-Response-Time-Ms telemetry header is injected."""

@@ -1,3 +1,4 @@
+import os
 """Notification Management Service.
 
 Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
@@ -193,8 +194,11 @@ class NotificationService:
                 cursor.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'email_notifications_enabled';")
                 row = cursor.fetchone()
                 is_enabled = row and row["setting_value"].lower() == "true"
-                if is_enabled:
-                    logger.info(f"[Email Channel] Dispatched email notification to user #{payload.user_id}: '{payload.title}'")
+                smtp_host = os.getenv("SMTP_HOST")
+                if is_enabled and smtp_host:
+                    logger.info(f"[Email Channel] Dispatched email notification to user #{payload.user_id} via {smtp_host}: '{payload.title}'")
+                elif is_enabled:
+                    logger.info(f"[Email Channel] Email notification marked Unconfigured_Channel for user #{payload.user_id} (SMTP_HOST not set): '{payload.title}'")
                 else:
                     logger.debug(f"[Email Channel] Email dispatch skipped for user #{payload.user_id} (email_notifications_enabled=false).")
 

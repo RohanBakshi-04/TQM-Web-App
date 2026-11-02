@@ -1084,6 +1084,90 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
             applied_now.append("013_hostel_warden_allocation_and_girls_single_hostel")
             logger.info("Migration 013_hostel_warden_allocation_and_girls_single_hostel applied successfully.")
 
+        # 14. Migration 014: Authoritative Integer Paise Monetary Storage
+        if "014_monetary_paise_migration" not in applied:
+            logger.info("Applying Migration 014_monetary_paise_migration (authoritative integer paise storage)...")
+            from backend.app.utils.currency import to_paise
+            cursor = conn.cursor()
+
+            # 1. fee_structures: amount_paise, late_fine_amount_paise
+            cols = [c[1] for c in cursor.execute("PRAGMA table_info(fee_structures);").fetchall()]
+            if "amount_paise" not in cols:
+                cursor.execute("ALTER TABLE fee_structures ADD COLUMN amount_paise INTEGER DEFAULT 0;")
+            if "late_fine_amount_paise" not in cols:
+                cursor.execute("ALTER TABLE fee_structures ADD COLUMN late_fine_amount_paise INTEGER DEFAULT 0;")
+
+            cursor.execute("SELECT id, amount, COALESCE(late_fine_amount, 0) FROM fee_structures;")
+            for row in cursor.fetchall():
+                fs_id, amt, late_amt = row
+                cursor.execute(
+                    "UPDATE fee_structures SET amount_paise = ?, late_fine_amount_paise = ? WHERE id = ?;",
+                    (to_paise(amt), to_paise(late_amt), fs_id)
+                )
+
+            # 2. invoices: total_amount_paise, paid_amount_paise, discount_amount_paise, fine_amount_paise
+            cols = [c[1] for c in cursor.execute("PRAGMA table_info(invoices);").fetchall()]
+            if "total_amount_paise" not in cols:
+                cursor.execute("ALTER TABLE invoices ADD COLUMN total_amount_paise INTEGER DEFAULT 0;")
+            if "paid_amount_paise" not in cols:
+                cursor.execute("ALTER TABLE invoices ADD COLUMN paid_amount_paise INTEGER DEFAULT 0;")
+            if "discount_amount_paise" not in cols:
+                cursor.execute("ALTER TABLE invoices ADD COLUMN discount_amount_paise INTEGER DEFAULT 0;")
+            if "fine_amount_paise" not in cols:
+                cursor.execute("ALTER TABLE invoices ADD COLUMN fine_amount_paise INTEGER DEFAULT 0;")
+
+            cursor.execute("SELECT id, total_amount, COALESCE(paid_amount, 0), COALESCE(discount_amount, 0), COALESCE(fine_amount, 0) FROM invoices;")
+            for row in cursor.fetchall():
+                inv_id, total, paid, discount, fine = row
+                cursor.execute(
+                    "UPDATE invoices SET total_amount_paise = ?, paid_amount_paise = ?, discount_amount_paise = ?, fine_amount_paise = ? WHERE id = ?;",
+                    (to_paise(total), to_paise(paid), to_paise(discount), to_paise(fine), inv_id)
+                )
+
+            # 3. invoice_items: amount_paise
+            cols = [c[1] for c in cursor.execute("PRAGMA table_info(invoice_items);").fetchall()]
+            if "amount_paise" not in cols:
+                cursor.execute("ALTER TABLE invoice_items ADD COLUMN amount_paise INTEGER DEFAULT 0;")
+
+            cursor.execute("SELECT id, amount FROM invoice_items;")
+            for row in cursor.fetchall():
+                item_id, amt = row
+                cursor.execute(
+                    "UPDATE invoice_items SET amount_paise = ? WHERE id = ?;",
+                    (to_paise(amt), item_id)
+                )
+
+            # 4. payments: amount_paise
+            cols = [c[1] for c in cursor.execute("PRAGMA table_info(payments);").fetchall()]
+            if "amount_paise" not in cols:
+                cursor.execute("ALTER TABLE payments ADD COLUMN amount_paise INTEGER DEFAULT 0;")
+
+            cursor.execute("SELECT id, amount FROM payments;")
+            for row in cursor.fetchall():
+                pay_id, amt = row
+                cursor.execute(
+                    "UPDATE payments SET amount_paise = ? WHERE id = ?;",
+                    (to_paise(amt), pay_id)
+                )
+
+            # 5. refunds: amount_paise
+            cols = [c[1] for c in cursor.execute("PRAGMA table_info(refunds);").fetchall()]
+            if "amount_paise" not in cols:
+                cursor.execute("ALTER TABLE refunds ADD COLUMN amount_paise INTEGER DEFAULT 0;")
+
+            cursor.execute("SELECT id, amount FROM refunds;")
+            for row in cursor.fetchall():
+                ref_id, amt = row
+                cursor.execute(
+                    "UPDATE refunds SET amount_paise = ? WHERE id = ?;",
+                    (to_paise(amt), ref_id)
+                )
+
+            conn.commit()
+            record_migration(conn, "014_monetary_paise_migration", "Authoritative Integer Paise Monetary Storage")
+            applied_now.append("014_monetary_paise_migration")
+            logger.info("Migration 014_monetary_paise_migration applied successfully.")
+
         return applied_now
     finally:
         if should_close:
