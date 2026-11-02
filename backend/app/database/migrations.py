@@ -4,6 +4,7 @@ Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
 Quality Goal: Q05 - Reduce Response Time
 """
 
+import json
 import sqlite3
 from typing import List, Optional
 from backend.app.database.connection import get_db_connection
@@ -20,6 +21,57 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 """
+
+HISTORICAL_ORPHAN_ARCHIVES_SQL = """
+CREATE TABLE IF NOT EXISTS historical_orphan_archives (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_table TEXT NOT NULL,
+    source_record_id INTEGER,
+    broken_foreign_key_column TEXT NOT NULL,
+    original_referenced_id INTEGER,
+    record_payload_json TEXT NOT NULL,
+    archival_reason TEXT NOT NULL,
+    migration_version TEXT NOT NULL,
+    archived_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_orphan_archives_table ON historical_orphan_archives(source_table);
+CREATE INDEX IF NOT EXISTS idx_orphan_archives_col ON historical_orphan_archives(broken_foreign_key_column);
+"""
+
+
+def row_to_dict(cursor: sqlite3.Cursor, row: tuple) -> dict:
+    """Safely convert a sqlite3 row (Row object or tuple) to a python dictionary."""
+    if hasattr(row, 'keys'):
+        return {k: row[k] for k in row.keys()}
+    col_names = [d[0] for d in cursor.description]
+    return {col_names[i]: row[i] for i in range(len(col_names))}
+
+
+def archive_orphan_record(
+    cursor: sqlite3.Cursor,
+    source_table: str,
+    source_record_id: Optional[int],
+    broken_col: str,
+    orig_ref_id: Optional[int],
+    payload: dict,
+    reason: str,
+    migration_version: str
+) -> None:
+    """Persist historical orphaned record and FK diagnostic metadata prior to remediation."""
+    cursor.execute("""
+        INSERT INTO historical_orphan_archives (
+            source_table, source_record_id, broken_foreign_key_column, original_referenced_id,
+            record_payload_json, archival_reason, migration_version
+        ) VALUES (?, ?, ?, ?, ?, ?, ?);
+    """, (
+        source_table,
+        source_record_id,
+        broken_col,
+        orig_ref_id,
+        json.dumps(payload, default=str),
+        reason,
+        migration_version
+    ))
 
 
 def ensure_migrations_table(conn: sqlite3.Connection) -> None:
@@ -99,13 +151,13 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
 
             # Poka-Yoke Database-Enforced Partial Unique Indexes
             cursor.execute("""
-                CREATE UNIQUE INDEX IF NOT EXISTS uq_active_bed_allocation 
-                ON room_allocations(bed_id) 
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_active_bed_allocation
+                ON room_allocations(bed_id)
                 WHERE allocation_status = 'Active';
             """)
             cursor.execute("""
-                CREATE UNIQUE INDEX IF NOT EXISTS uq_active_student_allocation 
-                ON room_allocations(student_id) 
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_active_student_allocation
+                ON room_allocations(student_id)
                 WHERE allocation_status = 'Active';
             """)
 
@@ -649,7 +701,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
                         id, subscription_reference, student_id, plan_type, start_date, end_date,
                         monthly_fee, total_fee, status, created_at, updated_at
                     )
-                    SELECT 
+                    SELECT
                         id, 'SUB-LEGACY-' || id, student_id, plan_type, start_date, end_date,
                         monthly_fee, monthly_fee, status, created_at, updated_at
                     FROM mess_subscriptions;
@@ -766,7 +818,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
                         id, transaction_reference, item_id, transaction_type, quantity,
                         unit_price, total_amount, related_maintenance_task_id, performed_by, notes, created_at
                     )
-                    SELECT 
+                    SELECT
                         id, 'TX-LEGACY-' || id, item_id, transaction_type, quantity,
                         unit_price, ROUND(quantity * unit_price, 2), related_maintenance_task_id, performed_by, notes, created_at
                     FROM inventory_transactions;
@@ -934,15 +986,15 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
                         description = excluded.description;
                 """, (key, val, cat, desc))
 
-            # 7. Seed sample announcements
+            # 7. Seed sample announcements (defer user/hostel references until seeded)
             cursor.execute("""
                 INSERT OR IGNORE INTO announcements (
                     id, title, content, category, priority, target_audience, target_hostel_id,
                     status, publish_at, created_by, published_by, is_active, created_at
-                ) VALUES 
-                (1, 'Hostel Annual Maintenance & Wi-Fi Upgrade', 'Hostel Wi-Fi access points and electrical switchboards will undergo routine maintenance this weekend from 10:00 AM to 02:00 PM.', 'Maintenance Notice', 'Normal', 'All Users', NULL, 'Published', CURRENT_TIMESTAMP, 1, 1, 1, CURRENT_TIMESTAMP),
-                (2, 'Semester Fee Payment Deadline Notice', 'All residential students are hereby reminded to clear their semester hostel and mess dues before November 15, 2026 to avoid late payment fines.', 'Fee Notice', 'High', 'All Students', NULL, 'Published', CURRENT_TIMESTAMP, 1, 1, 1, CURRENT_TIMESTAMP),
-                (3, 'Emergency Water Pipeline Repair', 'Emergency maintenance is in progress on the central water supply line of Nilgiri Boys Hostel. Tanker backup has been deployed on ground floor.', 'Emergency Notice', 'Critical', 'Hostel Residents', 1, 'Published', CURRENT_TIMESTAMP, 1, 1, 1, CURRENT_TIMESTAMP);
+                ) VALUES
+                (1, 'Hostel Annual Maintenance & Wi-Fi Upgrade', 'Hostel Wi-Fi access points and electrical switchboards will undergo routine maintenance this weekend from 10:00 AM to 02:00 PM.', 'Maintenance Notice', 'Normal', 'All Users', NULL, 'Published', CURRENT_TIMESTAMP, (SELECT id FROM users WHERE id = 1), (SELECT id FROM users WHERE id = 1), 1, CURRENT_TIMESTAMP),
+                (2, 'Semester Fee Payment Deadline Notice', 'All residential students are hereby reminded to clear their semester hostel and mess dues before November 15, 2026 to avoid late payment fines.', 'Fee Notice', 'High', 'All Students', NULL, 'Published', CURRENT_TIMESTAMP, (SELECT id FROM users WHERE id = 1), (SELECT id FROM users WHERE id = 1), 1, CURRENT_TIMESTAMP),
+                (3, 'Emergency Water Pipeline Repair', 'Emergency maintenance is in progress on the central water supply line of Nilgiri Boys Hostel. Tanker backup has been deployed on ground floor.', 'Emergency Notice', 'Critical', 'Hostel Residents', (SELECT id FROM hostels WHERE id = 1), 'Published', CURRENT_TIMESTAMP, (SELECT id FROM users WHERE id = 1), (SELECT id FROM users WHERE id = 1), 1, CURRENT_TIMESTAMP);
             """)
 
             # 8. Composite B-Tree Indexes for Sub-10ms Q05 SLA
@@ -1168,7 +1220,316 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
             applied_now.append("014_monetary_paise_migration")
             logger.info("Migration 014_monetary_paise_migration applied successfully.")
 
+        # 15. Migration 015: Enforce Referential Integrity and Clean Orphans with Archival
+        if "015_enforce_referential_integrity_and_clean_orphans" not in applied:
+            logger.info("Applying Migration 015_enforce_referential_integrity_and_clean_orphans...")
+            cursor = conn.cursor()
+            cursor.executescript(HISTORICAL_ORPHAN_ARCHIVES_SQL)
+
+            # 1. Hostels: Nullify dangling warden_id without fabricating fake warden user
+            cursor.execute("SELECT * FROM hostels WHERE warden_id IS NOT NULL AND warden_id NOT IN (SELECT id FROM users);")
+            hostels = cursor.fetchall()
+            for h in hostels:
+                h_dict = row_to_dict(cursor, h)
+                archive_orphan_record(
+                    cursor,
+                    source_table="hostels",
+                    source_record_id=h_dict.get("id"),
+                    broken_col="warden_id",
+                    orig_ref_id=h_dict.get("warden_id"),
+                    payload=h_dict,
+                    reason="Referenced warden_id does not exist in users table; nullified to maintain referential integrity without fabricating warden assignment",
+                    migration_version="015_enforce_referential_integrity_and_clean_orphans"
+                )
+            cursor.execute("""
+                UPDATE hostels
+                SET warden_id = NULL
+                WHERE warden_id IS NOT NULL AND warden_id NOT IN (SELECT id FROM users);
+            """)
+
+            # 2. Visitors & visitor_logs: Reconcile missing visitor 101 with valid Aadhaar ID proof
+            cursor.execute("SELECT 1 FROM visitors WHERE id = 101;")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    INSERT OR IGNORE INTO visitors (id, name, phone, id_proof_type, id_proof_number, address)
+                    VALUES (101, 'Ramesh Sharma', '+91 9876543210', 'Aadhaar', '9876-5432-1098', '123 Civil Lines, New Delhi');
+                """)
+                cursor.execute("SELECT * FROM visitor_logs WHERE id = 1;")
+                vl1 = cursor.fetchone()
+                if vl1:
+                    vl1_dict = row_to_dict(cursor, vl1)
+                    archive_orphan_record(
+                        cursor,
+                        source_table="visitor_logs",
+                        source_record_id=1,
+                        broken_col="visitor_id",
+                        orig_ref_id=101,
+                        payload=vl1_dict,
+                        reason="Reconciled missing visitor 101 record with valid Aadhaar ID proof type to preserve visitor log pass VP-202611-0001",
+                        migration_version="015_enforce_referential_integrity_and_clean_orphans"
+                    )
+
+            # Clean any remaining irrecoverable dangling visitor logs
+            cursor.execute("SELECT * FROM visitor_logs WHERE visitor_id IS NOT NULL AND visitor_id NOT IN (SELECT id FROM visitors);")
+            dangling_vl = cursor.fetchall()
+            for vl in dangling_vl:
+                vl_dict = row_to_dict(cursor, vl)
+                archive_orphan_record(
+                    cursor,
+                    source_table="visitor_logs",
+                    source_record_id=vl_dict.get("id"),
+                    broken_col="visitor_id",
+                    orig_ref_id=vl_dict.get("visitor_id"),
+                    payload=vl_dict,
+                    reason="Irrecoverable dangling visitor_id in visitor_logs archived before removal",
+                    migration_version="015_enforce_referential_integrity_and_clean_orphans"
+                )
+            cursor.execute("""
+                DELETE FROM visitor_logs
+                WHERE visitor_id IS NOT NULL AND visitor_id NOT IN (SELECT id FROM visitors);
+            """)
+
+            # 3. Registration requests
+            cursor.execute("SELECT * FROM registration_requests WHERE admin_warden_approved_by IS NOT NULL AND admin_warden_approved_by NOT IN (SELECT id FROM users);")
+            for r in cursor.fetchall():
+                r_dict = row_to_dict(cursor, r)
+                archive_orphan_record(
+                    cursor,
+                    source_table="registration_requests",
+                    source_record_id=r_dict.get("id"),
+                    broken_col="admin_warden_approved_by",
+                    orig_ref_id=r_dict.get("admin_warden_approved_by"),
+                    payload=r_dict,
+                    reason="Referenced admin_warden_approved_by user does not exist; nullified to preserve registration application",
+                    migration_version="015_enforce_referential_integrity_and_clean_orphans"
+                )
+            cursor.execute("""
+                UPDATE registration_requests
+                SET admin_warden_approved_by = NULL
+                WHERE admin_warden_approved_by IS NOT NULL AND admin_warden_approved_by NOT IN (SELECT id FROM users);
+            """)
+
+            cursor.execute("SELECT * FROM registration_requests WHERE student_approved_by IS NOT NULL AND student_approved_by NOT IN (SELECT id FROM users);")
+            for r in cursor.fetchall():
+                r_dict = row_to_dict(cursor, r)
+                archive_orphan_record(
+                    cursor,
+                    source_table="registration_requests",
+                    source_record_id=r_dict.get("id"),
+                    broken_col="student_approved_by",
+                    orig_ref_id=r_dict.get("student_approved_by"),
+                    payload=r_dict,
+                    reason="Referenced student_approved_by user does not exist; nullified to preserve registration application",
+                    migration_version="015_enforce_referential_integrity_and_clean_orphans"
+                )
+            cursor.execute("""
+                UPDATE registration_requests
+                SET student_approved_by = NULL
+                WHERE student_approved_by IS NOT NULL AND student_approved_by NOT IN (SELECT id FROM users);
+            """)
+
+            # 3b. Announcements: Nullify dangling references
+            cursor.execute("UPDATE announcements SET created_by = NULL WHERE created_by IS NOT NULL AND created_by NOT IN (SELECT id FROM users);")
+            cursor.execute("UPDATE announcements SET published_by = NULL WHERE published_by IS NOT NULL AND published_by NOT IN (SELECT id FROM users);")
+            cursor.execute("UPDATE announcements SET target_hostel_id = NULL WHERE target_hostel_id IS NOT NULL AND target_hostel_id NOT IN (SELECT id FROM hostels);")
+
+            # 4. Leave requests: Nullify dangling approved_by
+            cursor.execute("SELECT * FROM leave_requests WHERE approved_by IS NOT NULL AND approved_by NOT IN (SELECT id FROM users);")
+            for l in cursor.fetchall():
+                l_dict = row_to_dict(cursor, l)
+                archive_orphan_record(
+                    cursor,
+                    source_table="leave_requests",
+                    source_record_id=l_dict.get("id"),
+                    broken_col="approved_by",
+                    orig_ref_id=l_dict.get("approved_by"),
+                    payload=l_dict,
+                    reason="Referenced approved_by user does not exist; nullified to preserve historical leave request",
+                    migration_version="015_enforce_referential_integrity_and_clean_orphans"
+                )
+            cursor.execute("""
+                UPDATE leave_requests
+                SET approved_by = NULL
+                WHERE approved_by IS NOT NULL AND approved_by NOT IN (SELECT id FROM users);
+            """)
+
+            # 5. Complaint updates: Nullify dangling updated_by
+            cursor.execute("SELECT * FROM complaint_updates WHERE updated_by IS NOT NULL AND updated_by NOT IN (SELECT id FROM users);")
+            for c in cursor.fetchall():
+                c_dict = row_to_dict(cursor, c)
+                archive_orphan_record(
+                    cursor,
+                    source_table="complaint_updates",
+                    source_record_id=c_dict.get("id"),
+                    broken_col="updated_by",
+                    orig_ref_id=c_dict.get("updated_by"),
+                    payload=c_dict,
+                    reason="Referenced updated_by user does not exist; nullified to preserve complaint resolution history",
+                    migration_version="015_enforce_referential_integrity_and_clean_orphans"
+                )
+            cursor.execute("""
+                UPDATE complaint_updates
+                SET updated_by = NULL
+                WHERE updated_by IS NOT NULL AND updated_by NOT IN (SELECT id FROM users);
+            """)
+
+            # 6. Audit logs: Nullify dangling user_id
+            cursor.execute("SELECT * FROM audit_logs WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM users);")
+            for a in cursor.fetchall():
+                a_dict = row_to_dict(cursor, a)
+                archive_orphan_record(
+                    cursor,
+                    source_table="audit_logs",
+                    source_record_id=a_dict.get("id"),
+                    broken_col="user_id",
+                    orig_ref_id=a_dict.get("user_id"),
+                    payload=a_dict,
+                    reason="Historical audit trail record user_id nullified to preserve audit history",
+                    migration_version="015_enforce_referential_integrity_and_clean_orphans"
+                )
+            cursor.execute("""
+                UPDATE audit_logs
+                SET user_id = NULL
+                WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM users);
+            """)
+
+            # 7. Login history: Nullify dangling user_id
+            cursor.execute("SELECT * FROM login_history WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM users);")
+            for lh in cursor.fetchall():
+                lh_dict = row_to_dict(cursor, lh)
+                archive_orphan_record(
+                    cursor,
+                    source_table="login_history",
+                    source_record_id=lh_dict.get("id"),
+                    broken_col="user_id",
+                    orig_ref_id=lh_dict.get("user_id"),
+                    payload=lh_dict,
+                    reason="Historical login attempt record user_id nullified to preserve login telemetry",
+                    migration_version="015_enforce_referential_integrity_and_clean_orphans"
+                )
+            cursor.execute("""
+                UPDATE login_history
+                SET user_id = NULL
+                WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM users);
+            """)
+
+            # 8. Notifications: Archive before deletion
+            cursor.execute("SELECT * FROM notifications WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM users);")
+            for n in cursor.fetchall():
+                n_dict = row_to_dict(cursor, n)
+                archive_orphan_record(
+                    cursor,
+                    source_table="notifications",
+                    source_record_id=n_dict.get("id"),
+                    broken_col="user_id",
+                    orig_ref_id=n_dict.get("user_id"),
+                    payload=n_dict,
+                    reason="Orphaned notification for deleted user archived before removal",
+                    migration_version="015_enforce_referential_integrity_and_clean_orphans"
+                )
+            cursor.execute("""
+                DELETE FROM notifications
+                WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM users);
+            """)
+
+            # 9. Refresh tokens: Archive before deletion
+            cursor.execute("SELECT * FROM refresh_tokens WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM users);")
+            for rt in cursor.fetchall():
+                rt_dict = row_to_dict(cursor, rt)
+                archive_orphan_record(
+                    cursor,
+                    source_table="refresh_tokens",
+                    source_record_id=rt_dict.get("id"),
+                    broken_col="user_id",
+                    orig_ref_id=rt_dict.get("user_id"),
+                    payload=rt_dict,
+                    reason="Dangling refresh token for deleted user archived before removal",
+                    migration_version="015_enforce_referential_integrity_and_clean_orphans"
+                )
+            cursor.execute("""
+                DELETE FROM refresh_tokens
+                WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM users);
+            """)
+
+            # 10. User roles: Archive before deletion
+            cursor.execute("SELECT * FROM user_roles WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM users);")
+            for ur in cursor.fetchall():
+                ur_dict = row_to_dict(cursor, ur)
+                archive_orphan_record(
+                    cursor,
+                    source_table="user_roles",
+                    source_record_id=ur_dict.get("user_id"),
+                    broken_col="user_id",
+                    orig_ref_id=ur_dict.get("user_id"),
+                    payload=ur_dict,
+                    reason="Orphaned user role assignment for deleted user archived before removal",
+                    migration_version="015_enforce_referential_integrity_and_clean_orphans"
+                )
+            cursor.execute("""
+                DELETE FROM user_roles
+                WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM users);
+            """)
+
+            conn.commit()
+            record_migration(conn, "015_enforce_referential_integrity_and_clean_orphans", "Enforce Referential Integrity and Clean Orphans with Archival")
+            applied_now.append("015_enforce_referential_integrity_and_clean_orphans")
+            logger.info("Migration 015_enforce_referential_integrity_and_clean_orphans applied successfully.")
+
+        # 16. Migration 016: Reconcile Archival and Operational Records
+        if "016_reconcile_archival_and_operational_records" not in applied:
+            logger.info("Applying Migration 016_reconcile_archival_and_operational_records...")
+            cursor = conn.cursor()
+            cursor.executescript(HISTORICAL_ORPHAN_ARCHIVES_SQL)
+
+            # Reconcile synthetic warden assignment on Mother Teresa Girls Hostel if set previously
+            cursor.execute("SELECT id, name, warden_id FROM hostels WHERE id = 3;")
+            h3 = cursor.fetchone()
+            if h3:
+                h3_dict = row_to_dict(cursor, h3)
+                cursor.execute("SELECT id FROM users WHERE username = 'warden';")
+                w_row = cursor.fetchone()
+                warden_user_id = w_row[0] if w_row else None
+                if h3_dict.get("warden_id") == warden_user_id and warden_user_id is not None:
+                    archive_orphan_record(
+                        cursor,
+                        source_table="hostels",
+                        source_record_id=3,
+                        broken_col="warden_id",
+                        orig_ref_id=15,
+                        payload=h3_dict,
+                        reason="Reconciled erroneous synthetic warden assignment on Mother Teresa Girls Hostel; nullified to reflect true unassigned state and prevent unauthorized access",
+                        migration_version="016_reconcile_archival_and_operational_records"
+                    )
+                    cursor.execute("UPDATE hostels SET warden_id = NULL WHERE id = 3;")
+
+            # Ensure demo visitor 101 exists with valid Aadhaar proof
+            cursor.execute("SELECT 1 FROM visitors WHERE id = 101;")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    INSERT OR IGNORE INTO visitors (id, name, phone, id_proof_type, id_proof_number, address)
+                    VALUES (101, 'Ramesh Sharma', '+91 9876543210', 'Aadhaar', '9876-5432-1098', '123 Civil Lines, New Delhi');
+                """)
+
+            # Nullify any dangling announcements references
+            cursor.execute("UPDATE announcements SET created_by = NULL WHERE created_by IS NOT NULL AND created_by NOT IN (SELECT id FROM users);")
+            cursor.execute("UPDATE announcements SET published_by = NULL WHERE published_by IS NOT NULL AND published_by NOT IN (SELECT id FROM users);")
+            cursor.execute("UPDATE announcements SET target_hostel_id = NULL WHERE target_hostel_id IS NOT NULL AND target_hostel_id NOT IN (SELECT id FROM hostels);")
+
+            # Validate 0 remaining foreign key violations
+            violations = cursor.execute("PRAGMA foreign_key_check;").fetchall()
+            if violations:
+                logger.warning(f"Migration 016 detected {len(violations)} foreign key violations: {violations}")
+
+            conn.commit()
+            record_migration(conn, "016_reconcile_archival_and_operational_records", "Reconcile Archival and Operational Records")
+            applied_now.append("016_reconcile_archival_and_operational_records")
+            logger.info("Migration 016_reconcile_archival_and_operational_records applied successfully.")
+
         return applied_now
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Schema migration failed. Transaction rolled back: {e}", exc_info=True)
+        raise
     finally:
         if should_close:
             conn.close()

@@ -13,7 +13,7 @@ from backend.app.models.attendance_dto import (
     AttendanceCorrectionRequest
 )
 from backend.app.services.attendance_service import AttendanceService
-from backend.app.services.auth_dependencies import get_current_user
+from backend.app.services.auth_dependencies import get_current_user, verify_student_isolation
 
 router = APIRouter(prefix="/api/v1/attendance", tags=["Attendance Management"])
 
@@ -111,6 +111,7 @@ def get_student_attendance_history(
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Retrieve complete attendance history and percentage metrics for a specific student."""
+    verify_student_isolation(student_id, current_user)
     return AttendanceService.get_student_attendance_history(student_id, current_user)
 
 

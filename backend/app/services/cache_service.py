@@ -153,6 +153,14 @@ class CacheService:
             self._tag_index.clear()
             self._invalidations += 1
 
+    def reset_stats(self) -> None:
+        """Reset telemetry counters (hits, misses, evictions, invalidations)."""
+        with self._lock:
+            self._hits = 0
+            self._misses = 0
+            self._invalidations = 0
+            self._evictions = 0
+
     def cleanup_expired(self) -> int:
         """Active pruning of expired cache keys."""
         with self._lock:
