@@ -99,13 +99,13 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
 
             # Poka-Yoke Database-Enforced Partial Unique Indexes
             cursor.execute("""
-                CREATE UNIQUE INDEX IF NOT EXISTS uq_active_bed_allocation 
-                ON room_allocations(bed_id) 
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_active_bed_allocation
+                ON room_allocations(bed_id)
                 WHERE allocation_status = 'Active';
             """)
             cursor.execute("""
-                CREATE UNIQUE INDEX IF NOT EXISTS uq_active_student_allocation 
-                ON room_allocations(student_id) 
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_active_student_allocation
+                ON room_allocations(student_id)
                 WHERE allocation_status = 'Active';
             """)
 
@@ -649,7 +649,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
                         id, subscription_reference, student_id, plan_type, start_date, end_date,
                         monthly_fee, total_fee, status, created_at, updated_at
                     )
-                    SELECT 
+                    SELECT
                         id, 'SUB-LEGACY-' || id, student_id, plan_type, start_date, end_date,
                         monthly_fee, monthly_fee, status, created_at, updated_at
                     FROM mess_subscriptions;
@@ -766,7 +766,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
                         id, transaction_reference, item_id, transaction_type, quantity,
                         unit_price, total_amount, related_maintenance_task_id, performed_by, notes, created_at
                     )
-                    SELECT 
+                    SELECT
                         id, 'TX-LEGACY-' || id, item_id, transaction_type, quantity,
                         unit_price, ROUND(quantity * unit_price, 2), related_maintenance_task_id, performed_by, notes, created_at
                     FROM inventory_transactions;
@@ -939,7 +939,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
                 INSERT OR IGNORE INTO announcements (
                     id, title, content, category, priority, target_audience, target_hostel_id,
                     status, publish_at, created_by, published_by, is_active, created_at
-                ) VALUES 
+                ) VALUES
                 (1, 'Hostel Annual Maintenance & Wi-Fi Upgrade', 'Hostel Wi-Fi access points and electrical switchboards will undergo routine maintenance this weekend from 10:00 AM to 02:00 PM.', 'Maintenance Notice', 'Normal', 'All Users', NULL, 'Published', CURRENT_TIMESTAMP, 1, 1, 1, CURRENT_TIMESTAMP),
                 (2, 'Semester Fee Payment Deadline Notice', 'All residential students are hereby reminded to clear their semester hostel and mess dues before November 15, 2026 to avoid late payment fines.', 'Fee Notice', 'High', 'All Students', NULL, 'Published', CURRENT_TIMESTAMP, 1, 1, 1, CURRENT_TIMESTAMP),
                 (3, 'Emergency Water Pipeline Repair', 'Emergency maintenance is in progress on the central water supply line of Nilgiri Boys Hostel. Tanker backup has been deployed on ground floor.', 'Emergency Notice', 'Critical', 'Hostel Residents', 1, 'Published', CURRENT_TIMESTAMP, 1, 1, 1, CURRENT_TIMESTAMP);
@@ -1167,6 +1167,87 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
             record_migration(conn, "014_monetary_paise_migration", "Authoritative Integer Paise Monetary Storage")
             applied_now.append("014_monetary_paise_migration")
             logger.info("Migration 014_monetary_paise_migration applied successfully.")
+
+        # 15. Migration 015: Enforce Referential Integrity and Clean Orphans
+        if "015_enforce_referential_integrity_and_clean_orphans" not in applied:
+            logger.info("Applying Migration 015_enforce_referential_integrity_and_clean_orphans...")
+            cursor = conn.cursor()
+
+            # 1. Update hostels with dangling warden_id
+            cursor.execute("""
+                UPDATE hostels
+                SET warden_id = (SELECT id FROM users WHERE username = 'warden' LIMIT 1)
+                WHERE warden_id IS NOT NULL AND warden_id NOT IN (SELECT id FROM users);
+            """)
+
+            # 2. Update registration_requests with dangling approved_by
+            cursor.execute("""
+                UPDATE registration_requests
+                SET admin_warden_approved_by = NULL
+                WHERE admin_warden_approved_by IS NOT NULL AND admin_warden_approved_by NOT IN (SELECT id FROM users);
+            """)
+            cursor.execute("""
+                UPDATE registration_requests
+                SET student_approved_by = NULL
+                WHERE student_approved_by IS NOT NULL AND student_approved_by NOT IN (SELECT id FROM users);
+            """)
+
+            # 3. Clean visitor_logs with dangling visitor_id
+            cursor.execute("""
+                DELETE FROM visitor_logs
+                WHERE visitor_id IS NOT NULL AND visitor_id NOT IN (SELECT id FROM visitors);
+            """)
+
+            # 4. Nullify dangling leave approval
+            cursor.execute("""
+                UPDATE leave_requests
+                SET approved_by = NULL
+                WHERE approved_by IS NOT NULL AND approved_by NOT IN (SELECT id FROM users);
+            """)
+
+            # 5. Nullify dangling complaint updates
+            cursor.execute("""
+                UPDATE complaint_updates
+                SET updated_by = NULL
+                WHERE updated_by IS NOT NULL AND updated_by NOT IN (SELECT id FROM users);
+            """)
+
+            # 6. Nullify dangling audit logs
+            cursor.execute("""
+                UPDATE audit_logs
+                SET user_id = NULL
+                WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM users);
+            """)
+
+            # 7. Nullify dangling login history
+            cursor.execute("""
+                UPDATE login_history
+                SET user_id = NULL
+                WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM users);
+            """)
+
+            # 8. Delete orphaned notifications
+            cursor.execute("""
+                DELETE FROM notifications
+                WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM users);
+            """)
+
+            # 9. Delete orphaned refresh tokens
+            cursor.execute("""
+                DELETE FROM refresh_tokens
+                WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM users);
+            """)
+
+            # 10. Delete orphaned user roles
+            cursor.execute("""
+                DELETE FROM user_roles
+                WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM users);
+            """)
+
+            conn.commit()
+            record_migration(conn, "015_enforce_referential_integrity_and_clean_orphans", "Enforce Referential Integrity and Clean Orphans")
+            applied_now.append("015_enforce_referential_integrity_and_clean_orphans")
+            logger.info("Migration 015_enforce_referential_integrity_and_clean_orphans applied successfully.")
 
         return applied_now
     finally:
