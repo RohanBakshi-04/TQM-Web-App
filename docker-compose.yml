@@ -8,17 +8,17 @@ services:
     container_name: hostel-management-system
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "${PORT:-8000}:8000"
     environment:
       - APP_NAME=Hostel Management System Web App
       - APP_ENV=production
       - DEBUG=False
       - HOST=0.0.0.0
       - PORT=8000
-      - SECRET_KEY=prod_super_secret_jwt_signing_key_replace_me_randomly_12345
-      - JWT_SECRET_KEY=prod_super_secret_jwt_signing_key_replace_me_randomly_12345
-      - ACCESS_TOKEN_EXPIRE_MINUTES=30
-      - REFRESH_TOKEN_EXPIRE_DAYS=7
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY must be set in .env}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set in .env}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      - REFRESH_TOKEN_EXPIRE_DAYS=${REFRESH_TOKEN_EXPIRE_DAYS:-7}
       - DATABASE_PATH=data/hostel_web.db
       - ENABLE_SQLITE_WAL=True
       - ENABLE_DEMO_SEEDING=False

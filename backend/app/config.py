@@ -37,18 +37,19 @@ class Settings(BaseModel):
             "tqm-q05-hms-secret-key-2026-dev-32bytes-min",
             "tqm-q05-hms-super-secret-jwt-key-2026-rohan-bakshi",
             "replace-this-in-production-with-a-secure-random-key",
+            "replace-this-in-production-with-a-secure-random-key-min-32-chars",
             "prod_super_secret_jwt_signing_key_replace_me_randomly_12345",
             "secret",
             "changeme"
         }
         if self.app_env.lower() == "production":
-            key = self.secret_key or self.jwt_secret_key
-            if not key or key in known_defaults or len(key) < 32:
-                raise ValueError(
-                    "CRITICAL SECURITY CONFIGURATION ERROR: In production mode (APP_ENV=production), "
-                    "a cryptographically strong SECRET_KEY / JWT_SECRET_KEY of at least 32 characters "
-                    "must be provided via environment variable, and cannot use default placeholders."
-                )
+            for key_name, key in [("SECRET_KEY", self.secret_key), ("JWT_SECRET_KEY", self.jwt_secret_key)]:
+                if not key or key.strip() in known_defaults or len(key.strip()) < 32:
+                    raise ValueError(
+                        f"CRITICAL SECURITY CONFIGURATION ERROR: In production mode (APP_ENV=production), "
+                        f"a cryptographically strong {key_name} of at least 32 characters "
+                        f"must be provided via environment variable, and cannot use default placeholders."
+                    )
 
 
 settings = Settings()

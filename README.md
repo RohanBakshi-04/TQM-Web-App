@@ -50,11 +50,13 @@ All operations achieve an empirical P95 latency below 0.5 milliseconds:
 
 - **Backend:** Python 3.10+ / FastAPI (Asynchronous REST API Engine)
 - **Application Server:** Uvicorn ASGI Server
-- **Database Engine:** SQLite 3 with Write-Ahead Logging (`WAL` mode), Foreign Key constraints, 102 B-Tree composite indexes, and FTS5 full-text virtual indexing across 58 schema tables
-- **Caching Layer:** Centralized in-memory thread-safe LRU cache with multi-tag invalidation
-- **Frontend Architecture:** Alpine.js reactive state controller + Tailwind CSS + Lucide icons (No heavy Webpack/Node build steps)
-- **Containerization:** Docker multi-stage build + Docker Compose orchestration
-- **Poka-Yoke Defect Proofing:** Database unique partial indexes, atomic transfer transactions, and event deduplication keys
+- **Database Engine & Migration Lifecycle:** SQLite 3 with Write-Ahead Logging (`WAL` mode), Foreign Key enforcement, 102 B-Tree composite indexes, and FTS5 full-text indexing across **58 database tables** (52 domain relational tables + 6 FTS5 search index tables). Schema versioning managed through 14 idempotent migrations (latest: `014_monetary_paise_migration`).
+- **Financial Architecture:** Authoritative integer-paise storage (`amount_paise`, `total_amount_paise`, `paid_amount_paise`) eliminating floating-point rounding errors across invoices, itemizations, and payments.
+- **Authentication & Security:** Strict HttpOnly cookie-based refresh token rotation, in-memory access token management, zero refresh-token leakage in JSON responses, and unapproved student registration isolation.
+- **Caching Layer:** Centralized in-memory thread-safe LRU cache with multi-tag invalidation and sub-millisecond response guarantees.
+- **Frontend Architecture:** Alpine.js reactive state controller + Tailwind CSS + Lucide icons (No Node.js compilation required).
+- **Containerization:** Multi-stage Docker build running as non-root `appuser` (UID 10001) with Docker Compose orchestration.
+- **Poka-Yoke Defect Proofing:** Database unique partial indexes, atomic transfer transactions, event deduplication keys, and negative balance barriers.
 
 ---
 
@@ -80,23 +82,39 @@ cp .env.example .env
 # 5. Launch application
 python run.py
 ```
-The application will automatically initialize the database, execute all schema migrations, seed demo accounts, and open `http://127.0.0.1:8000`.
+The application will automatically initialize the database, execute all schema migrations, seed demo accounts (in development mode), and serve at `http://127.0.0.1:8000`.
 
 ### Containerized Execution (Docker Compose)
-```bash
-docker-compose up -d --build
-```
+
+Docker Compose requires strong, non-default cryptographic secret keys supplied via a local `.env` file or environment variables.
+
+1. **Configure Environment:**
+   ```bash
+   cp .env.example .env
+   ```
+2. **Generate Cryptographic Production Secrets (>= 32 characters):**
+   ```bash
+   python -c "import secrets; print(secrets.token_hex(32))"
+   ```
+   Paste the generated 64-character hex strings into `SECRET_KEY` and `JWT_SECRET_KEY` inside `.env`.
+3. **Launch Container Service:**
+   ```bash
+   docker compose up -d --build
+   ```
+> [!NOTE]
+> `docker-compose.yml` uses mandatory variable interpolation (`${SECRET_KEY:?SECRET_KEY must be set in .env}`). If production keys are missing or left as default placeholders, startup validation strictly prevents deployment.
+
 Access the application at `http://localhost:8000`.
 
 ---
 
 ## 🧪 Automated Testing & Verification
 
-Run the complete test suite (203 automated unit and integration tests):
+Run the complete test suite (217 automated unit and integration tests across 15 test suites):
 ```bash
-python -m unittest discover -s backend/tests -t .
+python -m unittest discover -s backend/tests -p "test_*.py"
 ```
-**Result:** `Ran 203 tests in 29.551s — OK (100% Pass Rate)`.
+**Result:** `Ran 217 tests in ~32s — OK (100% Pass Rate, 0 Failures, 0 Errors)`.
 
 Run the Q05 performance benchmark suite:
 ```bash
@@ -112,17 +130,21 @@ python scripts/benchmark_q05.py
 - [REST API Documentation](docs/API_DOCUMENTATION.md) — Endpoint specifications for all 21 modules
 - [Production Deployment Guide](docs/DEPLOYMENT_GUIDE.md) — Nginx reverse proxy, SSL, systemd, and backup policies
 - [TQM Final Project Report](docs/TQM_FINAL_PROJECT_REPORT.md) — Academic report on TQM methodology, Q05 SLA, and Poka-Yoke
-- [Database Schema Specification](docs/DATABASE_SCHEMA.md) — 58 database tables (52 domain tables + FTS5 search index) and data dictionaries
+- [Database Schema Specification](docs/DATABASE_SCHEMA.md) — 58 database tables (52 domain tables + 6 FTS5 search index tables)
 - [Database Indexes Catalog](docs/DATABASE_INDEXES.md) — 48 B-Tree composite indexes and query execution plans
 - [Entity-Relationship Diagram](docs/ER_DIAGRAM.md) — Mermaid visual schema relationships
 - [Q05 Caching & Quick Navigation](docs/Q05_CACHED_DASHBOARD.md) — Cache invalidation and multi-tenant isolation
 - [Testing Report](TESTING_REPORT.md) — Comprehensive test execution logs and verification evidence
-- [Changelog](CHANGELOG.md) — Chronological history across all 15 development prompts
+- [Changelog](CHANGELOG.md) — Chronological history across all development prompts
 - [Project Progress](PROJECT_PROGRESS.md) — Requirement mapping and implementation checklist
 
 ---
 
 ## 🔐 Default Demo Credentials
+
+> [!WARNING]
+> **DEVELOPMENT & TESTING ONLY:** The credentials listed below are provisioned strictly for local developer evaluation and automated testing when `APP_ENV=development` and `ENABLE_DEMO_SEEDING=True`.
+> In production environments (`APP_ENV=production`), demo account seeding is automatically disabled, and default placeholders are rejected at boot time. Never use these credentials in a public or production environment.
 
 Universal demo account password: `Password123!`
 
