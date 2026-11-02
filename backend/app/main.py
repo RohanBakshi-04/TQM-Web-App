@@ -56,11 +56,20 @@ app.add_middleware(
 )
 
 
+from fastapi.responses import JSONResponse
+
 @app.middleware("http")
 async def add_latency_header(request: Request, call_next):
     """Q05 Telemetry Middleware: Measures and exposes response time in headers."""
     t0 = time.perf_counter()
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        logger.error(f"Unhandled exception during {request.method} {request.url.path}: {exc}", exc_info=True)
+        response = JSONResponse(
+            status_code=500,
+            content={"detail": f"Internal server error: {str(exc)}"}
+        )
     duration_ms = (time.perf_counter() - t0) * 1000.0
     response.headers["X-Response-Time-Ms"] = f"{duration_ms:.3f}"
     return response

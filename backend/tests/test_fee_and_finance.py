@@ -45,7 +45,8 @@ class TestFeeAndFinanceManagement(unittest.TestCase):
         cls.client = TestClient(app)
         conn = get_db_connection()
         try:
-            conn.execute("UPDATE room_allocations SET allocation_status = 'Active' WHERE student_id = 1;")
+            conn.execute("UPDATE room_allocations SET allocation_status = 'Vacated' WHERE student_id = 1;")
+            conn.execute("UPDATE room_allocations SET allocation_status = 'Active' WHERE id = (SELECT id FROM room_allocations WHERE student_id = 1 LIMIT 1);")
             conn.commit()
         finally:
             conn.close()

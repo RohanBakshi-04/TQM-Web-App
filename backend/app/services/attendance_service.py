@@ -83,6 +83,20 @@ class AttendanceService:
             if student_info["hostel_id"]:
                 cls._enforce_staff_hostel_access(current_user, student_info["hostel_id"])
 
+            # Normalize and validate status
+            raw_status = (payload.status or "").strip()
+            if raw_status in ("Not Marked", "Not_Marked", ""):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot mark attendance as 'Not Marked'. Select Present, Absent, On Leave, or Late."
+                )
+            normalized_status = "On_Leave" if raw_status in ("On Leave", "On_Leave") else raw_status
+            if normalized_status not in ("Present", "Absent", "On_Leave", "Late"):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid attendance status '{payload.status}'. Must be Present, Absent, On Leave, or Late."
+                )
+
             cursor = conn.cursor()
             # Check for duplicate
             cursor.execute("SELECT id, status FROM attendance WHERE student_id = ? AND date = ?;", (payload.student_id, payload.date))
@@ -97,11 +111,11 @@ class AttendanceService:
             cursor.execute("""
                 INSERT INTO attendance (student_id, date, status, marked_by, remarks, marked_at)
                 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP);
-            """, (payload.student_id, payload.date, payload.status, current_user.get("user_id"), payload.remarks or ""))
+            """, (payload.student_id, payload.date, normalized_status, current_user.get("user_id"), payload.remarks or ""))
             att_id = cursor.lastrowid
 
             # If marked Absent, notify student
-            if payload.status == "Absent" and student_info["student_user_id"]:
+            if normalized_status == "Absent" and student_info["student_user_id"]:
                 cursor.execute("""
                     INSERT INTO notifications (user_id, title, message, notification_type)
                     VALUES (?, ?, ?, 'alert');
@@ -119,12 +133,12 @@ class AttendanceService:
                 current_user.get("user_id"),
                 current_user.get("username", "staff"),
                 str(att_id),
-                f"Marked {payload.status} for student {payload.student_id} on {payload.date}"
+                f"Marked {normalized_status} for student {payload.student_id} on {payload.date}"
             ))
 
             conn.commit()
             cache_service.invalidate_by_tag("attendance")
-            logger.info(f"Attendance marked: student {payload.student_id} -> {payload.status} on {payload.date} by {current_user.get('username')}")
+            logger.info(f"Attendance marked: student {payload.student_id} -> {normalized_status} on {payload.date} by {current_user.get('username')}")
 
             return {
                 "id": att_id,
@@ -132,7 +146,7 @@ class AttendanceService:
                 "student_name": student_info["student_name"],
                 "student_roll_no": student_info["roll_no"],
                 "date": payload.date,
-                "status": payload.status,
+                "status": "On Leave" if normalized_status == "On_Leave" else normalized_status,
                 "remarks": payload.remarks or "",
                 "marked_by": current_user.get("user_id"),
                 "marked_by_name": current_user.get("username")
@@ -170,15 +184,30 @@ class AttendanceService:
             skipped_count = 0
 
             for item in payload.records:
-                if item.student_id in already_marked:
+                raw_status = (item.status or "").strip()
+                # Skip unrecorded / pending status
+                if raw_status in ("Not Marked", "Not_Marked", ""):
                     skipped_count += 1
                     continue
 
-                cursor.execute("""
-                    INSERT INTO attendance (student_id, date, status, marked_by, remarks, marked_at)
-                    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP);
-                """, (item.student_id, payload.date, item.status, user_id, item.remarks or ""))
-                marked_count += 1
+                normalized_status = "On_Leave" if raw_status in ("On Leave", "On_Leave") else raw_status
+                if normalized_status not in ("Present", "Absent", "On_Leave", "Late"):
+                    skipped_count += 1
+                    continue
+
+                if item.student_id in already_marked:
+                    cursor.execute("""
+                        UPDATE attendance
+                        SET status = ?, remarks = ?, marked_by = ?, marked_at = CURRENT_TIMESTAMP
+                        WHERE student_id = ? AND date = ?;
+                    """, (normalized_status, item.remarks or "", user_id, item.student_id, payload.date))
+                    marked_count += 1
+                else:
+                    cursor.execute("""
+                        INSERT INTO attendance (student_id, date, status, marked_by, remarks, marked_at)
+                        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP);
+                    """, (item.student_id, payload.date, normalized_status, user_id, item.remarks or ""))
+                    marked_count += 1
 
             conn.commit()
             cache_service.invalidate_by_tag("attendance")
@@ -225,21 +254,28 @@ class AttendanceService:
                 cls._enforce_staff_hostel_access(current_user, record["hostel_id"])
 
             prev_status = record["status"]
-            if prev_status == payload.new_status:
+            raw_new = (payload.new_status or "").strip()
+            if raw_new in ("Not Marked", "Not_Marked", ""):
+                raise HTTPException(status_code=400, detail="Cannot correct attendance to 'Not Marked'. Choose Present, Absent, On Leave, or Late.")
+            normalized_new = "On_Leave" if raw_new in ("On Leave", "On_Leave") else raw_new
+            if normalized_new not in ("Present", "Absent", "On_Leave", "Late"):
+                raise HTTPException(status_code=400, detail=f"Invalid target status '{payload.new_status}'. Must be Present, Absent, On Leave, or Late.")
+
+            if prev_status == normalized_new:
                 raise HTTPException(status_code=400, detail=f"Attendance is already marked as {prev_status}.")
 
             # 1. Insert audit correction history
             cursor.execute("""
                 INSERT INTO attendance_corrections (attendance_id, student_id, previous_status, new_status, reason, corrected_by)
                 VALUES (?, ?, ?, ?, ?, ?);
-            """, (attendance_id, record["student_id"], prev_status, payload.new_status, payload.reason, current_user.get("user_id")))
+            """, (attendance_id, record["student_id"], prev_status, normalized_new, payload.reason, current_user.get("user_id")))
 
             # 2. Update attendance record
             cursor.execute("""
                 UPDATE attendance
                 SET status = ?, remarks = ?, marked_at = CURRENT_TIMESTAMP
                 WHERE id = ?;
-            """, (payload.new_status, payload.remarks or f"Corrected from {prev_status}: {payload.reason}", attendance_id))
+            """, (normalized_new, payload.remarks or f"Corrected from {prev_status}: {payload.reason}", attendance_id))
 
             # 3. Notification to student
             if record["student_user_id"]:
@@ -332,8 +368,12 @@ class AttendanceService:
                 where_clauses.append("a.date <= ?")
                 params.append(filters["end_date"])
             if filters.get("status"):
-                where_clauses.append("a.status = ?")
-                params.append(filters["status"])
+                raw_st = filters["status"]
+                if raw_st in ("On Leave", "On_Leave"):
+                    where_clauses.append("a.status IN ('On Leave', 'On_Leave')")
+                else:
+                    where_clauses.append("a.status = ?")
+                    params.append(raw_st)
             if filters.get("hostel_id"):
                 where_clauses.append("bld.hostel_id = ?")
                 params.append(filters["hostel_id"])
@@ -383,7 +423,12 @@ class AttendanceService:
                 LIMIT ? OFFSET ?;
             """
             cursor.execute(query, params + [limit, offset])
-            records = [dict(r) for r in cursor.fetchall()]
+            records = []
+            for r in cursor.fetchall():
+                d = dict(r)
+                if d.get("status") == "On_Leave":
+                    d["status"] = "On Leave"
+                records.append(d)
 
             return {
                 "total": total,
@@ -745,6 +790,8 @@ class AttendanceService:
             result = []
             for r in rows:
                 item = dict(r)
+                if item.get("marked_status") == "On_Leave":
+                    item["marked_status"] = "On Leave"
                 # If not marked yet and on approved leave, suggest 'On Leave'
                 if not item["marked_status"] and item["is_on_leave"]:
                     item["suggested_status"] = "On Leave"

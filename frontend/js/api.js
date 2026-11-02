@@ -851,7 +851,13 @@ const API = {
             headers: this.getHeaders(),
             body: JSON.stringify(data)
         });
-        const res = await response.json();
+        let res;
+        try {
+            res = await response.json();
+        } catch (e) {
+            const text = await response.text().catch(() => "");
+            throw new Error(text || `Server returned error (${response.status})`);
+        }
         if (!response.ok) throw new Error(res.detail || "Failed to submit batch attendance.");
         return res;
     },

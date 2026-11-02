@@ -2034,18 +2034,22 @@ selectPreset(preset) {
                     this.attendanceFloorId || null,
                     this.attendanceRoomId || null
                 );
-                this.attendanceMarkingStudents = (students || []).map(s => ({
-                    student_id: s.student_id,
-                    student_name: s.student_name,
-                    roll_no: s.roll_no,
-                    room_number: s.room_number,
-                    bed_code: s.bed_code,
-                    hostel_name: s.hostel_name,
-                    status: s.marked_status || s.suggested_status || "Present",
-                    remarks: s.marked_remarks || "",
-                    is_already_marked: !!s.marked_status,
-                    is_on_leave: !!s.is_on_leave
-                }));
+                this.attendanceMarkingStudents = (students || []).map(s => {
+                    let stStatus = s.marked_status || s.suggested_status || "Present";
+                    if (stStatus === "On_Leave") stStatus = "On Leave";
+                    return {
+                        student_id: s.student_id,
+                        student_name: s.student_name,
+                        roll_no: s.roll_no,
+                        room_number: s.room_number,
+                        bed_code: s.bed_code,
+                        hostel_name: s.hostel_name,
+                        status: stStatus,
+                        remarks: s.marked_remarks || "",
+                        is_already_marked: !!s.marked_status,
+                        is_on_leave: !!s.is_on_leave
+                    };
+                });
                 if (this.attendanceMarkingStudents.length === 0) {
                     this.showToast("No active resident students found for the selected scope.", "info");
                 } else {
@@ -2062,9 +2066,14 @@ selectPreset(preset) {
                 return;
             }
             try {
-                const records = this.attendanceMarkingStudents.map(s => ({
+                const activeToMark = this.attendanceMarkingStudents.filter(s => s.status && s.status !== "Not Marked");
+                if (activeToMark.length === 0) {
+                    this.showToast("All students are set to 'Not Marked'. Please mark at least one student before saving.", "warning");
+                    return;
+                }
+                const records = activeToMark.map(s => ({
                     student_id: s.student_id,
-                    status: s.status,
+                    status: s.status === "On Leave" ? "On_Leave" : s.status,
                     remarks: s.remarks || ""
                 }));
                 const res = await window.API.bulkMarkAttendance({
