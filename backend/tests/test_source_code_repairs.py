@@ -68,10 +68,36 @@ class TestSourceCodeRepairs(unittest.TestCase):
         strong_settings = Settings(
             app_env="production",
             secret_key="a" * 32,
-            jwt_secret_key="a" * 32
+            jwt_secret_key="b" * 32
         )
         # Should execute cleanly without raising
         strong_settings.validate_production_secrets()
+
+    def test_production_env_example_placeholder_rejected(self):
+        """Production startup rejects .env.example placeholder keys."""
+        placeholder_settings = Settings(
+            app_env="production",
+            secret_key="replace-this-in-production-with-a-secure-random-key-min-32-chars",
+            jwt_secret_key="replace-this-in-production-with-a-secure-random-key-min-32-chars"
+        )
+        with self.assertRaises(ValueError) as ctx:
+            placeholder_settings.validate_production_secrets()
+        self.assertIn("cannot use default placeholders", str(ctx.exception))
+
+    def test_docker_compose_interpolation_and_secrets_safety(self):
+        """Verify docker-compose.yml does not hardcode secrets and uses required interpolation."""
+        compose_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "docker-compose.yml")
+        self.assertTrue(os.path.exists(compose_path), "docker-compose.yml must exist at project root")
+        with open(compose_path, "r", encoding="utf-8") as f:
+            compose_text = f.read()
+
+        # Reject any hardcoded production secret string
+        self.assertNotIn("prod_super_secret_jwt_signing_key_replace_me_randomly_12345", compose_text)
+        self.assertNotIn("tqm-q05-hms-secret-key-2026", compose_text)
+
+        # Enforce required interpolation syntax
+        self.assertIn("${SECRET_KEY:?", compose_text, "SECRET_KEY must enforce required interpolation ${SECRET_KEY:?...}")
+        self.assertIn("${JWT_SECRET_KEY:?", compose_text, "JWT_SECRET_KEY must enforce required interpolation ${JWT_SECRET_KEY:?...}")
 
     # =========================================================================
     # 2. PRIORITY 1: SECURE PASSWORD RESET TOKEN HANDLING
