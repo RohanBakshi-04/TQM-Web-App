@@ -340,7 +340,7 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
         # Visitors & Active Gate Pass
         cursor.execute(
             """INSERT OR IGNORE INTO visitors (id, name, phone, id_proof_type, id_proof_number, address)
-               VALUES (101, 'Sunil Bakshi', '9810309999', 'Aadhaar Card', 'XXXX-XXXX-4589', 'D-42 Hauz Khas, New Delhi');"""
+               VALUES (101, 'Sunil Bakshi', '9810309999', 'Aadhaar', 'XXXX-XXXX-4589', 'D-42 Hauz Khas, New Delhi');"""
         )
         cursor.execute(
             """INSERT OR IGNORE INTO visitor_logs (pass_number, visitor_id, student_id, hostel_id, room_id, check_in_time, expected_exit_time, purpose, approval_status, status, approved_by)
