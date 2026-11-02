@@ -95,6 +95,10 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
             user_id_map[uname] = u_id
             r_id = role_id_map[role_name]
             cursor.execute("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?);", (u_id, r_id))
+            staff_roles = {'super_admin', 'hostel_admin', 'warden', 'assistant_warden', 'accountant', 'mess_manager', 'maintenance_staff', 'security_guard', 'admission_officer', 'auditor'}
+            if role_name in staff_roles:
+                s_id = f"STF-{u_id:04d}"
+                cursor.execute("UPDATE users SET staff_id = ? WHERE id = ?;", (s_id, u_id))
 
         # 4. Seed Hostel, Buildings, Floors, Rooms & Beds
         cursor.execute("SELECT id FROM hostels WHERE code = 'RTH-01';")

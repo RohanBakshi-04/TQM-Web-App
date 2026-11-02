@@ -4,6 +4,7 @@ Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
 Quality Goal: Q05 - Reduce Response Time
 """
 
+import sqlite3
 from typing import Any, Dict, List, Optional, Union
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
