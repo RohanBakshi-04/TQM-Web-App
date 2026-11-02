@@ -1135,7 +1135,8 @@ class AuthService:
                             rejection_reason = ?, updated_at = ?
                         WHERE id = ?;
                     """, (current_user["id"], now_str, actor_role, reason or "Rejected by Warden/Admin", now_str, req_id))
-                    cursor.execute("UPDATE students SET status = 'Rejected' WHERE user_id = ?;", (req["user_id"],))
+                    cursor.execute("UPDATE users SET is_active = 0 WHERE id = ?;", (req["user_id"],))
+                    cursor.execute("UPDATE students SET status = 'Withdrawn' WHERE user_id = ?;", (req["user_id"],))
                     conn.commit()
                     return {"success": True, "status": "Rejected", "message": "Student registration request rejected."}
 
