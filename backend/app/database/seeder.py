@@ -204,13 +204,13 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
         # 5. Seed Students (Fictional Demo Records)
         rohan_user_id = user_id_map.get("rohan", 5)
         students_data = [
-            ("2410301057", rohan_user_id, "Rohan", "Bakshi", "rohan.bakshi@univ.edu", "9810301057", "Male", "2005-04-12", "B+", "CSE", "3rd Year", "5th", "Hostel Resident", "2026-08-01"),
-            ("2410301012", None, "Priya", "Sharma", "priya.sharma@univ.edu", "9811223344", "Female", "2006-02-18", "O+", "ECE", "2nd Year", "3rd", "East Wing", "2026-08-01"),
-            ("2410301034", None, "Aarav", "Patel", "aarav.patel@univ.edu", "9822334455", "Male", "2005-09-25", "A+", "CSE", "3rd Year", "5th", "North Wing", "2026-08-02")
+            ("2410301057", rohan_user_id, "Rohan", "Bakshi", "rohan.bakshi@univ.edu", "9810301057", "Male", "2005-04-12", "B+", "CSE", "3rd Year", "5th", "Hostel Resident", "2026-08-01", "Active"),
+            ("2410301012", None, "Priya", "Sharma", "priya.sharma@univ.edu", "9811223344", "Female", "2006-02-18", "O+", "ECE", "2nd Year", "3rd", "East Wing", "2026-08-01", "Active"),
+            ("2410301034", None, "Aarav", "Patel", "aarav.patel@univ.edu", "9822334455", "Male", "2005-09-25", "A+", "CSE", "3rd Year", "5th", "North Wing", "2026-08-02", "Active")
         ]
         cursor.executemany(
-            """INSERT INTO students (student_id, user_id, first_name, last_name, email, phone, gender, date_of_birth, blood_group, branch, academic_year, semester, address, admission_date)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+            """INSERT INTO students (student_id, user_id, first_name, last_name, email, phone, gender, date_of_birth, blood_group, branch, academic_year, semester, address, admission_date, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
             students_data
         )
         s_rohan = 1

@@ -3073,7 +3073,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
                     semester INTEGER DEFAULT 1,
                     address TEXT,
                     admission_date TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'Pending' CHECK(status IN ('Active', 'Graduated', 'Suspended', 'Withdrawn', 'Pending')),
+                    status TEXT NOT NULL DEFAULT 'Active' CHECK(status IN ('Active', 'Graduated', 'Suspended', 'Withdrawn', 'Pending')),
                     created_at TEXT DEFAULT (datetime('now')),
                     updated_at TEXT DEFAULT (datetime('now')),
                     course TEXT DEFAULT 'B.Tech',
