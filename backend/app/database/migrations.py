@@ -82,69 +82,40 @@ CREATE INDEX IF NOT EXISTS idx_orphan_archives_col ON historical_orphan_archives
 
 
 def row_to_dict(cursor: sqlite3.Cursor, row: tuple) -> dict:
-
     """Safely convert a sqlite3 row (Row object or tuple) to a python dictionary."""
-
     if hasattr(row, 'keys'):
-
         return {k: row[k] for k in row.keys()}
-
-    col_names = [d[0] for d in cursor.description]
-
-    return {col_names[i]: row[i] for i in range(len(col_names))}
-
-
-
+    if cursor and cursor.description is not None:
+        col_names = [d[0] for d in cursor.description]
+        return {col_names[i]: row[i] for i in range(min(len(col_names), len(row)))}
+    return {}
 
 
 def archive_orphan_record(
-
     cursor: sqlite3.Cursor,
-
     source_table: str,
-
     source_record_id: Optional[int],
-
     broken_col: str,
-
     orig_ref_id: Optional[int],
-
     payload: dict,
-
     reason: str,
-
     migration_version: str
-
 ) -> None:
-
     """Persist historical orphaned record and FK diagnostic metadata prior to remediation."""
-
-    cursor.execute("""
-
+    archive_cur = cursor.connection.cursor()
+    archive_cur.execute("""
         INSERT INTO historical_orphan_archives (
-
             source_table, source_record_id, broken_foreign_key_column, original_referenced_id,
-
             record_payload_json, archival_reason, migration_version
-
         ) VALUES (?, ?, ?, ?, ?, ?, ?);
-
     """, (
-
         source_table,
-
         source_record_id,
-
         broken_col,
-
         orig_ref_id,
-
         json.dumps(payload, default=str),
-
         reason,
-
         migration_version
-
     ))
 
 

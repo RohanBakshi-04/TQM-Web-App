@@ -70,8 +70,15 @@ class TestMigrationArchivalSafety(unittest.TestCase):
     def test_pre015_migration_archives_81_orphans_and_achieves_zero_violations(self):
         """Pre-015 database must archive all 81 historical orphans and have 0 FK violations."""
         test_db_path = os.path.join(self.temp_dir, "test_pre015.db")
+        gz_fixture = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "fixtures", "pre015_backup.db.gz"
+        )
         if os.path.exists(self.pre015_backup):
             shutil.copy2(self.pre015_backup, test_db_path)
+        elif os.path.exists(gz_fixture):
+            import gzip
+            with gzip.open(gz_fixture, "rb") as f_in, open(test_db_path, "wb") as f_out:
+                shutil.copyfileobj(f_in, f_out)
         else:
             self._generate_pre015_fixture(test_db_path)
 
