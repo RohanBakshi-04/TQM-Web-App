@@ -103,7 +103,13 @@ class TestBrowserAcceptance(unittest.TestCase):
         login_form.locator("input[x-model='loginCredentials.username']").fill(username)
         login_form.locator("input[x-model='loginCredentials.password']").fill(password)
         login_form.locator("button[type='submit']").click()
-        page.wait_for_timeout(800)
+        try:
+            page.wait_for_function(
+                "() => { const el = document.querySelector('[x-data]'); return el && el._x_dataStack && (el._x_dataStack[0].isAuthenticated === true || Boolean(el._x_dataStack[0].loginError)); }",
+                timeout=5000
+            )
+        except Exception:
+            page.wait_for_timeout(1000)
 
     def logout_role(self, page):
         """Helper to log out user and reset session state."""
