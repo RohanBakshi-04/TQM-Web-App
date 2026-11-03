@@ -149,11 +149,25 @@ def get_parent_authorized_ward_ids(conn: sqlite3.Connection, current_user: Dict[
         ward_ids.add(int(linked_sid))
 
     cursor = conn.cursor()
+    user_id = current_user.get("id") or current_user.get("user_id")
 
-    # 2. Check student_guardians join via guardian email or phone
+    # 2. Check parent_student_links table (Migration 018 multi-ward support)
+    if user_id:
+        try:
+            cursor.execute("""
+                SELECT student_id
+                FROM parent_student_links
+                WHERE parent_user_id = ? AND status = 'Active';
+            """, (user_id,))
+            for r in cursor.fetchall():
+                if r[0]:
+                    ward_ids.add(r[0])
+        except sqlite3.OperationalError:
+            pass
+
+    # 3. Check student_guardians join via guardian email or phone
     user_email = (current_user.get("email") or "").strip().lower()
     user_phone = (current_user.get("phone") or "").strip()
-    user_id = current_user.get("id") or current_user.get("user_id")
 
     if user_email or user_phone:
         cursor.execute("""
@@ -165,7 +179,7 @@ def get_parent_authorized_ward_ids(conn: sqlite3.Connection, current_user: Dict[
         for r in cursor.fetchall():
             ward_ids.add(r[0])
 
-    # 3. Check registration_requests where parent was approved
+    # 4. Check registration_requests and registration_request_wards where parent was approved
     if user_id:
         cursor.execute("""
             SELECT DISTINCT linked_student_id
@@ -175,6 +189,19 @@ def get_parent_authorized_ward_ids(conn: sqlite3.Connection, current_user: Dict[
         for r in cursor.fetchall():
             if r[0]:
                 ward_ids.add(r[0])
+
+        try:
+            cursor.execute("""
+                SELECT DISTINCT rw.student_id
+                FROM registration_request_wards rw
+                JOIN registration_requests rr ON rw.registration_request_id = rr.id
+                WHERE rr.user_id = ? AND rr.status = 'Approved' AND rw.student_approval_status = 'Approved';
+            """, (user_id,))
+            for r in cursor.fetchall():
+                if r[0]:
+                    ward_ids.add(r[0])
+        except sqlite3.OperationalError:
+            pass
 
     return sorted(list(ward_ids))
 

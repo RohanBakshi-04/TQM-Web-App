@@ -890,23 +890,27 @@ class AuthService:
                 spec_val = getattr(payload, "specialization", None) or ""
                 emp_type = getattr(payload, "employment_type", None) or "Full-Time"
                 doj = getattr(payload, "date_of_joining", None) or datetime.now().strftime("%Y-%m-%d")
-                loc_val = getattr(payload, "assigned_location", None) or (f"Hostel {assigned_hostel_id}" if assigned_hostel_id else "Campus")
+                loc_val = getattr(payload, "assigned_location", None) or getattr(payload, "work_location", None) or (f"Hostel {assigned_hostel_id}" if assigned_hostel_id else "Campus")
                 p_addr = getattr(payload, "permanent_address", None)
                 c_addr = getattr(payload, "current_address", None)
                 c_city = getattr(payload, "city", None)
                 c_state = getattr(payload, "state", None)
                 c_post = getattr(payload, "postal_code", None)
                 c_country = getattr(payload, "country", None) or "India"
+                emg_name = getattr(payload, "emergency_contact_name", None) or ""
+                emg_phone = getattr(payload, "emergency_contact_phone", None) or ""
 
                 cursor.execute("""
                     INSERT OR REPLACE INTO staff_profiles (
                         user_id, employee_id, category, designation, department, specialization,
                         employment_type, date_of_joining, assigned_location,
-                        permanent_address, current_address, city, state, postal_code, country
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                        permanent_address, current_address, city, state, postal_code, country,
+                        emergency_contact_name, emergency_contact_phone
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """, (
                     user_id, emp_id, cat_val, desig_val, dept_val, spec_val,
-                    emp_type, doj, loc_val, p_addr, c_addr, c_city, c_state, c_post, c_country
+                    emp_type, doj, loc_val, p_addr, c_addr, c_city, c_state, c_post, c_country,
+                    emg_name, emg_phone
                 ))
 
             # If Student: create linked student record with unique student_id and status='Pending'
@@ -997,6 +1001,17 @@ class AuthService:
             ))
             req_id = cursor.lastrowid
 
+            # Multi-Ward Relationship Persistence (Migration 018)
+            if target_role == "parent_guardian" and resolved_children:
+                p_rel = getattr(payload, 'relationship', 'Parent') or 'Parent'
+                for c_rec in resolved_children:
+                    cursor.execute("""
+                        INSERT INTO registration_request_wards (
+                            registration_request_id, student_id, relationship,
+                            student_approval_status, administrative_approval_status
+                        ) VALUES (?, ?, ?, 'Pending', 'Pending');
+                    """, (req_id, c_rec["id"], p_rel))
+
             # Notifications to all resolved children
             if target_role == "parent_guardian" and resolved_children:
                 for c_rec in resolved_children:
@@ -1065,19 +1080,25 @@ class AuthService:
                 or (current_user.get("roles")[0] if isinstance(current_user.get("roles"), (list, tuple)) and current_user.get("roles") else "")
             ).strip().lower()
 
-            # 1. Student view: only pending parent requests targeting this student
+            # 1. Student view: only pending parent requests targeting this student (supporting multi-ward)
             if active_role == "student":
                 linked_s_id = current_user.get("linked_student_id")
                 if not linked_s_id:
                     return []
                 cursor.execute("""
-                    SELECT rr.*, s.first_name as student_first_name, s.last_name as student_last_name, s.student_id as student_roll_no_display, h.name as hostel_name, h.code as hostel_code, h.hostel_type
+                    SELECT DISTINCT rr.*, s.first_name as student_first_name, s.last_name as student_last_name, s.student_id as student_roll_no_display, h.name as hostel_name, h.code as hostel_code, h.hostel_type,
+                           COALESCE(rw.student_approval_status, rr.student_approval_status) as ward_student_approval_status
                     FROM registration_requests rr
-                    LEFT JOIN students s ON rr.linked_student_id = s.id
+                    LEFT JOIN registration_request_wards rw ON rr.id = rw.registration_request_id AND rw.student_id = ?
+                    LEFT JOIN students s ON COALESCE(rw.student_id, rr.linked_student_id) = s.id
                     LEFT JOIN hostels h ON rr.hostel_id = h.id
-                    WHERE rr.linked_student_id = ? AND rr.status = 'Pending' AND rr.student_approval_status = 'Pending'
+                    WHERE rr.status = 'Pending'
+                      AND (
+                          (rw.student_id = ? AND rw.student_approval_status = 'Pending')
+                          OR (rw.id IS NULL AND rr.linked_student_id = ? AND rr.student_approval_status = 'Pending')
+                      )
                     ORDER BY rr.id DESC;
-                """, (linked_s_id,))
+                """, (linked_s_id, linked_s_id, linked_s_id))
                 return [dict(r) for r in cursor.fetchall()]
 
             # 2. Warden view: can ONLY view and approve Students and Parents in assigned hostel (unassigned fails closed)
@@ -1175,16 +1196,29 @@ class AuthService:
             now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             # -------------------------------------------------------------
-            # RULE 1: STUDENT ACTIVE ROLE
+            # RULE 1: STUDENT ACTIVE ROLE (Multi-Ward Support)
             # -------------------------------------------------------------
             if active_role == "student":
                 if target_role != "parent_guardian":
                     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Students can only verify parent/guardian registration requests.")
                 
-                if current_user.get("linked_student_id") != req["linked_student_id"]:
+                cursor.execute("""
+                    SELECT id FROM registration_request_wards
+                    WHERE registration_request_id = ? AND student_id = ?;
+                """, (req_id, current_user.get("linked_student_id")))
+                ward_row = cursor.fetchone()
+
+                if not ward_row and current_user.get("linked_student_id") != req["linked_student_id"]:
                     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Security Violation: You can only approve verification requests for your own parent.")
 
                 if action_normalized == "reject":
+                    cursor.execute("""
+                        UPDATE registration_request_wards
+                        SET student_approval_status = 'Rejected', student_approved_by = ?, student_approved_at = ?,
+                            rejection_reason = ?, updated_at = ?
+                        WHERE registration_request_id = ? AND student_id = ?;
+                    """, (current_user["id"], now_str, reason or "Declined by student", now_str, req_id, current_user.get("linked_student_id")))
+
                     cursor.execute("""
                         UPDATE registration_requests
                         SET status = 'Rejected', student_approval_status = 'Rejected',
@@ -1195,17 +1229,33 @@ class AuthService:
                     conn.commit()
                     return {"success": True, "status": "Rejected", "message": "Parent registration request rejected."}
 
-                # Student approves:
+                # Student approves their ward link:
                 cursor.execute("""
-                    UPDATE registration_requests
-                    SET student_approval_status = 'Approved',
-                        student_approved_by = ?, student_approved_at = ?,
-                        updated_at = ?
-                    WHERE id = ?;
-                """, (current_user["id"], now_str, now_str, req_id))
+                    UPDATE registration_request_wards
+                    SET student_approval_status = 'Approved', student_approved_by = ?, student_approved_at = ?, updated_at = ?
+                    WHERE registration_request_id = ? AND student_id = ?;
+                """, (current_user["id"], now_str, now_str, req_id, current_user.get("linked_student_id")))
+
+                cursor.execute("""
+                    SELECT COUNT(*) FROM registration_request_wards
+                    WHERE registration_request_id = ? AND student_approval_status != 'Approved';
+                """, (req_id,))
+                unapproved_wards_count = cursor.fetchone()[0]
+
+                if unapproved_wards_count == 0:
+                    cursor.execute("""
+                        UPDATE registration_requests
+                        SET student_approval_status = 'Approved',
+                            student_approved_by = ?, student_approved_at = ?,
+                            updated_at = ?
+                        WHERE id = ?;
+                    """, (current_user["id"], now_str, now_str, req_id))
+                    all_students_approved = True
+                else:
+                    all_students_approved = False
 
                 # Check if Admin/Warden has also approved:
-                if req["admin_warden_approval_status"] == "Approved":
+                if all_students_approved and req["admin_warden_approval_status"] == "Approved":
                     cursor.execute("UPDATE registration_requests SET status = 'Approved', updated_at = ? WHERE id = ?;", (now_str, req_id))
                     cursor.execute("UPDATE users SET is_active = 1, linked_student_id = ? WHERE id = ?;", (req["linked_student_id"], req["user_id"]))
                     cursor.execute("""
@@ -1213,13 +1263,34 @@ class AuthService:
                         VALUES (?, ?, ?, ?);
                     """, (f"{req['first_name']} {req['last_name']}", req["phone"], req["email"], req["relationship"] or "Parent"))
                     gid = cursor.lastrowid
-                    if gid and req["linked_student_id"]:
-                        cursor.execute("INSERT OR IGNORE INTO student_guardians (student_id, guardian_id, is_primary) VALUES (?, ?, 1);", (req["linked_student_id"], gid))
+                    if not gid:
+                        cursor.execute("SELECT id FROM guardians WHERE (phone = ? AND ? != '') OR (LOWER(email) = ? AND ? != '') LIMIT 1;",
+                                       (req["phone"] or "", req["phone"] or "", (req["email"] or "").lower(), (req["email"] or "").lower()))
+                        g_row = cursor.fetchone()
+                        gid = g_row[0] if g_row else None
+
+                    cursor.execute("SELECT student_id, relationship FROM registration_request_wards WHERE registration_request_id = ?;", (req_id,))
+                    wards = cursor.fetchall()
+                    if not wards and req["linked_student_id"]:
+                        wards = [(req["linked_student_id"], req.get("relationship", "Parent"))]
+
+                    for w in wards:
+                        w_sid = w[0]
+                        w_rel = w[1] or "Parent"
+                        cursor.execute("""
+                            INSERT INTO parent_student_links (parent_user_id, student_id, guardian_id, relationship, status)
+                            VALUES (?, ?, ?, ?, 'Active')
+                            ON CONFLICT(parent_user_id, student_id) DO UPDATE SET status = 'Active', updated_at = CURRENT_TIMESTAMP;
+                        """, (req["user_id"], w_sid, gid, w_rel))
+                        if gid and w_sid:
+                            cursor.execute("INSERT OR IGNORE INTO student_guardians (student_id, guardian_id, is_primary) VALUES (?, ?, 1);", (w_sid, gid))
+
                     conn.commit()
                     return {"success": True, "status": "Approved", "message": "Parent verified! Both student and hostel administration approvals complete. Parent account is now Active."}
                 else:
                     conn.commit()
-                    return {"success": True, "status": "Pending", "message": "You have confirmed your parent! Final activation is pending Hostel Warden / Administrator approval."}
+                    msg = "You have confirmed your parent! Final activation is pending Hostel Warden / Administrator approval." if all_students_approved else "Your approval recorded! Waiting for remaining student ward approval(s)."
+                    return {"success": True, "status": "Pending", "message": msg}
 
             # -------------------------------------------------------------
             # RULE 2: WARDEN ACTIVE ROLE
@@ -1324,7 +1395,21 @@ class AuthService:
                         WHERE id = ?;
                     """, (current_user["id"], now_str, now_str, req_id))
 
-                    if req["student_approval_status"] == "Approved":
+                    cursor.execute("""
+                        UPDATE registration_request_wards
+                        SET administrative_approval_status = 'Approved',
+                            administrative_approved_by = ?, administrative_approved_at = ?,
+                            updated_at = ?
+                        WHERE registration_request_id = ?;
+                    """, (current_user["id"], now_str, now_str, req_id))
+
+                    cursor.execute("""
+                        SELECT COUNT(*) FROM registration_request_wards
+                        WHERE registration_request_id = ? AND student_approval_status != 'Approved';
+                    """, (req_id,))
+                    unapproved_wards_count = cursor.fetchone()[0]
+
+                    if unapproved_wards_count == 0 and req["student_approval_status"] == "Approved":
                         cursor.execute("UPDATE registration_requests SET status = 'Approved', updated_at = ? WHERE id = ?;", (now_str, req_id))
                         cursor.execute("UPDATE users SET is_active = 1, linked_student_id = ? WHERE id = ?;", (req["linked_student_id"], req["user_id"]))
                         cursor.execute("""
@@ -1332,13 +1417,33 @@ class AuthService:
                             VALUES (?, ?, ?, ?);
                         """, (f"{req['first_name']} {req['last_name']}", req["phone"], req["email"], req["relationship"] or "Parent"))
                         gid = cursor.lastrowid
-                        if gid and req["linked_student_id"]:
-                            cursor.execute("INSERT OR IGNORE INTO student_guardians (student_id, guardian_id, is_primary) VALUES (?, ?, 1);", (req["linked_student_id"], gid))
+                        if not gid:
+                            cursor.execute("SELECT id FROM guardians WHERE (phone = ? AND ? != '') OR (LOWER(email) = ? AND ? != '') LIMIT 1;",
+                                           (req["phone"] or "", req["phone"] or "", (req["email"] or "").lower(), (req["email"] or "").lower()))
+                            g_row = cursor.fetchone()
+                            gid = g_row[0] if g_row else None
+
+                        cursor.execute("SELECT student_id, relationship FROM registration_request_wards WHERE registration_request_id = ?;", (req_id,))
+                        wards = cursor.fetchall()
+                        if not wards and req["linked_student_id"]:
+                            wards = [(req["linked_student_id"], req.get("relationship", "Parent"))]
+
+                        for w in wards:
+                            w_sid = w[0]
+                            w_rel = w[1] or "Parent"
+                            cursor.execute("""
+                                INSERT INTO parent_student_links (parent_user_id, student_id, guardian_id, relationship, status)
+                                VALUES (?, ?, ?, ?, 'Active')
+                                ON CONFLICT(parent_user_id, student_id) DO UPDATE SET status = 'Active', updated_at = CURRENT_TIMESTAMP;
+                            """, (req["user_id"], w_sid, gid, w_rel))
+                            if gid and w_sid:
+                                cursor.execute("INSERT OR IGNORE INTO student_guardians (student_id, guardian_id, is_primary) VALUES (?, ?, 1);", (w_sid, gid))
+
                         conn.commit()
                         return {"success": True, "status": "Approved", "message": "Parent registration approved! Both student and warden approvals complete. Parent account is now Active."}
                     else:
                         conn.commit()
-                        return {"success": True, "status": "Pending", "message": "Warden approval recorded! Account will activate once the student confirms."}
+                        return {"success": True, "status": "Pending", "message": "Warden approval recorded! Account will activate once all student wards confirm."}
 
             # -------------------------------------------------------------
             # RULE 3: SUPER ADMIN OR HOSTEL ADMIN ACTIVE ROLE
@@ -1432,7 +1537,21 @@ class AuthService:
                         WHERE id = ?;
                     """, (current_user["id"], now_str, now_str, req_id))
 
-                    if req["student_approval_status"] == "Approved":
+                    cursor.execute("""
+                        UPDATE registration_request_wards
+                        SET administrative_approval_status = 'Approved',
+                            administrative_approved_by = ?, administrative_approved_at = ?,
+                            updated_at = ?
+                        WHERE registration_request_id = ?;
+                    """, (current_user["id"], now_str, now_str, req_id))
+
+                    cursor.execute("""
+                        SELECT COUNT(*) FROM registration_request_wards
+                        WHERE registration_request_id = ? AND student_approval_status != 'Approved';
+                    """, (req_id,))
+                    unapproved_wards_count = cursor.fetchone()[0]
+
+                    if unapproved_wards_count == 0 and req["student_approval_status"] == "Approved":
                         cursor.execute("UPDATE registration_requests SET status = 'Approved', updated_at = ? WHERE id = ?;", (now_str, req_id))
                         cursor.execute("UPDATE users SET is_active = 1, linked_student_id = ? WHERE id = ?;", (req["linked_student_id"], req["user_id"]))
                         cursor.execute("""
@@ -1440,13 +1559,33 @@ class AuthService:
                             VALUES (?, ?, ?, ?);
                         """, (f"{req['first_name']} {req['last_name']}", req["phone"], req["email"], req["relationship"] or "Parent"))
                         gid = cursor.lastrowid
-                        if gid and req["linked_student_id"]:
-                            cursor.execute("INSERT OR IGNORE INTO student_guardians (student_id, guardian_id, is_primary) VALUES (?, ?, 1);", (req["linked_student_id"], gid))
+                        if not gid:
+                            cursor.execute("SELECT id FROM guardians WHERE (phone = ? AND ? != '') OR (LOWER(email) = ? AND ? != '') LIMIT 1;",
+                                           (req["phone"] or "", req["phone"] or "", (req["email"] or "").lower(), (req["email"] or "").lower()))
+                            g_row = cursor.fetchone()
+                            gid = g_row[0] if g_row else None
+
+                        cursor.execute("SELECT student_id, relationship FROM registration_request_wards WHERE registration_request_id = ?;", (req_id,))
+                        wards = cursor.fetchall()
+                        if not wards and req["linked_student_id"]:
+                            wards = [(req["linked_student_id"], req.get("relationship", "Parent"))]
+
+                        for w in wards:
+                            w_sid = w[0]
+                            w_rel = w[1] or "Parent"
+                            cursor.execute("""
+                                INSERT INTO parent_student_links (parent_user_id, student_id, guardian_id, relationship, status)
+                                VALUES (?, ?, ?, ?, 'Active')
+                                ON CONFLICT(parent_user_id, student_id) DO UPDATE SET status = 'Active', updated_at = CURRENT_TIMESTAMP;
+                            """, (req["user_id"], w_sid, gid, w_rel))
+                            if gid and w_sid:
+                                cursor.execute("INSERT OR IGNORE INTO student_guardians (student_id, guardian_id, is_primary) VALUES (?, ?, 1);", (w_sid, gid))
+
                         conn.commit()
                         return {"success": True, "status": "Approved", "message": "Parent approved by Administrator! Both child and admin approvals complete. Parent account is now Active."}
                     else:
                         conn.commit()
-                        return {"success": True, "status": "Pending", "message": "Administrator approval recorded! Account will activate once the child student confirms."}
+                        return {"success": True, "status": "Pending", "message": "Administrator approval recorded! Account will activate once all student wards confirm."}
 
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

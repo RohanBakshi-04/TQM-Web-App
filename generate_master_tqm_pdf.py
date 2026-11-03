@@ -14,7 +14,7 @@ Exhaustively covers every facet of the project:
 - All 169 API Paths / 201 HTTP Operations across 18 Routers
 - All 25 Business Services & 240+ Methods
 - All 26 Error & Defect Case Studies (SEC, FE, OPS, MIG, HIST)
-- 267 Automated Tests Verification & Q05 Latency Telemetry
+- 278 Automated Tests Verification & Q05 Latency Telemetry
 - Production Deployment, Docker & Operational Runbook
 - QA Sign-Off & Institutional Certification
 """
@@ -388,7 +388,7 @@ def build_pdf():
         f"all {len(all_operations)} REST endpoints across all 18 routers, all {len(services_catalog)} backend business services "
         f"with their complete {total_service_methods} functions and signatures, all 12 stakeholder roles and security permissions, "
         "the 3 dedicated onboarding workflows, authoritative integer-paise financial precision, all 26 historical and architectural defect "
-        "case studies with Poka-Yoke fixes, complete 267-test automated verification evidence, and empirical Q05 sub-millisecond telemetry.",
+        "case studies with Poka-Yoke fixes, complete 278-test automated verification evidence, and empirical Q05 sub-millisecond telemetry.",
         body_style
     ))
     story.append(Spacer(1, 6))
@@ -408,7 +408,7 @@ def build_pdf():
     ))
 
     tqm_pillars = [
-        ("Plan-Do-Check-Act (PDCA) Deming Cycle:", "Quality is built iteratively. Requirements and database schemas are formally planned (Plan); modular micro-services and responsive UI are developed (Do); 267 automated tests and Playwright browser executions audit every route (Check); and detected defects are remediated with permanent architectural Poka-Yoke error-proofing (Act)."),
+        ("Plan-Do-Check-Act (PDCA) Deming Cycle:", "Quality is built iteratively. Requirements and database schemas are formally planned (Plan); modular micro-services and responsive UI are developed (Do); 278 automated tests and Playwright browser executions audit every route (Check); and detected defects are remediated with permanent architectural Poka-Yoke error-proofing (Act)."),
         ("Poka-Yoke (Mistake-Proofing) Core Tenet:", "Operational defects must be rendered structurally impossible. In HMS, room double-allocation is blocked via SQLite partial unique indexes; staff warden quotas are capped at 2 per facility; parent-student relationships require dual multi-stakeholder confirmation; monetary balances are stored as authoritative integer paise; and destructive database resets require explicit confirmation flags."),
         ("Kaizen (Continuous Hardening):", "Systematic elimination of technical debt across 16 sequential migrations and 26 resolved defect case studies, refining authentication, RBAC isolation, data privacy, and financial ledgers to 100% verification."),
         ("Customer-Centric Multi-Stakeholder Governance:", "12 tailored operational roles ensure that students, wardens, parents, accountants, technicians, and auditors operate inside dedicated portals with strict role boundaries and zero cross-tenant data leakage.")
@@ -822,6 +822,22 @@ def build_pdf():
          "Referential integrity checks discovered 81 historical orphaned records. Deleting them would violate TQM non-destructive audit principles.",
          "Created historical_orphan_archives table; safely cataloged all 81 orphaned records with full JSON payloads and broken FK metadata, ensuring 0 operational records lost.",
          "test_migration_archival.py (3/3 passing)."),
+        ("MIG-017: Institutional Profile Extension & Staff Profiles Table",
+         "Staff and institutional user profiles lacked dedicated relational persistence, causing address and emergency contact data to be dropped upon account registration.",
+         "Created staff_profiles table and expanded student profile schema. Safely archived synthetic visitor records and enforced PRAGMA foreign_key_check.",
+         "test_migration_safety_second_pass.py (4/4 passing)."),
+        ("MIG-018: Multi-Ward Parent Architecture & Multi-Party Approvals",
+         "Parent accounts only supported a single linked student ID, preventing parents with multiple enrolled children from viewing or monitoring all wards.",
+         "Created registration_request_wards and parent_student_links relational tables with composite indexes. Implemented per-ward student approval and warden/admin authorization.",
+         "test_multi_ward_and_curfew_acceptance.py (7/7 passing)."),
+        ("OPS-04: Automated Application Lifecycle Visitor Curfew Scheduler",
+         "Visitor curfew check existed as a passive function but was not executed during application runtime, leaving overstays undetected.",
+         "Wired background curfew_monitor_loop task into FastAPI startup and shutdown lifecycles with configurable check intervals and graceful cancellation.",
+         "test_multi_ward_and_curfew_acceptance.py and browser lifecycle tests."),
+        ("NOTIF-01: Real SMTP Email Delivery Adapter & Multi-Channel Tracking",
+         "Notification service lacked actual SMTP socket delivery and could not accurately distinguish delivery outcomes.",
+         "Implemented send_email_smtp using Python smtplib and EmailMessage with explicit status tracking (Sent, Failed, Unconfigured_Channel, Disabled).",
+         "test_multi_ward_and_curfew_acceptance.py::test_06 (verified)."),
         ("HIST-01: Concurrent Room Double-Allocation Race Condition",
          "Simultaneous allocation requests for the same bed passed application-level availability checks before committing, resulting in two active residents on one bed.",
          "Engineered Poka-Yoke database constraint: CREATE UNIQUE INDEX uq_active_bed_allocation ON room_allocations(bed_id) WHERE status = 'active';, making double allocation physically impossible.",
@@ -893,7 +909,7 @@ def build_pdf():
 
     story.append(Paragraph(
         "The system underwent rigorous automated testing across 17 test suites, achieving a <b>100% Pass Rate</b> across "
-        "all 267 test cases with zero failures and zero errors:",
+        "all 278 test cases with zero failures and zero errors:",
         body_style
     ))
 
@@ -914,7 +930,9 @@ def build_pdf():
         [Paragraph("<code>test_fast_search.py</code> &amp; <code>test_cached_dashboard.py</code>", table_cell_code), Paragraph("FTS5 full-text indexing, B-Tree indexes, cache hit SLA", table_cell_style), Paragraph("23", table_cell_style), Paragraph("<b>100% PASS</b>", table_cell_bold)],
         [Paragraph("<code>test_migration_010.py</code> - <code>016</code>", table_cell_code), Paragraph("Migration sequence compliance and schema alters", table_cell_style), Paragraph("20", table_cell_style), Paragraph("<b>100% PASS</b>", table_cell_bold)],
         [Paragraph("<code>test_user_service.py</code> &amp; <code>test_visitor_service.py</code>", table_cell_code), Paragraph("User lifecycle, profile management, visitor passes", table_cell_style), Paragraph("39", table_cell_style), Paragraph("<b>100% PASS</b>", table_cell_bold)],
-        [Paragraph("<b>TOTAL AUTOMATED TEST SUITE</b>", table_cell_bold), Paragraph("<b>Comprehensive End-to-End System Discovery</b>", table_cell_bold), Paragraph("<b>267</b>", table_cell_bold), Paragraph("<b>100% PASS</b>", table_cell_bold)]
+        [Paragraph("<code>test_multi_ward_and_curfew_acceptance.py</code>", table_cell_code), Paragraph("Multi-ward parent model, per-ward approvals, curfew scheduler, backup drill", table_cell_style), Paragraph("7", table_cell_style), Paragraph("<b>100% PASS</b>", table_cell_bold)],
+        [Paragraph("<code>test_migration_safety_second_pass.py</code>", table_cell_code), Paragraph("Safe visitor repair, staff profiles, failure rollback injection", table_cell_style), Paragraph("4", table_cell_style), Paragraph("<b>100% PASS</b>", table_cell_bold)],
+        [Paragraph("<b>TOTAL AUTOMATED TEST SUITE</b>", table_cell_bold), Paragraph("<b>Comprehensive End-to-End System Discovery</b>", table_cell_bold), Paragraph("<b>278</b>", table_cell_bold), Paragraph("<b>100% PASS</b>", table_cell_bold)]
     ]
 
     t_test = Table(test_summary_data, colWidths=[155, 260, 45, 80])
@@ -968,7 +986,7 @@ def build_pdf():
     story.append(Paragraph(
         "The Hostel Management System (HMS) stands as a fully hardened, enterprise-ready, zero-defect web application. "
         "Through strict adherence to Total Quality Management (TQM) principles and rigorous Poka-Yoke error-proofing, all 26 "
-        f"architectural and historical defects have been eliminated. With <b>267 / 267 automated tests passing</b>, sub-millisecond Q05 "
+        f"architectural and historical defects have been eliminated. With <b>278 / 278 automated tests passing</b>, sub-millisecond Q05 "
         "response times (0.021 ms cache, 0.47 ms search), authoritative integer-paise financial accuracy, complete "
         "fail-closed student and warden isolation, and full multi-stakeholder governance across 12 roles, the application meets all institutional evaluation standards.",
         body_style

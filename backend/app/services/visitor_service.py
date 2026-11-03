@@ -655,9 +655,9 @@ class VisitorService:
                 for ov in overdue_list:
                     cursor.execute("""
                         UPDATE visitor_logs
-                        SET status = 'Overdue', updated_at = ?
+                        SET status = 'Overdue'
                         WHERE id = ?;
-                    """, (now_str, ov["id"]))
+                    """, (ov["id"],))
                     updated_count += cursor.rowcount
 
                     cursor.execute("""

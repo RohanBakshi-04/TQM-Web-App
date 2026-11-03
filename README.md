@@ -50,7 +50,7 @@ All operations achieve an empirical P95 latency below 0.5 milliseconds:
 
 - **Backend:** Python 3.10+ / FastAPI (Asynchronous REST API Engine)
 - **Application Server:** Uvicorn ASGI Server
-- **Database Engine & Migration Lifecycle:** SQLite 3 with Write-Ahead Logging (`WAL` mode), Foreign Key enforcement, 102 B-Tree composite indexes, and FTS5 full-text indexing across **58 database tables** (52 domain relational tables + 6 FTS5 search index tables). Schema versioning managed through 14 idempotent migrations (latest: `014_monetary_paise_migration`).
+- **Database Engine & Migration Lifecycle:** SQLite 3 with Write-Ahead Logging (`WAL` mode), Foreign Key enforcement, 102 B-Tree composite indexes, and FTS5 full-text indexing across **63 database tables** (56 domain relational tables + 6 FTS5 search index tables + sqlite_sequence). Schema versioning managed through 18 idempotent migrations (latest: `018_multi_ward_parent_relationship_and_approvals`).
 - **Financial Architecture:** Authoritative integer-paise storage (`amount_paise`, `total_amount_paise`, `paid_amount_paise`) eliminating floating-point rounding errors across invoices, itemizations, and payments.
 - **Authentication & Security:** Strict HttpOnly cookie-based refresh token rotation, in-memory access token management, zero refresh-token leakage in JSON responses, and unapproved student registration isolation.
 - **Caching Layer:** Centralized in-memory thread-safe LRU cache with multi-tag invalidation and sub-millisecond response guarantees.
@@ -128,13 +128,13 @@ python scripts/benchmark_q05.py
 - [Remediation Status Log](REMEDIATION_STATUS.md) — Master defect tracking and remediation log across all subsystems
 - [Role & Permission Matrix](docs/ROLE_PERMISSION_MATRIX.md) — 12-role RBAC enforcement, active role precedence, and student isolation rules
 - [Registration & Onboarding Workflows](docs/REGISTRATION_WORKFLOWS.md) — Student, Faculty/Staff, and Parent onboarding chains and dual approval
-- [Acceptance Test Report](docs/ACCEPTANCE_TEST_REPORT.md) — 267/267 automated tests passing with zero defects
+- [Acceptance Test Report](docs/ACCEPTANCE_TEST_REPORT.md) — 278/278 automated tests passing with zero defects
 - [Installation Guide](docs/INSTALLATION_GUIDE.md) — Comprehensive local and production setup instructions
 - [User Manual](docs/USER_MANUAL.md) — Operational walkthrough for all 12 stakeholder roles
 - [REST API Documentation](docs/API_DOCUMENTATION.md) — Endpoint specifications for all 21 modules
 - [Production Deployment Guide](docs/DEPLOYMENT_GUIDE.md) — Nginx reverse proxy, SSL, systemd, and backup policies
 - [TQM Final Project Report](docs/TQM_FINAL_PROJECT_REPORT.md) — Academic report on TQM methodology, Q05 SLA, and Poka-Yoke
-- [Database Schema Specification](docs/DATABASE_SCHEMA.md) — 58 database tables (52 domain tables + 6 FTS5 search index tables)
+- [Database Schema Specification](docs/DATABASE_SCHEMA.md) — 63 database tables (56 domain tables + 6 FTS5 search index tables + sqlite_sequence)
 - [Database Indexes Catalog](docs/DATABASE_INDEXES.md) — 48 B-Tree composite indexes and query execution plans
 - [Entity-Relationship Diagram](docs/ER_DIAGRAM.md) — Mermaid visual schema relationships
 - [Q05 Caching & Quick Navigation](docs/Q05_CACHED_DASHBOARD.md) — Cache invalidation and multi-tenant isolation

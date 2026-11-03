@@ -6,7 +6,7 @@ Quality Goal: Q05 - Reduce Response Time
 
 import re
 from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class LoginRequest(BaseModel):
@@ -54,9 +54,32 @@ class RegisterRequest(BaseModel):
     employment_type: Optional[str] = Field("Full-Time", max_length=50)
     date_of_joining: Optional[str] = Field(None, max_length=50)
     assigned_location: Optional[str] = Field(None, max_length=100)
+    work_location: Optional[str] = Field(None, max_length=100, description="Alias for assigned_location")
     # Parent Multi-Ward & Profile Details
     child_identifiers: Optional[Union[List[str], str]] = Field(None, description="Multiple child roll numbers or emails")
+    ward_identifiers: Optional[Union[List[str], str]] = Field(None, description="Alias for child_identifiers")
+    ward_identifier: Optional[str] = Field(None, max_length=100, description="Alias for child_identifier")
     occupation: Optional[str] = Field(None, max_length=100)
+
+    @model_validator(mode="before")
+    @classmethod
+    def harmonize_aliases(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "work_location" in data and not data.get("assigned_location"):
+                data["assigned_location"] = data["work_location"]
+            elif "assigned_location" in data and not data.get("work_location"):
+                data["work_location"] = data["assigned_location"]
+
+            if "ward_identifiers" in data and not data.get("child_identifiers"):
+                data["child_identifiers"] = data["ward_identifiers"]
+            elif "child_identifiers" in data and not data.get("ward_identifiers"):
+                data["ward_identifiers"] = data["child_identifiers"]
+
+            if "ward_identifier" in data and not data.get("child_identifier"):
+                data["child_identifier"] = data["ward_identifier"]
+            elif "child_identifier" in data and not data.get("ward_identifier"):
+                data["ward_identifier"] = data["child_identifier"]
+        return data
 
     @field_validator("email")
     @classmethod

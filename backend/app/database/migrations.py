@@ -11,6 +11,7 @@ Quality Goal: Q05 - Reduce Response Time
 
 
 import json
+from datetime import datetime
 
 import sqlite3
 
@@ -3188,6 +3189,128 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
 
 
 
+
+        
+        # 18. Migration 018: Multi-Ward Parent Relationship and Multi-Party Approvals
+        if "018_multi_ward_parent_relationship_and_approvals" not in applied:
+            logger.info("Applying Migration 018_multi_ward_parent_relationship_and_approvals...")
+            cursor = conn.cursor()
+
+            # Create registration_request_wards table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS registration_request_wards (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    registration_request_id INTEGER NOT NULL REFERENCES registration_requests(id) ON DELETE CASCADE,
+                    student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+                    relationship TEXT NOT NULL DEFAULT 'Parent',
+                    student_approval_status TEXT NOT NULL DEFAULT 'Pending' CHECK(student_approval_status IN ('Pending', 'Approved', 'Rejected')),
+                    student_approved_by INTEGER NULL REFERENCES users(id),
+                    student_approved_at TIMESTAMP NULL,
+                    administrative_approval_status TEXT NOT NULL DEFAULT 'Pending' CHECK(administrative_approval_status IN ('Pending', 'Approved', 'Rejected')),
+                    administrative_approved_by INTEGER NULL REFERENCES users(id),
+                    administrative_approved_at TIMESTAMP NULL,
+                    rejection_reason TEXT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # Create parent_student_links table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS parent_student_links (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    parent_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+                    guardian_id INTEGER NULL REFERENCES guardians(id) ON DELETE SET NULL,
+                    relationship TEXT NOT NULL DEFAULT 'Parent',
+                    verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    approved_by INTEGER NULL REFERENCES users(id),
+                    status TEXT NOT NULL DEFAULT 'Active' CHECK(status IN ('Active', 'Inactive', 'Revoked')),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(parent_user_id, student_id)
+                );
+            """)
+
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_req_wards_req_id ON registration_request_wards(registration_request_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_req_wards_student_id ON registration_request_wards(student_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_parent_student_links_parent ON parent_student_links(parent_user_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_parent_student_links_student ON parent_student_links(student_id);")
+
+            # Backfill existing approved registration requests into registration_request_wards
+            cursor.execute("""
+                SELECT id, linked_student_id, relationship, student_approval_status,
+                       student_approved_by, student_approved_at, admin_warden_approval_status,
+                       admin_warden_approved_by, admin_warden_approved_at, rejection_reason, created_at
+                FROM registration_requests
+                WHERE requested_role = 'parent_guardian' AND linked_student_id IS NOT NULL;
+            """)
+            existing_reqs = cursor.fetchall()
+            for r in existing_reqs:
+                req_id_val = r[0]
+                st_id_val = r[1]
+                cursor.execute("SELECT id FROM students WHERE id = ?;", (st_id_val,))
+                if cursor.fetchone():
+                    cursor.execute("""
+                        SELECT id FROM registration_request_wards
+                        WHERE registration_request_id = ? AND student_id = ?;
+                    """, (req_id_val, st_id_val))
+                    if not cursor.fetchone():
+                        cursor.execute("""
+                            INSERT INTO registration_request_wards (
+                                registration_request_id, student_id, relationship,
+                                student_approval_status, student_approved_by, student_approved_at,
+                                administrative_approval_status, administrative_approved_by, administrative_approved_at,
+                                rejection_reason, created_at, updated_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP);
+                        """, (
+                            req_id_val, st_id_val, r[2] or 'Parent',
+                            r[3] or 'Pending', r[4], r[5],
+                            r[6] or 'Pending', r[7], r[8],
+                            r[9], r[10] or datetime.now().isoformat()
+                        ))
+
+            # Backfill existing active parent users into parent_student_links
+            cursor.execute("""
+                SELECT u.id, u.linked_student_id, u.first_name, u.last_name, u.phone, u.email
+                FROM users u
+                JOIN user_roles ur ON u.id = ur.user_id
+                JOIN roles r ON ur.role_id = r.id
+                WHERE r.name = 'parent_guardian' AND u.linked_student_id IS NOT NULL AND u.is_active = 1;
+            """)
+            existing_parents = cursor.fetchall()
+            for p in existing_parents:
+                p_uid = p[0]
+                p_sid = p[1]
+                cursor.execute("SELECT id FROM students WHERE id = ?;", (p_sid,))
+                if cursor.fetchone():
+                    cursor.execute("""
+                        SELECT id FROM parent_student_links
+                        WHERE parent_user_id = ? AND student_id = ?;
+                    """, (p_uid, p_sid))
+                    if not cursor.fetchone():
+                        cursor.execute("SELECT id FROM guardians WHERE (phone = ? AND ? != '') OR (LOWER(email) = ? AND ? != '') LIMIT 1;",
+                                       (p[4] or '', p[4] or '', (p[5] or '').lower(), (p[5] or '').lower()))
+                        g_row = cursor.fetchone()
+                        g_id = g_row[0] if g_row else None
+                        cursor.execute("""
+                            INSERT INTO parent_student_links (
+                                parent_user_id, student_id, guardian_id, relationship, status
+                            ) VALUES (?, ?, ?, 'Parent', 'Active');
+                        """, (p_uid, p_sid, g_id))
+
+            # Validate zero foreign key violations
+            violations = cursor.execute("PRAGMA foreign_key_check;").fetchall()
+            if violations:
+                violation_summary = [f"table={v[0]}, rowid={v[1]}, target={v[2]}, fkid={v[3]}" for v in violations]
+                err_msg = f"Migration 018 foreign key validation failed with {len(violations)} unresolved violations: {violation_summary}"
+                logger.error(err_msg)
+                raise RuntimeError(err_msg)
+
+            conn.commit()
+            record_migration(conn, "018_multi_ward_parent_relationship_and_approvals", "Multi-Ward Parent Relationship and Multi-Party Approvals")
+            applied_now.append("018_multi_ward_parent_relationship_and_approvals")
+            logger.info("Migration 018_multi_ward_parent_relationship_and_approvals applied successfully.")
 
         return applied_now
 
