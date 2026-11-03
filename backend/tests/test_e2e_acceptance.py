@@ -107,7 +107,8 @@ class TestE2EAcceptance(unittest.TestCase):
             "username": f"cand_{unique_suffix}",
             "password": "Password123!",
             "role": "student",
-            "gender": "Male"
+            "gender": "Male",
+            "hostel_id": 1
         }
 
         # 1. Valid Student Registration
@@ -283,7 +284,8 @@ class TestE2EAcceptance(unittest.TestCase):
             "username": username,
             "password": "Password123!",
             "role": "student",
-            "gender": "Male"
+            "gender": "Male",
+            "hostel_id": 1
         })
         self.assertIn(res_reg.status_code, (200, 201))
 

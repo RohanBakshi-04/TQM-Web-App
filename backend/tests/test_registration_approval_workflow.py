@@ -57,7 +57,8 @@ class TestRegistrationApprovalWorkflow(unittest.TestCase):
             "first_name": "TestStudent",
             "last_name": "Resident",
             "role": "student",
-            "branch": "CSE"
+            "branch": "CSE",
+            "hostel_id": 1
         }
         # 1. Register student
         res = self.client.post("/api/v1/auth/register", json=payload)
@@ -205,7 +206,8 @@ class TestRegistrationApprovalWorkflow(unittest.TestCase):
             "last_name": "Sharma",
             "role": "student",
             "branch": "ECE",
-            "gender": "Female"
+            "gender": "Female",
+            "hostel_id": 1
         })
         self.assertEqual(res_s.status_code, 201)
 
@@ -226,7 +228,8 @@ class TestRegistrationApprovalWorkflow(unittest.TestCase):
             "last_name": "Kumari",
             "role": "staff",
             "specialization": "warden",
-            "gender": "Female"
+            "gender": "Female",
+            "hostel_id": 1
         })
         self.assertEqual(res_stf.status_code, 201)
 

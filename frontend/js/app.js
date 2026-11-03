@@ -132,6 +132,7 @@ document.addEventListener("alpine:init", () => {
             course: 'B.Tech',
             academic_year: '2025-2026',
             semester: 1,
+            date_of_birth: '',
             address: '',
             city: '',
             state: '',

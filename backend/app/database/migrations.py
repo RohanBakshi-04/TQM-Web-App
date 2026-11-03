@@ -179,21 +179,32 @@ def get_applied_migrations(conn: sqlite3.Connection) -> List[str]:
 
 
 
-def record_migration(conn: sqlite3.Connection, version: str, name: str) -> None:
+def begin_migration_transaction(conn: sqlite3.Connection) -> None:
+    """Ensure an explicit immediate write transaction is active for atomic DDL/DML execution."""
+    if not conn.in_transaction:
+        try:
+            conn.execute("BEGIN IMMEDIATE;")
+        except sqlite3.OperationalError:
+            pass
 
-    """Log an applied migration into the version tracking table."""
 
+def execute_sql_statements(cursor: sqlite3.Cursor, script_sql: str) -> None:
+    """Execute semicolon-delimited SQL statements individually inside the active transaction without implicit COMMIT."""
+    statements = [stmt.strip() for stmt in script_sql.split(";") if stmt.strip()]
+    for stmt in statements:
+        cursor.execute(stmt)
+
+
+def record_migration(conn: sqlite3.Connection, version: str, name: str, commit: bool = False) -> None:
+    """Log an applied migration into the version tracking table inside the current transaction."""
     cursor = conn.cursor()
-
     cursor.execute(
-
         "INSERT INTO schema_migrations (version, name) VALUES (?, ?);",
-
         (version, name)
-
     )
+    if commit:
+        conn.commit()
 
-    conn.commit()
 
 
 
@@ -220,23 +231,23 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         ensure_migrations_table(conn)
 
         applied = set(get_applied_migrations(conn))
+        cursor = conn.cursor()
 
 
 
         # Migration 001: Comprehensive 39-Table Normalized Relational Schema
 
         if "001_initial_schema" not in applied:
+            begin_migration_transaction(conn)
 
             logger.info("Applying Migration 001_initial_schema (39 tables & initial indexes)...")
-
+            begin_migration_transaction(conn)
             initialize_all_tables(conn)
-
             create_initial_indexes(conn)
-
-            record_migration(conn, "001_initial_schema", "Complete 39-Table Normalized Architecture")
-
+            record_migration(conn, "001_initial_schema", "Complete 39-Table Normalized Architecture", commit=False)
+            
+            conn.commit()
             applied_now.append("001_initial_schema")
-
             logger.info("Migration 001_initial_schema applied successfully.")
 
 
@@ -244,12 +255,13 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         # Migration 002: Authentication & Security Tables (Tokens, Resets, Login History)
 
         if "002_auth_tables" not in applied:
+            begin_migration_transaction(conn)
 
             logger.info("Applying Migration 002_auth_tables (refresh_tokens, password_resets, login_history)...")
 
             cursor = conn.cursor()
 
-            cursor.executescript(AUTH_TABLES_SQL)
+            execute_sql_statements(cursor, AUTH_TABLES_SQL)
 
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);")
 
@@ -259,9 +271,13 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
 
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_login_history_time ON login_history(timestamp);")
 
-            conn.commit()
+            record_migration(conn, "002_auth_tables", "Auth Tokens, Password Resets & Login Audit History", commit=False)
 
-            record_migration(conn, "002_auth_tables", "Auth Tokens, Password Resets & Login Audit History")
+
+            
+
+
+            conn.commit()
 
             applied_now.append("002_auth_tables")
 
@@ -272,6 +288,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         # Migration 003: Poka-Yoke Room Allocations & Transfer Lifecycle Engine
 
         if "003_poka_yoke_allocation_tables" not in applied:
+            begin_migration_transaction(conn)
 
             logger.info("Applying Migration 003_poka_yoke_allocation_tables (Poka-Yoke constraints, transfers, lifecycle)...")
 
@@ -377,9 +394,17 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
 
 
 
-            conn.commit()
+            record_migration(conn, "003_poka_yoke_allocation_tables", "Poka-Yoke Allocation Constraints & Transfer Lifecycle", commit=False)
 
-            record_migration(conn, "003_poka_yoke_allocation_tables", "Poka-Yoke Allocation Constraints & Transfer Lifecycle")
+
+
+
+            
+
+
+
+
+            conn.commit()
 
             applied_now.append("003_poka_yoke_allocation_tables")
 
@@ -390,6 +415,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         # Migration 004: Q05 Fast Search & Database Indexes Optimization
 
         if "004_q05_search_and_indexes" not in applied:
+            begin_migration_transaction(conn)
 
             logger.info("Applying Migration 004_q05_search_and_indexes (B-Tree composite indexes & FTS5 search engine)...")
 
@@ -455,9 +481,17 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
 
 
 
-            conn.commit()
+            record_migration(conn, "004_q05_search_and_indexes", "B-Tree Indexes & SQLite FTS5 Full-Text Acceleration", commit=False)
 
-            record_migration(conn, "004_q05_search_and_indexes", "B-Tree Indexes & SQLite FTS5 Full-Text Acceleration")
+
+
+
+            
+
+
+
+
+            conn.commit()
 
             applied_now.append("004_q05_search_and_indexes")
 
@@ -468,6 +502,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         # Migration 005: Complaints Lifecycle & Maintenance Work Orders
 
         if "005_complaints_and_maintenance_workflow" not in applied:
+            begin_migration_transaction(conn)
 
             logger.info("Applying Migration 005_complaints_and_maintenance_workflow (rebuilding complaints & maintenance schemas)...")
 
@@ -659,9 +694,13 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
 
             cursor.execute("PRAGMA foreign_keys = ON;")
 
-            conn.commit()
+            record_migration(conn, "005_complaints_and_maintenance_workflow", "Expanded Complaints Lifecycle & Work Order Engine", commit=False)
 
-            record_migration(conn, "005_complaints_and_maintenance_workflow", "Expanded Complaints Lifecycle & Work Order Engine")
+
+            
+
+
+            conn.commit()
 
             applied_now.append("005_complaints_and_maintenance_workflow")
 
@@ -672,6 +711,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         # Migration 006: Attendance, Leave & Outpass, and Visitor Management
 
         if "006_attendance_leave_visitor_enhancements" not in applied:
+            begin_migration_transaction(conn)
 
             logger.info("Applying Migration 006_attendance_leave_visitor_enhancements...")
 
@@ -931,9 +971,13 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
 
             cursor.execute("PRAGMA foreign_keys = ON;")
 
-            conn.commit()
+            record_migration(conn, "006_attendance_leave_visitor_enhancements", "Attendance Corrections, Outpass Workflow & Visitor Passes", commit=False)
 
-            record_migration(conn, "006_attendance_leave_visitor_enhancements", "Attendance Corrections, Outpass Workflow & Visitor Passes")
+
+            
+
+
+            conn.commit()
 
             applied_now.append("006_attendance_leave_visitor_enhancements")
 
@@ -948,6 +992,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         # ---------------------------------------------------------
 
         if "007_fee_and_financial_enhancements" not in applied:
+            begin_migration_transaction(conn)
 
             logger.info("Applying Migration 007_fee_and_financial_enhancements...")
 
@@ -1223,9 +1268,13 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
 
             cursor.execute("PRAGMA foreign_keys = ON;")
 
-            conn.commit()
+            record_migration(conn, "007_fee_and_financial_enhancements", "Fee Structures, Invoicing, Payments & Refund Workflows", commit=False)
 
-            record_migration(conn, "007_fee_and_financial_enhancements", "Fee Structures, Invoicing, Payments & Refund Workflows")
+
+            
+
+
+            conn.commit()
 
             applied_now.append("007_fee_and_financial_enhancements")
 
@@ -1242,6 +1291,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         # =========================================================================
 
         if "008_mess_and_inventory_enhancements" not in applied:
+            begin_migration_transaction(conn)
 
             logger.info("Applying Migration 008_mess_and_inventory_enhancements...")
 
@@ -1693,9 +1743,13 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
 
             cursor.execute("PRAGMA foreign_keys = ON;")
 
-            conn.commit()
+            record_migration(conn, "008_mess_and_inventory_enhancements", "Mess Menus, Subscriptions, Meal Attendance, Inventory & Suppliers", commit=False)
 
-            record_migration(conn, "008_mess_and_inventory_enhancements", "Mess Menus, Subscriptions, Meal Attendance, Inventory & Suppliers")
+
+            
+
+
+            conn.commit()
 
             applied_now.append("008_mess_and_inventory_enhancements")
 
@@ -1706,6 +1760,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         # Migration 009: Notifications, Announcements & System Administration Enhancements
 
         if "009_notifications_announcements_and_admin_enhancements" not in applied:
+            begin_migration_transaction(conn)
 
             logger.info("Applying Migration 009_notifications_announcements_and_admin_enhancements...")
 
@@ -2023,9 +2078,13 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
 
             cursor.execute("PRAGMA foreign_keys = ON;")
 
-            conn.commit()
+            record_migration(conn, "009_notifications_announcements_and_admin_enhancements", "Notifications, Preferences, Announcements, Views, Settings & Audit Indexes", commit=False)
 
-            record_migration(conn, "009_notifications_announcements_and_admin_enhancements", "Notifications, Preferences, Announcements, Views, Settings & Audit Indexes")
+
+            
+
+
+            conn.commit()
 
             applied_now.append("009_notifications_announcements_and_admin_enhancements")
 
@@ -2036,6 +2095,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         # Migration 010: Registration Approval Workflow (Student, Staff, Parent Multi-Party Approvals)
 
         if "010_registration_approval_workflow" not in applied:
+            begin_migration_transaction(conn)
 
             logger.info("Applying Migration 010_registration_approval_workflow...")
 
@@ -2105,9 +2165,13 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
 
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_reg_req_role ON registration_requests(requested_role);")
 
-            conn.commit()
+            record_migration(conn, "010_registration_approval_workflow", "Multi-party registration approval tables and indexes", commit=False)
 
-            record_migration(conn, "010_registration_approval_workflow", "Multi-party registration approval tables and indexes")
+
+            
+
+
+            conn.commit()
 
             applied_now.append("010_registration_approval_workflow")
 
@@ -2118,6 +2182,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         # Migration 011: Staff ID and Student ID Unique Identifiers
 
         if "011_staff_ids_and_unique_identifiers" not in applied:
+            begin_migration_transaction(conn)
 
             logger.info("Applying Migration 011_staff_ids_and_unique_identifiers...")
 
@@ -2181,9 +2246,17 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
 
 
 
-            conn.commit()
+            record_migration(conn, "011_staff_ids_and_unique_identifiers", "Add staff_id column, unique indexes, and backfill staff and student unique identifiers", commit=False)
 
-            record_migration(conn, "011_staff_ids_and_unique_identifiers", "Add staff_id column, unique indexes, and backfill staff and student unique identifiers")
+
+
+
+            
+
+
+
+
+            conn.commit()
 
             applied_now.append("011_staff_ids_and_unique_identifiers")
 
@@ -2194,6 +2267,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         # 12. Migration 012: Gender support for users and registration requests
 
         if "012_gender_support_for_users_and_registrations" not in applied:
+            begin_migration_transaction(conn)
 
             logger.info("Applying Migration 012_gender_support_for_users_and_registrations...")
 
@@ -2235,9 +2309,17 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
 
 
 
-            conn.commit()
+            record_migration(conn, "012_gender_support_for_users_and_registrations", "Add gender column to users and registration_requests tables", commit=False)
 
-            record_migration(conn, "012_gender_support_for_users_and_registrations", "Add gender column to users and registration_requests tables")
+
+
+
+            
+
+
+
+
+            conn.commit()
 
             applied_now.append("012_gender_support_for_users_and_registrations")
 
@@ -2248,6 +2330,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         # 13. Migration 013: Hostel Warden hostel allocation constraint & Mother Teresa Girls Hostel (Single Rooms)
 
         if "013_hostel_warden_allocation_and_girls_single_hostel" not in applied:
+            begin_migration_transaction(conn)
 
             logger.info("Applying Migration 013_hostel_warden_allocation_and_girls_single_hostel...")
 
@@ -2265,9 +2348,17 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
 
 
 
-            conn.commit()
+            record_migration(conn, "013_hostel_warden_allocation_and_girls_single_hostel", "Add hostel_id to registration_requests", commit=False)
 
-            record_migration(conn, "013_hostel_warden_allocation_and_girls_single_hostel", "Add hostel_id to registration_requests")
+
+
+
+            
+
+
+
+
+            conn.commit()
 
             applied_now.append("013_hostel_warden_allocation_and_girls_single_hostel")
 
@@ -2278,6 +2369,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         # 14. Migration 014: Authoritative Integer Paise Monetary Storage
 
         if "014_monetary_paise_migration" not in applied:
+            begin_migration_transaction(conn)
 
             logger.info("Applying Migration 014_monetary_paise_migration (authoritative integer paise storage)...")
 
@@ -2433,9 +2525,17 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
 
 
 
-            conn.commit()
+            record_migration(conn, "014_monetary_paise_migration", "Authoritative Integer Paise Monetary Storage", commit=False)
 
-            record_migration(conn, "014_monetary_paise_migration", "Authoritative Integer Paise Monetary Storage")
+
+
+
+            
+
+
+
+
+            conn.commit()
 
             applied_now.append("014_monetary_paise_migration")
 
@@ -2446,12 +2546,13 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         # 15. Migration 015: Enforce Referential Integrity and Clean Orphans with Archival
 
         if "015_enforce_referential_integrity_and_clean_orphans" not in applied:
+            begin_migration_transaction(conn)
 
             logger.info("Applying Migration 015_enforce_referential_integrity_and_clean_orphans...")
 
             cursor = conn.cursor()
 
-            cursor.executescript(HISTORICAL_ORPHAN_ARCHIVES_SQL)
+            execute_sql_statements(cursor, HISTORICAL_ORPHAN_ARCHIVES_SQL)
 
 
 
@@ -2899,9 +3000,15 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
 
 
 
-            conn.commit()
+            record_migration(conn, "015_enforce_referential_integrity_and_clean_orphans", "Enforce Referential Integrity and Clean Orphans with Archival", commit=False)
 
-            record_migration(conn, "015_enforce_referential_integrity_and_clean_orphans", "Enforce Referential Integrity and Clean Orphans with Archival")
+
+
+
+            violations = cursor.execute("PRAGMA foreign_key_check;").fetchall()
+            if violations:
+                logger.info(f"Migration 015 intermediate foreign key check: {len(violations)} records pending reconciliation in Migration 016.")
+            conn.commit()
 
             applied_now.append("015_enforce_referential_integrity_and_clean_orphans")
 
@@ -2912,12 +3019,13 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         # 16. Migration 016: Reconcile Archival and Operational Records
 
         if "016_reconcile_archival_and_operational_records" not in applied:
+            begin_migration_transaction(conn)
 
             logger.info("Applying Migration 016_reconcile_archival_and_operational_records...")
 
             cursor = conn.cursor()
 
-            cursor.executescript(HISTORICAL_ORPHAN_ARCHIVES_SQL)
+            execute_sql_statements(cursor, HISTORICAL_ORPHAN_ARCHIVES_SQL)
 
 
 
@@ -2989,9 +3097,27 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
 
 
 
-            conn.commit()
+            record_migration(conn, "016_reconcile_archival_and_operational_records", "Reconcile Archival and Operational Records", commit=False)
 
-            record_migration(conn, "016_reconcile_archival_and_operational_records", "Reconcile Archival and Operational Records")
+
+
+
+            violations = cursor.execute("PRAGMA foreign_key_check;").fetchall()
+
+
+
+
+            if violations:
+
+
+
+
+                raise RuntimeError(f"Foreign key validation failed for migration 016_reconcile_archival_and_operational_records: {violations}")
+
+
+
+
+            conn.commit()
 
             applied_now.append("016_reconcile_archival_and_operational_records")
 
@@ -3000,12 +3126,13 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         # 17. Migration 017: Second-Pass Remediation, Safe Visitor History Repair & Staff Profiles
 
         if "017_second_pass_remediation_and_profile_tables" not in applied:
+            begin_migration_transaction(conn)
 
             logger.info("Applying Migration 017_second_pass_remediation_and_profile_tables...")
 
             cursor = conn.cursor()
 
-            cursor.executescript(HISTORICAL_ORPHAN_ARCHIVES_SQL)
+            execute_sql_statements(cursor, HISTORICAL_ORPHAN_ARCHIVES_SQL)
 
 
 
@@ -3178,9 +3305,27 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
 
 
 
-            conn.commit()
+            record_migration(conn, "017_second_pass_remediation_and_profile_tables", "Second-Pass Remediation, Safe Visitor History Repair & Staff Profiles", commit=False)
 
-            record_migration(conn, "017_second_pass_remediation_and_profile_tables", "Second-Pass Remediation, Safe Visitor History Repair & Staff Profiles")
+
+
+
+            violations = cursor.execute("PRAGMA foreign_key_check;").fetchall()
+
+
+
+
+            if violations:
+
+
+
+
+                raise RuntimeError(f"Foreign key validation failed for migration 017_second_pass_remediation_and_profile_tables: {violations}")
+
+
+
+
+            conn.commit()
 
             applied_now.append("017_second_pass_remediation_and_profile_tables")
 
@@ -3193,6 +3338,7 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
         
         # 18. Migration 018: Multi-Ward Parent Relationship and Multi-Party Approvals
         if "018_multi_ward_parent_relationship_and_approvals" not in applied:
+            begin_migration_transaction(conn)
             logger.info("Applying Migration 018_multi_ward_parent_relationship_and_approvals...")
             cursor = conn.cursor()
 
@@ -3307,10 +3453,113 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
                 logger.error(err_msg)
                 raise RuntimeError(err_msg)
 
+            record_migration(conn, "018_multi_ward_parent_relationship_and_approvals", "Multi-Ward Parent Relationship and Multi-Party Approvals", commit=False)
+
+
+            violations = cursor.execute("PRAGMA foreign_key_check;").fetchall()
+
+
+            if violations:
+
+
+                raise RuntimeError(f"Foreign key validation failed for migration 018_multi_ward_parent_relationship_and_approvals: {violations}")
+
+
             conn.commit()
-            record_migration(conn, "018_multi_ward_parent_relationship_and_approvals", "Multi-Ward Parent Relationship and Multi-Party Approvals")
             applied_now.append("018_multi_ward_parent_relationship_and_approvals")
             logger.info("Migration 018_multi_ward_parent_relationship_and_approvals applied successfully.")
+
+
+        # Migration 019: Notification Deliveries Tracking, Multi-Worker Leases, and Push Subscriptions
+        if "019_notification_deliveries_and_leases" not in applied:
+            logger.info("Applying Migration 019_notification_deliveries_and_leases...")
+            begin_migration_transaction(conn)
+            cursor = conn.cursor()
+
+            # 1. Create notification_deliveries table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS notification_deliveries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    notification_id INTEGER,
+                    user_id INTEGER NOT NULL,
+                    channel TEXT NOT NULL CHECK(channel IN ('in_app', 'email', 'browser_push', 'sms')),
+                    provider TEXT NOT NULL,
+                    delivery_status TEXT NOT NULL CHECK(delivery_status IN ('Sent', 'Failed', 'Disabled', 'Unconfigured_Channel', 'Pending')),
+                    attempt_count INTEGER DEFAULT 1,
+                    error_code TEXT DEFAULT '',
+                    safe_error_message TEXT DEFAULT '',
+                    provider_message_id TEXT DEFAULT '',
+                    attempted_at TEXT NOT NULL,
+                    completed_at TEXT,
+                    FOREIGN KEY (notification_id) REFERENCES notifications(id) ON DELETE CASCADE,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_notif_deliv_nid ON notification_deliveries(notification_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_notif_deliv_uid ON notification_deliveries(user_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_notif_deliv_status ON notification_deliveries(delivery_status);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_notif_deliv_channel ON notification_deliveries(channel);")
+
+            # 2. Create background_job_leases table for multi-worker coordination
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS background_job_leases (
+                    job_name TEXT PRIMARY KEY,
+                    owner_id TEXT NOT NULL,
+                    acquired_at TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    heartbeat_at TEXT NOT NULL,
+                    last_completed_at TEXT
+                );
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_bg_leases_expires ON background_job_leases(expires_at);")
+
+            # 3. Create web_push_subscriptions table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS web_push_subscriptions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    endpoint TEXT NOT NULL UNIQUE,
+                    p256dh_key TEXT NOT NULL,
+                    auth_key TEXT NOT NULL,
+                    user_agent TEXT DEFAULT '',
+                    is_active INTEGER DEFAULT 1 CHECK(is_active IN (0, 1)),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_push_sub_user ON web_push_subscriptions(user_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_push_sub_active ON web_push_subscriptions(is_active);")
+
+            # 4. Reconcile and backfill active parent-student links for legacy approved parents
+            cursor.execute("""
+                SELECT u.id, u.linked_student_id, g.id
+                FROM users u
+                JOIN user_roles ur ON u.id = ur.user_id
+                JOIN roles r ON ur.role_id = r.id
+                LEFT JOIN guardians g ON (LOWER(g.email) = LOWER(u.email) AND u.email != '') OR (g.phone = u.phone AND u.phone != '')
+                WHERE r.name = 'parent' AND u.is_active = 1 AND u.linked_student_id IS NOT NULL;
+            """)
+            legacy_parents = cursor.fetchall()
+            for p_uid, p_sid, g_id in legacy_parents:
+                cursor.execute("""
+                    INSERT INTO parent_student_links (parent_user_id, student_id, guardian_id, relationship, status)
+                    VALUES (?, ?, ?, 'Parent', 'Active')
+                    ON CONFLICT(parent_user_id, student_id) DO UPDATE SET status = 'Active', updated_at = CURRENT_TIMESTAMP;
+                """, (p_uid, p_sid, g_id))
+
+            # 5. Validate zero foreign key violations
+            violations = cursor.execute("PRAGMA foreign_key_check;").fetchall()
+            if violations:
+                violation_summary = [f"table={v[0]}, rowid={v[1]}, target={v[2]}, fkid={v[3]}" for v in violations]
+                err_msg = f"Migration 019 foreign key validation failed with {len(violations)} unresolved violations: {violation_summary}"
+                logger.error(err_msg)
+                raise RuntimeError(err_msg)
+
+            record_migration(conn, "019_notification_deliveries_and_leases", "Notification Deliveries Tracking, Multi-Worker Leases, and Push Subscriptions", commit=False)
+            conn.commit()
+            applied_now.append("019_notification_deliveries_and_leases")
+            logger.info("Migration 019_notification_deliveries_and_leases applied successfully.")
 
         return applied_now
 

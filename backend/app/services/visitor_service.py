@@ -4,6 +4,8 @@ Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
 Quality Goal: Q05 - Fast Response Time (< 10ms)
 """
 
+import os
+import socket
 import sqlite3
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Any, Optional
@@ -627,16 +629,68 @@ class VisitorService:
             conn.close()
 
     @classmethod
-    def check_visitor_curfew(cls, conn: Optional[sqlite3.Connection] = None) -> Dict[str, Any]:
-        """Automated curfew monitor: identifies and marks visitors exceeding permitted campus visiting hours."""
+    def acquire_job_lease(cls, conn: sqlite3.Connection, job_name: str, owner_id: str, lease_duration_seconds: int = 60) -> bool:
+        """Acquire an atomic distributed lease for multi-worker background job execution."""
+        from datetime import timedelta
+        now_dt = datetime.now()
+        now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+        expires_str = (now_dt + timedelta(seconds=lease_duration_seconds)).strftime("%Y-%m-%d %H:%M:%S")
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                INSERT INTO background_job_leases (job_name, owner_id, acquired_at, expires_at, heartbeat_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(job_name) DO UPDATE SET
+                    owner_id = excluded.owner_id,
+                    acquired_at = excluded.acquired_at,
+                    expires_at = excluded.expires_at,
+                    heartbeat_at = excluded.heartbeat_at
+                WHERE expires_at < excluded.acquired_at OR owner_id = excluded.owner_id;
+            """, (job_name, owner_id, now_str, expires_str, now_str))
+            conn.commit()
+            return cursor.rowcount > 0
+        except sqlite3.OperationalError:
+            return True
+
+    @classmethod
+    def release_job_lease(cls, conn: sqlite3.Connection, job_name: str, owner_id: str) -> None:
+        """Release an acquired background job lease upon execution completion."""
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                UPDATE background_job_leases
+                SET last_completed_at = ?, expires_at = ?
+                WHERE job_name = ? AND owner_id = ?;
+            """, (now_str, now_str, job_name, owner_id))
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
+    @classmethod
+    def check_visitor_curfew(cls, conn: Optional[sqlite3.Connection] = None, worker_id: Optional[str] = None, bypass_lease: bool = False) -> Dict[str, Any]:
+        """Automated curfew monitor with atomic status transitions, distributed multi-worker lease, and alert deduplication."""
         should_close = False
         if conn is None:
             conn = get_db_connection()
             should_close = True
         try:
-            cursor = conn.cursor()
             now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            effective_worker = worker_id or str(os.getpid())
 
+            # 1. Distributed multi-worker lease coordination
+            if not bypass_lease:
+                acquired = cls.acquire_job_lease(conn, "visitor_curfew_monitor", effective_worker, lease_duration_seconds=120)
+                if not acquired:
+                    logger.debug(f"Curfew monitor lease currently held by another worker. Skipping worker {effective_worker}.")
+                    return {
+                        "checked_at": now_str,
+                        "status": "Skipped_Lease_Held",
+                        "overdue_count": 0,
+                        "overdue_visitors": []
+                    }
+
+            cursor = conn.cursor()
             cursor.execute("""
                 SELECT vl.id, vl.pass_number, vl.student_id, vl.hostel_id, vl.expected_exit_time,
                        v.name as visitor_name, s.first_name || ' ' || s.last_name as student_name
@@ -653,30 +707,45 @@ class VisitorService:
             updated_count = 0
             if overdue_list:
                 for ov in overdue_list:
+                    # 2. Atomic conditional state transition (checked_in -> overdue)
                     cursor.execute("""
                         UPDATE visitor_logs
                         SET status = 'Overdue'
-                        WHERE id = ?;
+                        WHERE id = ? AND status = 'Checked_In';
                     """, (ov["id"],))
-                    updated_count += cursor.rowcount
+                    if cursor.rowcount == 1:
+                        updated_count += 1
+                        event_k = f"visitor_curfew:{ov['id']}"
 
-                    cursor.execute("""
-                        INSERT INTO notifications (user_id, title, message, category, priority, is_read, event_key, delivery_channel)
-                        SELECT u.id, 'Visitor Curfew Violation Alert', ?, 'security', 'Urgent', 0, ?, 'in_app'
-                        FROM users u
-                        JOIN user_roles ur ON u.id = ur.user_id
-                        JOIN roles r ON ur.role_id = r.id
-                        WHERE r.name IN ('security_guard', 'warden', 'super_admin')
-                          AND (u.linked_hostel_id = ? OR u.linked_hostel_id IS NULL);
-                    """, (
-                        f"Visitor {ov['visitor_name']} (Pass #{ov['pass_number']}) visiting student {ov['student_name']} has exceeded curfew time {ov['expected_exit_time']}.",
-                        f"visitor_curfew:{ov['id']}",
-                        ov.get("hostel_id")
-                    ))
+                        # 3. Notification deduplication and facility-scoped recipients
+                        cursor.execute("""
+                            INSERT INTO notifications (user_id, title, message, category, priority, is_read, event_key, delivery_channel)
+                            SELECT u.id, 'Visitor Curfew Violation Alert', ?, 'security', 'Urgent', 0, ?, 'in_app'
+                            FROM users u
+                            JOIN user_roles ur ON u.id = ur.user_id
+                            JOIN roles r ON ur.role_id = r.id
+                            WHERE (
+                                (r.name IN ('security_guard', 'warden') AND u.linked_hostel_id = ?)
+                                OR
+                                (? IS NULL AND r.name = 'super_admin')
+                            )
+                            AND NOT EXISTS (
+                                SELECT 1 FROM notifications n WHERE n.user_id = u.id AND n.event_key = ?
+                            );
+                        """, (
+                            f"Visitor {ov['visitor_name']} (Pass #{ov['pass_number']}) visiting student {ov['student_name']} has exceeded curfew time {ov['expected_exit_time']}.",
+                            event_k,
+                            ov.get("hostel_id"),
+                            ov.get("hostel_id"),
+                            event_k
+                        ))
 
                 conn.commit()
                 cache_service.invalidate_by_tag("visitors")
                 logger.warning(f"Visitor curfew monitor detected and updated {updated_count} overdue visitors.")
+
+            if not bypass_lease:
+                cls.release_job_lease(conn, "visitor_curfew_monitor", effective_worker)
 
             return {
                 "checked_at": now_str,

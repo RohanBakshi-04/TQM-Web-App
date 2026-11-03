@@ -225,6 +225,15 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
         g_id = cursor.lastrowid
         cursor.execute("INSERT INTO student_guardians (student_id, guardian_id, is_primary) VALUES (?, ?, 1);", (s_rohan, g_id))
 
+        # Seed Parent-Student link for demo parent
+        p_user_id = user_id_map.get("parent")
+        if p_user_id:
+            cursor.execute(
+                """INSERT OR IGNORE INTO parent_student_links (parent_user_id, student_id, guardian_id, relationship, status)
+                   VALUES (?, ?, ?, 'Parent', 'Active');""",
+                (p_user_id, s_rohan, g_id)
+            )
+
         # Resolve beds and rooms for initial demo allocations
         cursor.execute("SELECT id FROM beds WHERE bed_number = '101-A' LIMIT 1;")
         b101_a = cursor.fetchone()[0]

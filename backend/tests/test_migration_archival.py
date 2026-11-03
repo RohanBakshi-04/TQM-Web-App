@@ -36,13 +36,44 @@ class TestMigrationArchivalSafety(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
+    def _generate_pre015_fixture(self, test_db_path: str):
+        """Construct a deterministic pre-015 historical database fixture with exact 81 orphan violations."""
+        conn = sqlite3.connect(test_db_path)
+        run_migrations(conn)
+        cur = conn.cursor()
+        cur.execute("DELETE FROM schema_migrations WHERE version >= '015';")
+        cur.execute("DROP TABLE IF EXISTS historical_orphan_archives;")
+        conn.commit()
+        conn.close()
+
+        conn = sqlite3.connect(test_db_path)
+        conn.execute("PRAGMA foreign_keys = OFF;")
+        cur = conn.cursor()
+        fixture_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "fixtures", "pre015_orphans.json"
+        )
+        with open(fixture_path, "r", encoding="utf-8") as f:
+            records = json.load(f)
+
+        for r in records:
+            table = r["table"]
+            cols = r["columns"]
+            vals = r["values"]
+            placeholders = ", ".join(["?"] * len(vals))
+            col_str = ", ".join(cols)
+            cur.execute(f"INSERT OR REPLACE INTO {table} ({col_str}) VALUES ({placeholders});", vals)
+
+        cur.execute("DELETE FROM visitors WHERE id = 101;")
+        conn.commit()
+        conn.close()
+
     def test_pre015_migration_archives_81_orphans_and_achieves_zero_violations(self):
         """Pre-015 database must archive all 81 historical orphans and have 0 FK violations."""
-        if not os.path.exists(self.pre015_backup):
-            self.skipTest(f"Pre-015 backup not found at {self.pre015_backup}")
-
         test_db_path = os.path.join(self.temp_dir, "test_pre015.db")
-        shutil.copy2(self.pre015_backup, test_db_path)
+        if os.path.exists(self.pre015_backup):
+            shutil.copy2(self.pre015_backup, test_db_path)
+        else:
+            self._generate_pre015_fixture(test_db_path)
 
         conn = sqlite3.connect(test_db_path)
         conn.row_factory = sqlite3.Row

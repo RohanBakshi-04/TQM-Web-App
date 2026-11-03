@@ -140,68 +140,28 @@ def get_current_user(
 
 
 def get_parent_authorized_ward_ids(conn: sqlite3.Connection, current_user: Dict[str, Any]) -> List[int]:
-    """Return all authorized student IDs linked to a parent/guardian user."""
-    ward_ids = set()
+    """Return all authorized student IDs linked to a parent/guardian user.
 
-    # 1. Check primary linked student ID on users record
-    linked_sid = current_user.get("linked_student_id")
-    if linked_sid:
-        ward_ids.add(int(linked_sid))
+    Authoritative source: parent_student_links table where parent_user_id = ? AND status = 'Active'.
+    Strictly eliminates implicit access through unverified email/phone matching or user-submitted fields.
+    """
+    ward_ids = set()
+    user_id = current_user.get("id") or current_user.get("user_id")
+    if not user_id:
+        return []
 
     cursor = conn.cursor()
-    user_id = current_user.get("id") or current_user.get("user_id")
-
-    # 2. Check parent_student_links table (Migration 018 multi-ward support)
-    if user_id:
-        try:
-            cursor.execute("""
-                SELECT student_id
-                FROM parent_student_links
-                WHERE parent_user_id = ? AND status = 'Active';
-            """, (user_id,))
-            for r in cursor.fetchall():
-                if r[0]:
-                    ward_ids.add(r[0])
-        except sqlite3.OperationalError:
-            pass
-
-    # 3. Check student_guardians join via guardian email or phone
-    user_email = (current_user.get("email") or "").strip().lower()
-    user_phone = (current_user.get("phone") or "").strip()
-
-    if user_email or user_phone:
+    try:
         cursor.execute("""
-            SELECT DISTINCT sg.student_id
-            FROM student_guardians sg
-            JOIN guardians g ON g.id = sg.guardian_id
-            WHERE (LOWER(g.email) = ? AND ? != '') OR (g.phone = ? AND ? != '');
-        """, (user_email, user_email, user_phone, user_phone))
-        for r in cursor.fetchall():
-            ward_ids.add(r[0])
-
-    # 4. Check registration_requests and registration_request_wards where parent was approved
-    if user_id:
-        cursor.execute("""
-            SELECT DISTINCT linked_student_id
-            FROM registration_requests
-            WHERE user_id = ? AND status = 'Approved' AND linked_student_id IS NOT NULL;
+            SELECT student_id
+            FROM parent_student_links
+            WHERE parent_user_id = ? AND status = 'Active';
         """, (user_id,))
         for r in cursor.fetchall():
             if r[0]:
-                ward_ids.add(r[0])
-
-        try:
-            cursor.execute("""
-                SELECT DISTINCT rw.student_id
-                FROM registration_request_wards rw
-                JOIN registration_requests rr ON rw.registration_request_id = rr.id
-                WHERE rr.user_id = ? AND rr.status = 'Approved' AND rw.student_approval_status = 'Approved';
-            """, (user_id,))
-            for r in cursor.fetchall():
-                if r[0]:
-                    ward_ids.add(r[0])
-        except sqlite3.OperationalError:
-            pass
+                ward_ids.add(int(r[0]))
+    except sqlite3.OperationalError:
+        pass
 
     return sorted(list(ward_ids))
 

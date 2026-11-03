@@ -81,6 +81,16 @@ class TestAuthorizationIsolationScenarios(unittest.TestCase):
             VALUES ('STU-UNALLOCATED-99', 'Unallocated', 'Student', 'unallocated@test.edu', '9999999999', 'Male', '2005-01-01', 'CSE', '3rd Year', '5th', '2026-08-01', 'Active');
         """)
         cls.unallocated_student_id = cur.lastrowid
+
+        # Insert active parent-student link for seeded parent user -> h1_students[0]
+        cur.execute("SELECT id FROM users WHERE username = 'parent';")
+        p_row = cur.fetchone()
+        cls.parent_user_id = p_row["id"] if p_row else 11
+        cur.execute("""
+            INSERT OR REPLACE INTO parent_student_links (parent_user_id, student_id, relationship, status)
+            VALUES (?, ?, 'Parent', 'Active');
+        """, (cls.parent_user_id, cls.h1_students[0]))
+
         conn.commit()
         conn.close()
 
@@ -296,7 +306,8 @@ class TestAuthorizationIsolationScenarios(unittest.TestCase):
         """Parent accessing authorized linked ward must succeed."""
         sid = self.h1_students[0]
         current_user = {
-            "id": 50,
+            "id": self.parent_user_id,
+            "user_id": self.parent_user_id,
             "username": "parent_user",
             "active_role": "parent_guardian",
             "roles": ["parent_guardian"],

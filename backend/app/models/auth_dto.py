@@ -31,6 +31,7 @@ class RegisterRequest(BaseModel):
     relationship: Optional[str] = Field("Parent / Guardian", max_length=50, description="Relationship: Father, Mother, Guardian")
     hostel_id: Optional[int] = Field(None, description="Hostel ID assigned/applied for when registering as hostel warden")
     # Student Profile Details
+    date_of_birth: Optional[str] = Field(None, max_length=20, description="Student date of birth (YYYY-MM-DD)")
     course: Optional[str] = Field(None, max_length=50, description="Student course or program")
     academic_year: Optional[str] = Field(None, max_length=50, description="Academic year")
     semester: Optional[int] = Field(None, description="Semester number")
@@ -80,6 +81,27 @@ class RegisterRequest(BaseModel):
             elif "child_identifier" in data and not data.get("ward_identifier"):
                 data["ward_identifier"] = data["child_identifier"]
         return data
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def validate_dob(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return None
+        v = v.strip()
+        if not v:
+            return None
+        from datetime import datetime, date
+        try:
+            dob_date = datetime.strptime(v, "%Y-%m-%d").date()
+        except ValueError:
+            raise ValueError("Invalid date_of_birth format. Must be YYYY-MM-DD.")
+        today = date.today()
+        if dob_date >= today:
+            raise ValueError("Date of birth cannot be in the future or today.")
+        age = (today - dob_date).days // 365
+        if age < 14 or age > 100:
+            raise ValueError(f"Age calculated from date of birth ({age} years) is outside eligible range (14-100).")
+        return v
 
     @field_validator("email")
     @classmethod

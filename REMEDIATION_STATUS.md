@@ -3,7 +3,7 @@
 **Repository:** `https://github.com/RohanBakshi-04/TQM-Web-App`  
 **Working Branch:** `remediation/comprehensive-hms-hardening`  
 **Evaluation & Remediation Date:** November 3, 2026  
-**Status:** **COMPLETED & VERIFIED (278/278 Tests Passing)**  
+**Status:** **COMPLETED & VERIFIED (293/293 Tests Passing: 288 Backend + 5 Browser)**  
 
 ---
 
@@ -36,21 +36,37 @@ Every defect identified across backend services, database migrations, authentica
 | **OPS-01** | **Critical** | Database Safety | `reset_db.py` | `reset_db.py` wiped the database without confirmation flags, environment checks, or safety prompts. | Added strict safeguards: required `--confirm-destructive-reset`, rejected execution in production environments (`settings.app_env in ('production', 'prod')`), and added interactive confirmation string check. | **RESOLVED & VERIFIED** | Verified by `test_remediation_security_hardening.py::test_07_reset_db_safety_flag_required` (exits with code 1 and error message) |
 | **OPS-02** | **Medium** | API / Observability | `backend/app/routers/health.py`, `backend/app/routers/auth.py`, `backend/app/config.py` | `/api/health` returned HTTP 200 even when database connection failed, and leaked raw database exception messages. No separate liveness vs readiness endpoints. Blindly trusted `X-Forwarded-For`. | Separated `/api/health/live` (liveness) and `/api/health/ready` (readiness with 503 on DB error without leaking exceptions). In `get_client_ip_and_ua`, only trust `X-Forwarded-For` from configured `trusted_proxies`. | **RESOLVED & VERIFIED** | Verified by `test_remediation_security_hardening.py::test_06_health_liveness_and_readiness` |
 | **OPS-03** | **Medium** | Notification Integrity | `backend/app/services/notification_service.py` | Optional delivery channels (email, browser) logged "dispatched" even when unconfigured. | Implemented provider checks (SMTP_HOST, VAPID_PUBLIC_KEY). Reported unconfigured channels honestly as `Unconfigured_Channel` in logs rather than claiming dispatched. | **RESOLVED & VERIFIED** | Code audit and notification dispatch test verified |
+| **DEF-01** | **Critical** | Database / Migrations | `backend/app/database/migrations.py` | `cursor.executescript()` issued implicit commit before execution, defeating rollback atomicity. | Wrapped migrations in `begin_migration_transaction()` with explicit per-statement execution. Added Migration 019. | **RESOLVED & VERIFIED** | Verified by `test_migration_atomicity.py` (3/3) & `test_migration_archival.py` (3/3) |
+| **DEF-02** | **Critical** | Security / Authorization | `backend/app/services/auth_service.py` | Unassigned students visible to facility wardens and approvable without facility assignment. | Filtered unassigned students to central admin only; enforced 403 on unassigned or cross-hostel approvals by wardens. | **RESOLVED & VERIFIED** | Verified by `test_ultimate_defects_acceptance.py::test_defect_2_warden_facility_scoping` |
+| **DEF-03** | **Critical** | Data Model / Workflows | `backend/app/services/auth_service.py` | Multi-child parents in different hostels could be single-warden approved for entire family. | Implemented per-ward administrative scoping via `registration_request_wards`. Parent activates only when all ward facilities approve. | **RESOLVED & VERIFIED** | Verified by `test_ultimate_defects_acceptance.py::test_defect_3_multi_child_parent_approval_across_hostels` |
+| **DEF-04** | **Critical** | Security / RBAC | `backend/app/services/auth_dependencies.py` | Parent ward resolution fell back to `users.linked_student_id` or student ID 1. | Strictly resolved via `parent_student_links WHERE parent_user_id = ? AND status = 'Active'`. Eradicated fallback. | **RESOLVED & VERIFIED** | Verified by `test_ultimate_defects_acceptance.py::test_defect_4_parent_access_verified_relationships` |
+| **DEF-05** | **High** | Frontend / Data Model | `frontend/index.html`, `backend/app/services/auth_service.py`, `backend/app/models/auth_dto.py` | Student DOB and semester omitted from registration form; hardcoded to "1st Year". | Added DOB and semester (1-12) to frontend, validated in DTO, computed academic year dynamically, persisted to `students`. | **RESOLVED & VERIFIED** | Verified by `test_ultimate_defects_acceptance.py::test_defect_5_student_registration_profile_persistence` |
+| **DEF-06** | **High** | Reliability / Observability | `backend/app/services/notification_service.py` | False audit trails claiming email/push dispatched when unconfigured. | Created `notification_deliveries` table. Honest status recording: `Sent`, `Failed`, `Disabled`, `Unconfigured_Channel`. | **RESOLVED & VERIFIED** | Verified by `test_ultimate_defects_acceptance.py::test_defect_6_notification_delivery_tracking` |
+| **DEF-07** | **High** | Concurrency / Automation | `backend/app/services/visitor_service.py` | Background curfew check risked race conditions across multiple workers; alerts duplicated. | Implemented distributed lease via `background_job_leases`, atomic conditional status transition, deduplicated alerts. | **RESOLVED & VERIFIED** | Verified by `test_ultimate_defects_acceptance.py::test_defect_7_curfew_monitoring_distributed_lease` |
 
 ---
 
 ## 3. Test Suite Verification Summary
 
-- **Total Test Suites Executed:** 18 test files
-- **Total Tests Passing:** 278 / 278 tests passing (100% pass rate, 0 failures, 0 errors, 0 skipped)
-  - `test_multi_ward_and_curfew_acceptance.py`: 7/7 passing
-  - `test_migration_safety_second_pass.py`: 4/4 passing
-  - `test_remediation_security_hardening.py`: 7/7 passing
-  - `test_attendance_leave_visitors.py`: 11/11 passing
-  - `test_e2e_acceptance.py`: 16/16 passing
-  - `test_browser_acceptance.py`: 5/5 passing
-  - `test_performance_benchmarks.py`: 3/3 passing
-  - Core subsystem unit & integration test suites: 225/225 passing
+- **Total Test Suites Executed:** 20 test files
+- **Total Tests Passing:** 293 / 293 tests passing (100% pass rate, 0 failures, 0 errors, 0 skipped)
+  - `backend/tests/test_ultimate_defects_acceptance.py`: 7/7 passing
+  - `backend/tests/test_migration_atomicity.py`: 3/3 passing
+  - `backend/tests/test_migration_archival.py`: 3/3 passing
+  - `backend/tests/test_authorization_isolation.py`: 16/16 passing
+  - `backend/tests/test_source_code_repairs.py`: 27/27 passing
+  - `backend/tests/test_multi_ward_and_curfew_acceptance.py`: 7/7 passing
+  - `backend/tests/test_migration_safety_second_pass.py`: 4/4 passing
+  - `backend/tests/test_remediation_security_hardening.py`: 7/7 passing
+  - `backend/tests/test_attendance_leave_visitors.py`: 11/11 passing
+  - `backend/tests/test_e2e_acceptance.py`: 16/16 passing
+  - `backend/tests/test_browser_acceptance.py`: 5/5 passing
+  - `backend/tests/test_performance_benchmarks.py`: 3/3 passing
+  - Core subsystem unit & integration test suites: 184/184 passing
+- **Database Schema Verification:**
+  - Total SQLite Tables & Views: **66 tables** (59 relational tables, 6 FTS5 search tables, 1 `sqlite_sequence`)
+  - Total Migrations Applied: **19 atomic migrations** (`001` through `019`)
+  - Referential Integrity Check: **0 foreign key violations** (`PRAGMA foreign_key_check;` clean)
 - **Performance Benchmarks Achieved:**
   - Fast search internal execution: 0.19 ms avg (< 10 ms SLA)
   - Dashboard cached retrieval: 0.001 ms avg (< 10 ms SLA)

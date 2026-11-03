@@ -50,7 +50,7 @@ All operations achieve an empirical P95 latency below 0.5 milliseconds:
 
 - **Backend:** Python 3.10+ / FastAPI (Asynchronous REST API Engine)
 - **Application Server:** Uvicorn ASGI Server
-- **Database Engine & Migration Lifecycle:** SQLite 3 with Write-Ahead Logging (`WAL` mode), Foreign Key enforcement, 102 B-Tree composite indexes, and FTS5 full-text indexing across **63 database tables** (56 domain relational tables + 6 FTS5 search index tables + sqlite_sequence). Schema versioning managed through 18 idempotent migrations (latest: `018_multi_ward_parent_relationship_and_approvals`).
+- **Database Engine & Migration Lifecycle:** SQLite 3 with Write-Ahead Logging (`WAL` mode), Foreign Key enforcement, 102 B-Tree composite indexes, and FTS5 full-text indexing across **66 database tables** (59 domain relational tables + 6 FTS5 search index tables + sqlite_sequence). Schema versioning managed through 19 atomic migrations (latest: `019_notification_deliveries_and_leases`).
 - **Financial Architecture:** Authoritative integer-paise storage (`amount_paise`, `total_amount_paise`, `paid_amount_paise`) eliminating floating-point rounding errors across invoices, itemizations, and payments.
 - **Authentication & Security:** Strict HttpOnly cookie-based refresh token rotation, in-memory access token management, zero refresh-token leakage in JSON responses, and unapproved student registration isolation.
 - **Caching Layer:** Centralized in-memory thread-safe LRU cache with multi-tag invalidation and sub-millisecond response guarantees.
@@ -110,11 +110,17 @@ Access the application at `http://localhost:8000`.
 
 ## 🧪 Automated Testing & Verification
 
-Run the complete test suite (217 automated unit and integration tests across 15 test suites):
+Run the complete test suite (288 automated unit and integration tests across 20 test suites):
 ```bash
 python -m unittest discover -s backend/tests -p "test_*.py"
 ```
-**Result:** `Ran 217 tests in ~32s — OK (100% Pass Rate, 0 Failures, 0 Errors)`.
+**Result:** `Ran 288 tests in ~136s — OK (100% Pass Rate, 0 Failures, 0 Errors, 0 Skips)`.
+
+Run the Playwright browser acceptance test suite:
+```bash
+python -m unittest backend/tests/test_browser_acceptance.py
+```
+**Result:** `Ran 5 tests in ~50s — OK (100% Pass Rate, 0 Failures, 0 Errors)`.
 
 Run the Q05 performance benchmark suite:
 ```bash
@@ -125,6 +131,7 @@ python scripts/benchmark_q05.py
 
 ## 📚 Technical Documentation Directory
 
+- [Final Remediation & Release Report](docs/FINAL_REMEDIATION_REPORT.md) — Comprehensive evidence report covering all 7 defect groups, 293 passing tests, and release sign-off
 - [Remediation Status Log](REMEDIATION_STATUS.md) — Master defect tracking and remediation log across all subsystems
 - [Role & Permission Matrix](docs/ROLE_PERMISSION_MATRIX.md) — 12-role RBAC enforcement, active role precedence, and student isolation rules
 - [Registration & Onboarding Workflows](docs/REGISTRATION_WORKFLOWS.md) — Student, Faculty/Staff, and Parent onboarding chains and dual approval
