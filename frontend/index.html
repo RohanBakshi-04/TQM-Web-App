@@ -1730,6 +1730,30 @@
                                                    class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white font-mono">
                                             <span class="text-[10px] text-slate-400 mt-0.5 block">Used for unique student ID and room allotment matching.</span>
                                         </div>
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                            <div>
+                                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Academic Program / Course</label>
+                                                <input type="text" x-model="registerForm.course" placeholder="e.g. B.Tech, M.Tech, MBA"
+                                                       class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
+                                            </div>
+                                            <div>
+                                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Academic Year</label>
+                                                <input type="text" x-model="registerForm.academic_year" placeholder="e.g. 2025-2026"
+                                                       class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
+                                            </div>
+                                        </div>
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Guardian Full Name</label>
+                                                <input type="text" x-model="registerForm.guardian_name" placeholder="Parent / Guardian Name"
+                                                       class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
+                                            </div>
+                                            <div>
+                                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Guardian Mobile</label>
+                                                <input type="tel" x-model="registerForm.guardian_phone" placeholder="10-digit mobile number"
+                                                       class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
+                                            </div>
+                                        </div>
                                     </div>
                                 </template>
 
@@ -1789,7 +1813,7 @@
                                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                             <div>
                                                 <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Child's Roll No or Email *</label>
-                                                <input type="text" x-model="registerForm.child_identifier" required placeholder="e.g. 2410301057 or student@univ.edu"
+                                                <input type="text" x-model="registerForm.child_identifier" required placeholder="e.g. 2410301057, 2410301058 (comma-separated for multi-ward)"
                                                        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
                                             </div>
                                             <div>

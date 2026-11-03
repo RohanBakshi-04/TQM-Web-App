@@ -2,7 +2,7 @@ name: CI Test Suite
 
 on:
   push:
-    branches: [ "main", "fix/source-code-defects", "qa/end-to-end-acceptance" ]
+    branches: [ "main", "fix/source-code-defects", "qa/end-to-end-acceptance", "remediation/comprehensive-hms-hardening", "fix/second-pass-registration-migration-security" ]
   pull_request:
     branches: [ "main" ]
 

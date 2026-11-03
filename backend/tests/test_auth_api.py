@@ -5,6 +5,8 @@ Quality Goal: Q05 - Reduce Response Time
 """
 
 import os
+import shutil
+import tempfile
 import unittest
 from fastapi.testclient import TestClient
 
@@ -18,9 +20,17 @@ class TestAuthAPI(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # Set database to a test database or initialize current DB
+        cls.temp_dir = tempfile.mkdtemp()
+        cls.db_path = os.path.join(cls.temp_dir, "test_auth_api.db")
+        cls.orig_db_path = settings.database_path
+        settings.database_path = cls.db_path
         initialize_database()
         cls.client = TestClient(app)
+
+    @classmethod
+    def tearDownClass(cls):
+        settings.database_path = cls.orig_db_path
+        shutil.rmtree(cls.temp_dir, ignore_errors=True)
 
     def test_login_success_and_cookie_set(self):
         """Test successful login returns access token and sets HttpOnly refresh cookie."""

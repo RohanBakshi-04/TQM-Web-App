@@ -60,7 +60,13 @@ def get_current_user(
 
         # Resolve active_role from token payload or default to primary assigned role
         active_role = payload.get("active_role")
-        if not active_role or active_role not in roles:
+        if active_role:
+            if active_role not in roles:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Forbidden: Claimed active role '{active_role}' is not assigned to this user."
+                )
+        else:
             active_role = roles[0] if roles else "student"
 
         # Resolve permissions granted strictly by the ACTIVE role

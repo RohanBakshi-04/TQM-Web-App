@@ -11,10 +11,22 @@ if web_app_dir not in sys.path:
 from fastapi.testclient import TestClient
 from backend.app.main import app
 
+import shutil
+import tempfile
+from backend.app.config import settings
+from backend.app.database.init_db import initialize_database
+
 class TestRegistrationApprovalWorkflow(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.temp_dir = tempfile.mkdtemp()
+        cls.db_path = os.path.join(cls.temp_dir, "test_reg_approval.db")
+        cls.orig_db_path = settings.database_path
+        settings.database_path = cls.db_path
+        initialize_database()
+
         cls.client = TestClient(app)
+
         # Login admin to obtain token
         res = cls.client.post("/api/v1/auth/login", json={"username_or_email": "superadmin", "password": "Password123!"})
         cls.admin_token = res.json()["access_token"]
@@ -29,6 +41,11 @@ class TestRegistrationApprovalWorkflow(unittest.TestCase):
         res_s = cls.client.post("/api/v1/auth/login", json={"username_or_email": "rohan", "password": "Password123!"})
         cls.student_token = res_s.json()["access_token"]
         cls.student_headers = {"Authorization": f"Bearer {cls.student_token}"}
+
+    @classmethod
+    def tearDownClass(cls):
+        settings.database_path = cls.orig_db_path
+        shutil.rmtree(cls.temp_dir, ignore_errors=True)
 
     def test_01_student_registration_approved_by_warden(self):
         uid = uuid.uuid4().hex[:6]

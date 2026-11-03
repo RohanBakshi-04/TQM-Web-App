@@ -10,6 +10,7 @@ from typing import List, Dict, Any, Optional
 from fastapi import HTTPException, status
 
 from backend.app.database.connection import get_db_connection
+from backend.app.services.auth_dependencies import get_parent_authorized_ward_ids, verify_student_isolation
 from backend.app.models.visitor_dto import (
     VisitorRegistrationRequest,
     VisitorApprovalRequest,
@@ -201,11 +202,25 @@ class VisitorService:
                 raise HTTPException(status_code=404, detail="Visitor pass not found.")
 
             res = dict(record)
-            role = current_user.get("role")
+            active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
 
-            # Student isolation
-            if role == "student" and res.get("student_user_id") != current_user.get("user_id"):
-                raise HTTPException(status_code=403, detail="Forbidden: You cannot view other students' visitors.")
+            # Strict Active-Role Scoping
+            if active_role == "student":
+                my_sid = current_user.get("linked_student_id")
+                if res.get("student_id") != my_sid and res.get("student_user_id") != current_user.get("user_id"):
+                    raise HTTPException(status_code=403, detail="Forbidden: You cannot view other students' visitors.")
+            elif active_role in ("parent_guardian", "parent"):
+                wards = get_parent_authorized_ward_ids(conn, current_user)
+                if res.get("student_id") not in wards:
+                    raise HTTPException(status_code=403, detail="Forbidden: You cannot view visitors of unlinked students.")
+            elif active_role in ("warden", "assistant_warden"):
+                linked_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+                if not linked_hid:
+                    raise HTTPException(status_code=403, detail="Access Denied: Staff member has no assigned hostel facility.")
+                if not res.get("hostel_id") or int(res["hostel_id"]) != int(linked_hid):
+                    raise HTTPException(status_code=403, detail="Forbidden: Visitor pass belongs to another hostel facility.")
+            elif active_role not in ("security_guard", "super_admin", "hostel_admin"):
+                raise HTTPException(status_code=403, detail="Forbidden: Unauthorized active role for visitor log access.")
 
             # Overdue calculation
             now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -214,11 +229,8 @@ class VisitorService:
             else:
                 res["is_overdue"] = res["status"] == "Overdue"
 
-            # Enforce student isolation and privacy masking for resident and parent queries
-            active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+            # Privacy masking for resident and parent queries
             if active_role in ["student", "parent", "parent_guardian"]:
-                from backend.app.services.auth_dependencies import verify_student_isolation
-                verify_student_isolation(res["student_id"], current_user)
                 res["id_proof_number"] = cls._mask_id_proof(res.get("id_proof_number", ""))
                 res["phone"] = cls._mask_phone(res.get("phone", ""))
 
@@ -404,10 +416,13 @@ class VisitorService:
     @classmethod
     def get_active_visitors(cls, hostel_id: Optional[int], current_user: Dict[str, Any]) -> List[Dict[str, Any]]:
         """List all visitors currently on campus premises (checked in without check out)."""
-        role = current_user.get("role")
-        user_hostel_id = current_user.get("hostel_id")
-        if role in ["warden", "assistant_warden"] and user_hostel_id:
-            hostel_id = int(user_hostel_id)
+        active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+        linked_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+
+        if active_role in ("warden", "assistant_warden"):
+            if not linked_hid:
+                return []
+            hostel_id = int(linked_hid)
 
         conn = get_db_connection()
         try:
@@ -419,13 +434,22 @@ class VisitorService:
                 where_clauses.append("vl.hostel_id = ?")
                 params.append(hostel_id)
 
-            if role == "student":
-                cursor.execute("SELECT id FROM students WHERE user_id = ?;", (current_user.get("user_id"),))
-                st = cursor.fetchone()
-                if not st:
+            if active_role == "student":
+                my_sid = current_user.get("linked_student_id")
+                if not my_sid:
+                    cursor.execute("SELECT id FROM students WHERE user_id = ?;", (current_user.get("user_id"),))
+                    st = cursor.fetchone()
+                    my_sid = st["id"] if st else None
+                if not my_sid:
                     return []
                 where_clauses.append("vl.student_id = ?")
-                params.append(st["id"])
+                params.append(my_sid)
+            elif active_role in ("parent_guardian", "parent"):
+                wards = get_parent_authorized_ward_ids(conn, current_user)
+                if not wards:
+                    return []
+                where_clauses.append(f"vl.student_id IN ({','.join('?' for _ in wards)})")
+                params.extend(wards)
 
             where_str = " AND ".join(where_clauses)
             query = f"""
@@ -468,23 +492,36 @@ class VisitorService:
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
-            role = current_user.get("role")
-            user_hostel_id = current_user.get("hostel_id")
+            active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+            linked_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
 
             where_clauses = ["1=1"]
             params: List[Any] = []
 
-            # RBAC Isolation
-            if role == "student":
-                cursor.execute("SELECT id FROM students WHERE user_id = ?;", (current_user.get("user_id"),))
-                st = cursor.fetchone()
-                if not st:
+            # Active-Role RBAC Isolation
+            if active_role == "student":
+                my_sid = current_user.get("linked_student_id")
+                if not my_sid:
+                    cursor.execute("SELECT id FROM students WHERE user_id = ?;", (current_user.get("user_id"),))
+                    st = cursor.fetchone()
+                    my_sid = st["id"] if st else None
+                if not my_sid:
                     return {"total": 0, "records": []}
                 where_clauses.append("vl.student_id = ?")
-                params.append(st["id"])
-            elif role in ["warden", "assistant_warden"] and user_hostel_id:
+                params.append(my_sid)
+            elif active_role in ("parent_guardian", "parent"):
+                wards = get_parent_authorized_ward_ids(conn, current_user)
+                if not wards:
+                    return {"total": 0, "records": []}
+                where_clauses.append(f"vl.student_id IN ({','.join('?' for _ in wards)})")
+                params.extend(wards)
+            elif active_role in ("warden", "assistant_warden"):
+                if not linked_hid:
+                    return {"total": 0, "records": []}
                 where_clauses.append("vl.hostel_id = ?")
-                params.append(int(user_hostel_id))
+                params.append(int(linked_hid))
+            elif active_role not in ("security_guard", "super_admin", "hostel_admin"):
+                return {"total": 0, "records": []}
 
             # Query Filters
             if filters.get("status"):
@@ -588,3 +625,64 @@ class VisitorService:
             }
         finally:
             conn.close()
+
+    @classmethod
+    def check_visitor_curfew(cls, conn: Optional[sqlite3.Connection] = None) -> Dict[str, Any]:
+        """Automated curfew monitor: identifies and marks visitors exceeding permitted campus visiting hours."""
+        should_close = False
+        if conn is None:
+            conn = get_db_connection()
+            should_close = True
+        try:
+            cursor = conn.cursor()
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            cursor.execute("""
+                SELECT vl.id, vl.pass_number, vl.student_id, vl.hostel_id, vl.expected_exit_time,
+                       v.name as visitor_name, s.first_name || ' ' || s.last_name as student_name
+                FROM visitor_logs vl
+                JOIN visitors v ON v.id = vl.visitor_id
+                JOIN students s ON s.id = vl.student_id
+                WHERE vl.status = 'Checked_In'
+                  AND vl.check_out_time IS NULL
+                  AND vl.expected_exit_time IS NOT NULL
+                  AND vl.expected_exit_time < ?;
+            """, (now_str,))
+            overdue_list = [dict(r) for r in cursor.fetchall()]
+
+            updated_count = 0
+            if overdue_list:
+                for ov in overdue_list:
+                    cursor.execute("""
+                        UPDATE visitor_logs
+                        SET status = 'Overdue', updated_at = ?
+                        WHERE id = ?;
+                    """, (now_str, ov["id"]))
+                    updated_count += cursor.rowcount
+
+                    cursor.execute("""
+                        INSERT INTO notifications (user_id, title, message, category, priority, is_read, event_key, delivery_channel)
+                        SELECT u.id, 'Visitor Curfew Violation Alert', ?, 'security', 'Urgent', 0, ?, 'in_app'
+                        FROM users u
+                        JOIN user_roles ur ON u.id = ur.user_id
+                        JOIN roles r ON ur.role_id = r.id
+                        WHERE r.name IN ('security_guard', 'warden', 'super_admin')
+                          AND (u.linked_hostel_id = ? OR u.linked_hostel_id IS NULL);
+                    """, (
+                        f"Visitor {ov['visitor_name']} (Pass #{ov['pass_number']}) visiting student {ov['student_name']} has exceeded curfew time {ov['expected_exit_time']}.",
+                        f"visitor_curfew:{ov['id']}",
+                        ov.get("hostel_id")
+                    ))
+
+                conn.commit()
+                cache_service.invalidate_by_tag("visitors")
+                logger.warning(f"Visitor curfew monitor detected and updated {updated_count} overdue visitors.")
+
+            return {
+                "checked_at": now_str,
+                "overdue_count": updated_count,
+                "overdue_visitors": overdue_list
+            }
+        finally:
+            if should_close:
+                conn.close()

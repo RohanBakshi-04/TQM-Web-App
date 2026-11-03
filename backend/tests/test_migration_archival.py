@@ -83,15 +83,13 @@ class TestMigrationArchivalSafety(unittest.TestCase):
         self.assertIsNotNone(h3)
         self.assertIsNone(h3["warden_id"], "Hostel 3 warden_id must be NULL, not assigned to fake warden")
 
-        # Verify visitor pass VP-202611-0001 is preserved and visitor 101 exists
-        vl1 = cur.execute("SELECT * FROM visitor_logs WHERE id = 1;").fetchone()
-        self.assertIsNotNone(vl1)
-        self.assertEqual(vl1["visitor_id"], 101)
-        self.assertEqual(vl1["pass_number"], "VP-202611-0001")
+        # Verify orphaned visitor_log 1 is archived into historical_orphan_archives with zero synthetic visitor fabricated
+        archived_vl = cur.execute("SELECT * FROM historical_orphan_archives WHERE source_table = 'visitor_logs';").fetchall()
+        self.assertTrue(len(archived_vl) > 0, "Orphaned visitor_logs must be archived safely")
 
+        # Zero synthetic visitor 101 fabricated
         v101 = cur.execute("SELECT * FROM visitors WHERE id = 101;").fetchone()
-        self.assertIsNotNone(v101)
-        self.assertEqual(v101["id_proof_type"], "Aadhaar")
+        self.assertIsNone(v101, "No synthetic visitor 101 should be fabricated")
 
         conn.close()
 

@@ -9,13 +9,17 @@ Covers:
 6. reset_db.py production and flag safety guards
 """
 
+import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import unittest
 from datetime import datetime
 from fastapi.testclient import TestClient
 
+from backend.app.config import settings
 from backend.app.database.connection import get_db_connection
 from backend.app.database.init_db import initialize_database
 from backend.app.main import app
@@ -28,8 +32,17 @@ class TestRemediationSecurityHardening(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls.temp_dir = tempfile.mkdtemp()
+        cls.db_path = os.path.join(cls.temp_dir, "test_remediation.db")
+        cls.orig_db_path = settings.database_path
+        settings.database_path = cls.db_path
         initialize_database()
         cls.client = TestClient(app)
+
+    @classmethod
+    def tearDownClass(cls):
+        settings.database_path = cls.orig_db_path
+        shutil.rmtree(cls.temp_dir, ignore_errors=True)
 
     def setUp(self):
         self.conn = get_db_connection()
@@ -155,6 +168,22 @@ class TestRemediationSecurityHardening(unittest.TestCase):
             c_id = cursor.lastrowid
         else:
             c_id = c_row[0]
+
+        cursor.execute("SELECT id FROM users WHERE username = 'student_boy_02';")
+        u2 = cursor.fetchone()
+        if not u2:
+            pwd_hash = hash_password("Password123!")
+            cursor.execute("""
+                INSERT INTO users (username, email, password_hash, salt, first_name, last_name, is_active)
+                VALUES ('student_boy_02', 'student2@example.com', ?, '', 'Student', 'Two', 1);
+            """, (pwd_hash,))
+            u2_id = cursor.lastrowid
+            cursor.execute("INSERT OR IGNORE INTO user_roles (user_id, role_id) SELECT ?, id FROM roles WHERE name = 'student';", (u2_id,))
+            cursor.execute("""
+                INSERT OR IGNORE INTO students (student_id, user_id, first_name, last_name, email, phone, gender, branch, academic_year, admission_date, status)
+                VALUES ('STU-TEST-02', ?, 'Student', 'Two', 'student2@example.com', '9876543299', 'Male', 'CSE', '2025-2026', '2025-08-01', 'Active');
+            """, (u2_id,))
+            self.conn.commit()
 
         # Login as student_boy_02 (student_id=2, user_id=21)
         other_student_auth = self._login("student_boy_02")

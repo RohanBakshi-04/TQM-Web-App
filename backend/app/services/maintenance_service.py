@@ -171,7 +171,8 @@ class MaintenanceService:
         status_filter: Optional[str] = None,
         priority_filter: Optional[str] = None,
         assigned_to: Optional[int] = None,
-        hostel_id: Optional[int] = None
+        hostel_id: Optional[int] = None,
+        current_user: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
         """Fetch filtered maintenance tasks with related room, hostel, and user details."""
         cursor = conn.cursor()
@@ -215,14 +216,38 @@ class MaintenanceService:
             query += " AND b.hostel_id = ?"
             params.append(hostel_id)
 
+        if current_user:
+            active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+            if active_role == "maintenance_staff":
+                query += " AND mt.assigned_to = ?"
+                params.append(current_user.get("user_id") or current_user.get("id"))
+            elif active_role in ("warden", "assistant_warden"):
+                linked_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+                if not linked_hid:
+                    return []
+                query += " AND b.hostel_id = ?"
+                params.append(int(linked_hid))
+            elif active_role == "student":
+                my_sid = current_user.get("linked_student_id")
+                if not my_sid:
+                    return []
+                query += " AND (c.student_id = ? OR mt.room_id IN (SELECT room_id FROM room_allocations WHERE student_id = ? AND allocation_status = 'Active'))"
+                params.extend([my_sid, my_sid])
+            elif active_role in ("parent_guardian", "parent"):
+                wards = get_parent_authorized_ward_ids(conn, current_user)
+                if not wards:
+                    return []
+                query += f" AND c.student_id IN ({','.join('?' for _ in wards)})"
+                params.extend(wards)
+
         query += " ORDER BY mt.id DESC;"
 
         rows = cursor.execute(query, params).fetchall()
         return [dict(r) for r in rows]
 
     @staticmethod
-    def get_task_by_id(conn: sqlite3.Connection, task_id: int) -> Dict[str, Any]:
-        """Fetch comprehensive maintenance task record including history log."""
+    def get_task_by_id(conn: sqlite3.Connection, task_id: int, current_user: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Fetch comprehensive maintenance task record including history log with active-role isolation."""
         cursor = conn.cursor()
         task = cursor.execute("""
             SELECT 
@@ -263,6 +288,37 @@ class MaintenanceService:
 
         res = dict(task)
         res["history"] = [dict(h) for h in history]
+
+        if current_user:
+            active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+            if active_role == "student":
+                my_sid = current_user.get("linked_student_id")
+                is_authorized = False
+                if res.get("student_id") == my_sid:
+                    is_authorized = True
+                elif res.get("room_id") and my_sid:
+                    cursor.execute("SELECT 1 FROM room_allocations WHERE student_id = ? AND room_id = ? AND allocation_status = 'Active';", (my_sid, res["room_id"]))
+                    if cursor.fetchone():
+                        is_authorized = True
+                if not is_authorized:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: You cannot view maintenance tasks of other residents.")
+            elif active_role in ("parent_guardian", "parent"):
+                wards = get_parent_authorized_ward_ids(conn, current_user)
+                if res.get("student_id") not in wards:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: You cannot view maintenance tasks of unlinked students.")
+            elif active_role in ("warden", "assistant_warden"):
+                linked_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+                if not linked_hid:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied: Staff member has no assigned hostel facility.")
+                if not res.get("hostel_id") or int(res["hostel_id"]) != int(linked_hid):
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: Maintenance task belongs to another hostel facility.")
+            elif active_role == "maintenance_staff":
+                my_uid = current_user.get("user_id") or current_user.get("id")
+                if res.get("assigned_to") != my_uid:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: Maintenance task is assigned to another worker.")
+            elif active_role not in ("super_admin", "hostel_admin", "auditor"):
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: Unauthorized active role for maintenance task access.")
+
         return res
 
     @staticmethod
@@ -317,7 +373,7 @@ class MaintenanceService:
                 detail=f"Access Denied: Task is assigned to technician #{task['assigned_to']}, not #{worker_user_id}."
             )
 
-        if task["status"] not in ("Accepted", "On Hold", "Assigned", "In Progress", "Open"):
+        if task["status"] not in ("Accepted", "Assigned", "On Hold"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Cannot start task in current status '{task['status']}'."
@@ -369,6 +425,12 @@ class MaintenanceService:
         task = cursor.execute("SELECT id, status, complaint_id FROM maintenance_tasks WHERE id = ?;", (task_id,)).fetchone()
         if not task:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Maintenance task not found.")
+
+        if task["status"] != "In Progress":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot put task on hold from status '{task['status']}'. Only 'In Progress' tasks can be placed on hold."
+            )
 
         cursor.execute("""
             UPDATE maintenance_tasks
@@ -456,6 +518,12 @@ class MaintenanceService:
         """, (task_id,)).fetchone()
         if not task:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Maintenance task not found.")
+
+        if task["status"] != "Completed":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot verify task in status '{task['status']}'. Task must be 'Completed' prior to inspection."
+            )
 
         if data.approved:
             new_status = "Verified"

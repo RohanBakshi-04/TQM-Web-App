@@ -43,7 +43,8 @@ def list_maintenance_tasks(
             status_filter=status_filter,
             priority_filter=priority_filter,
             assigned_to=assigned_to,
-            hostel_id=hostel_id
+            hostel_id=hostel_id,
+            current_user=current_user
         )
     finally:
         conn.close()
@@ -57,7 +58,7 @@ def get_maintenance_task(
     """Retrieve complete maintenance task details with progress update history."""
     conn = get_db_connection()
     try:
-        return MaintenanceService.get_task_by_id(conn=conn, task_id=task_id)
+        return MaintenanceService.get_task_by_id(conn=conn, task_id=task_id, current_user=current_user)
     finally:
         conn.close()
 
@@ -191,7 +192,7 @@ def verify_maintenance_task(
 
 @router.get("/staff-availability", response_model=List[Dict[str, Any]])
 def get_staff_availability(
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden", "assistant_warden"))
 ) -> List[Dict[str, Any]]:
     """Retrieve maintenance staff workload and availability matrix."""
     conn = get_db_connection()

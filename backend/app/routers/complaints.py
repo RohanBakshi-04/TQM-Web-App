@@ -238,7 +238,8 @@ def escalate_complaint(
             conn=conn,
             complaint_id=complaint_id,
             user_id=current_user.get("user_id", 1),
-            reason=data.reason
+            reason=data.reason,
+            current_user=current_user
         )
     finally:
         conn.close()
