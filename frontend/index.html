@@ -1730,6 +1730,51 @@
                                                    class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white font-mono">
                                             <span class="text-[10px] text-slate-400 mt-0.5 block">Used for unique student ID and room allotment matching.</span>
                                         </div>
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                            <div>
+                                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Academic Program / Course</label>
+                                                <input type="text" x-model="registerForm.course" placeholder="e.g. B.Tech, M.Tech, MBA"
+                                                       class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
+                                            </div>
+                                            <div>
+                                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Academic Year</label>
+                                                <input type="text" x-model="registerForm.academic_year" placeholder="e.g. 2025-2026"
+                                                       class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
+                                            </div>
+                                        </div>
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Date of Birth</label>
+                                                <input type="date" x-model="registerForm.date_of_birth"
+                                                       class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
+                                            </div>
+                                            <div>
+                                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Current Semester</label>
+                                                <select x-model.number="registerForm.semester"
+                                                        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
+                                                    <option :value="1">Semester 1 (1st Year)</option>
+                                                    <option :value="2">Semester 2 (1st Year)</option>
+                                                    <option :value="3">Semester 3 (2nd Year)</option>
+                                                    <option :value="4">Semester 4 (2nd Year)</option>
+                                                    <option :value="5">Semester 5 (3rd Year)</option>
+                                                    <option :value="6">Semester 6 (3rd Year)</option>
+                                                    <option :value="7">Semester 7 (4th Year)</option>
+                                                    <option :value="8">Semester 8 (4th Year)</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Guardian Full Name</label>
+                                                <input type="text" x-model="registerForm.guardian_name" placeholder="Parent / Guardian Name"
+                                                       class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
+                                            </div>
+                                            <div>
+                                                <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Guardian Mobile</label>
+                                                <input type="tel" x-model="registerForm.guardian_phone" placeholder="10-digit mobile number"
+                                                       class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
+                                            </div>
+                                        </div>
                                     </div>
                                 </template>
 
@@ -1789,7 +1834,7 @@
                                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                             <div>
                                                 <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Child's Roll No or Email *</label>
-                                                <input type="text" x-model="registerForm.child_identifier" required placeholder="e.g. 2410301057 or student@univ.edu"
+                                                <input type="text" x-model="registerForm.child_identifier" required placeholder="e.g. 2410301057, 2410301058 (comma-separated for multi-ward)"
                                                        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-xs dark:text-white">
                                             </div>
                                             <div>
@@ -3332,6 +3377,214 @@
                                     <p class="text-slate-600 dark:text-slate-400">
                                         Password hashes verified at 12-round bcrypt cost. Refresh tokens rotated on every call with token reuse revocation.
                                     </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========================================== -->
+                    <!-- 13. HOSTEL CLERK DASHBOARD VIEW -->
+                    <!-- ========================================== -->
+                    <div x-show="activeRoleView === 'hostel_clerk'" class="space-y-6">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Document Intake Queue</div>
+                                <div class="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1" x-text="dashboardStats.operations.pending_admissions || 0"></div>
+                                <div class="text-[11px] text-amber-600 font-semibold mt-0.5">Physical proofs awaiting verification</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Active Residents</div>
+                                <div class="text-2xl font-black text-brand-600 dark:text-brand-400 mt-1" x-text="dashboardStats.occupancy.occupied_beds"></div>
+                                <div class="text-[11px] text-slate-500 mt-0.5">Hostel register headcount</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Today's Visitors</div>
+                                <div class="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1" x-text="dashboardStats.operations.active_visitors"></div>
+                                <div class="text-[11px] text-slate-500 mt-0.5">Logged in front-desk pass register</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Available Beds</div>
+                                <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1" x-text="dashboardStats.occupancy.available_beds"></div>
+                                <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">Ready for allotment check-in</div>
+                            </div>
+                        </div>
+
+                        <!-- Clerk Actions & Operations Desk -->
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                            <div class="flex items-center justify-between">
+                                <h3 class="font-bold text-slate-900 dark:text-white text-base">Front-Desk Clerical & Record Operations</h3>
+                                <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">Front Desk Station</span>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                                <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-2">
+                                    <div class="font-bold text-slate-800 dark:text-slate-200 flex items-center space-x-2">
+                                        <i class="fa-solid fa-file-circle-check text-indigo-600"></i>
+                                        <span>Document Verification</span>
+                                    </div>
+                                    <p class="text-slate-600 dark:text-slate-400">Intake and physical document check for approved student registrations.</p>
+                                    <button type="button" @click="activeSection = 'registrations'; loadPendingRegistrations();" class="mt-2 text-indigo-600 dark:text-indigo-400 font-bold hover:underline inline-flex items-center space-x-1">
+                                        <span>Open Verification Queue</span>
+                                        <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                                    </button>
+                                </div>
+                                <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-2">
+                                    <div class="font-bold text-slate-800 dark:text-slate-200 flex items-center space-x-2">
+                                        <i class="fa-solid fa-address-book text-emerald-600"></i>
+                                        <span>Resident Directory</span>
+                                    </div>
+                                    <p class="text-slate-600 dark:text-slate-400">Lookup student details, room numbers, and contact information for enquiries.</p>
+                                    <button type="button" @click="activeSection = 'allocations'; loadAllocations();" class="mt-2 text-emerald-600 dark:text-emerald-400 font-bold hover:underline inline-flex items-center space-x-1">
+                                        <span>View Resident List</span>
+                                        <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                                    </button>
+                                </div>
+                                <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-2">
+                                    <div class="font-bold text-slate-800 dark:text-slate-200 flex items-center space-x-2">
+                                        <i class="fa-solid fa-id-card text-blue-600"></i>
+                                        <span>Visitor Register</span>
+                                    </div>
+                                    <p class="text-slate-600 dark:text-slate-400">Record front-desk visitor entries, parental visits, and official campus callers.</p>
+                                    <button type="button" @click="activeSection = 'visitors'; loadVisitors();" class="mt-2 text-blue-600 dark:text-blue-400 font-bold hover:underline inline-flex items-center space-x-1">
+                                        <span>Open Visitor Desk</span>
+                                        <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========================================== -->
+                    <!-- 14. SECURITY SUPERVISOR CONSOLE -->
+                    <!-- ========================================== -->
+                    <div x-show="activeRoleView === 'security_supervisor'" class="space-y-6">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Active Visitor Passes</div>
+                                <div class="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1" x-text="dashboardStats.operations.active_visitors"></div>
+                                <div class="text-[11px] text-amber-600 font-semibold mt-0.5">Currently on campus</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Active Outpasses</div>
+                                <div class="text-2xl font-black text-brand-600 dark:text-brand-400 mt-1" x-text="dashboardStats.operations.pending_leaves"></div>
+                                <div class="text-[11px] text-slate-500 mt-0.5">Approved gate-passes awaiting return</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Gate Posts Active</div>
+                                <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">4</div>
+                                <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">✓ North, South, East, Main Gates</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Curfew Status</div>
+                                <div class="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">Active</div>
+                                <div class="text-[11px] text-rose-600 font-semibold mt-0.5">10:00 PM - 06:00 AM Gate Locking</div>
+                            </div>
+                        </div>
+
+                        <!-- Guard Shift Roster & Incident Escalations -->
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                            <div class="flex items-center justify-between">
+                                <h3 class="font-bold text-slate-900 dark:text-white text-base">Security Command & Guard Oversight</h3>
+                                <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300">Campus Security Wing</span>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                                <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-2">
+                                    <div class="font-bold text-slate-800 dark:text-slate-200 flex items-center space-x-2">
+                                        <i class="fa-solid fa-person-military-pointing text-amber-600"></i>
+                                        <span>Guard Shift Management</span>
+                                    </div>
+                                    <p class="text-slate-600 dark:text-slate-400">Manage shift rotas, station assignments, and relief roster tracking across campus gates.</p>
+                                </div>
+                                <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-2">
+                                    <div class="font-bold text-slate-800 dark:text-slate-200 flex items-center space-x-2">
+                                        <i class="fa-solid fa-clock text-blue-600"></i>
+                                        <span>Visitor Log Auditing</span>
+                                    </div>
+                                    <p class="text-slate-600 dark:text-slate-400">Audit entry and exit timestamps, vehicle numbers, and verify visitor curfew adherence.</p>
+                                    <button type="button" @click="activeSection = 'visitors'; loadVisitors();" class="mt-2 text-blue-600 dark:text-blue-400 font-bold hover:underline inline-flex items-center space-x-1">
+                                        <span>Inspect Visitor Passes</span>
+                                        <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                                    </button>
+                                </div>
+                                <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-2">
+                                    <div class="font-bold text-slate-800 dark:text-slate-200 flex items-center space-x-2">
+                                        <i class="fa-solid fa-triangle-exclamation text-rose-600"></i>
+                                        <span>Incident Escalation</span>
+                                    </div>
+                                    <p class="text-slate-600 dark:text-slate-400">Escalate gate violations, unauthorized departures, and curfew breaches directly to Chief Warden.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========================================== -->
+                    <!-- 15. IT ADMINISTRATOR CONSOLE -->
+                    <!-- ========================================== -->
+                    <div x-show="activeRoleView === 'it_admin'" class="space-y-6">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">System Health</div>
+                                <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">Healthy</div>
+                                <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">✓ All 15 modules operational</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">DB Latency (&lt; 10ms SLA)</div>
+                                <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1" x-text="(systemHealth.database?.ping_latency_ms || 0) + ' ms'"></div>
+                                <div class="text-[11px] text-slate-500 mt-0.5">SQLite WAL Engine Performance</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Background Jobs</div>
+                                <div class="text-2xl font-black text-brand-600 dark:text-brand-400 mt-1">Active</div>
+                                <div class="text-[11px] text-slate-500 mt-0.5">Curfew monitor, token cleanup, lease manager</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">RBAC Stakeholder Roles</div>
+                                <div class="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1">15 Roles</div>
+                                <div class="text-[11px] text-indigo-600 font-semibold mt-0.5">Enterprise Granular Matrix</div>
+                            </div>
+                        </div>
+
+                        <!-- Technical Infrastructure Console -->
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                            <div class="flex items-center justify-between">
+                                <h3 class="font-bold text-slate-900 dark:text-white text-base">IT Infrastructure & Technical Telemetry</h3>
+                                <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300">Infrastructure Ops</span>
+                            </div>
+                            <p class="text-xs text-slate-500">
+                                IT Administrator role has restricted administrative privileges focused strictly on system uptime, error audits, backup orchestration, and background worker leasing. Private student personal records and payment transactions are strictly air-gapped.
+                            </p>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                                <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-2">
+                                    <div class="font-bold text-slate-800 dark:text-slate-200 flex items-center space-x-2">
+                                        <i class="fa-solid fa-clock-rotate-left text-brand-600"></i>
+                                        <span>Security Audit Logs</span>
+                                    </div>
+                                    <p class="text-slate-600 dark:text-slate-400">Inspect system authentication attempts, role switches, and latency telemetry.</p>
+                                    <button type="button" @click="activeSection = 'admin'; adminTab = 'audit'; loadAdminAuditLogs();" class="mt-2 text-brand-600 dark:text-brand-400 font-bold hover:underline inline-flex items-center space-x-1">
+                                        <span>Open Audit Trails</span>
+                                        <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                                    </button>
+                                </div>
+                                <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-2">
+                                    <div class="font-bold text-slate-800 dark:text-slate-200 flex items-center space-x-2">
+                                        <i class="fa-solid fa-database text-emerald-600"></i>
+                                        <span>Database Backups</span>
+                                    </div>
+                                    <p class="text-slate-600 dark:text-slate-400">Trigger live point-in-time SQLite WAL backups and verify backup hashes.</p>
+                                    <button type="button" @click="activeSection = 'admin'; adminTab = 'backups'; loadAdminBackups();" class="mt-2 text-emerald-600 dark:text-emerald-400 font-bold hover:underline inline-flex items-center space-x-1">
+                                        <span>Manage Backups</span>
+                                        <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                                    </button>
+                                </div>
+                                <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-2">
+                                    <div class="font-bold text-slate-800 dark:text-slate-200 flex items-center space-x-2">
+                                        <i class="fa-solid fa-shield-halved text-indigo-600"></i>
+                                        <span>RBAC Permissions Audit</span>
+                                    </div>
+                                    <p class="text-slate-600 dark:text-slate-400">Verify role permission assignments and module-level granular scopes.</p>
+                                    <button type="button" @click="activeSection = 'admin'; adminTab = 'roles'; loadAdminRolesAndPermissions();" class="mt-2 text-indigo-600 dark:text-indigo-400 font-bold hover:underline inline-flex items-center space-x-1">
+                                        <span>View RBAC Matrix</span>
+                                        <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -7606,22 +7859,88 @@
 
                     <!-- SUBTAB 3: ROLES & RBAC -->
                     <div x-show="adminTab === 'roles'" class="space-y-4">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 border-b border-slate-200 dark:border-slate-800 gap-3">
+                            <div>
+                                <h3 class="text-base font-bold text-slate-900 dark:text-white">Stakeholder Roles & Granular Permissions</h3>
+                                <p class="text-xs text-slate-500">15 enterprise stakeholder roles with granular permissions and data scoping</p>
+                            </div>
+                            <button type="button" @click="openCreateRoleModal()" class="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-xs transition flex items-center space-x-2 w-fit">
+                                <i class="fa-solid fa-plus"></i>
+                                <span>Create Custom Role</span>
+                            </button>
+                        </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             <template x-for="r in adminRolesList" :key="r.id">
                                 <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-3">
-                                    <div class="flex items-center justify-between">
-                                        <h3 class="font-extrabold text-sm text-slate-900 dark:text-white capitalize" x-text="r.name.replace('_', ' ')"></h3>
+                                    <div class="flex items-start justify-between">
+                                        <div>
+                                            <div class="flex items-center space-x-2">
+                                                <h3 class="font-extrabold text-sm text-slate-900 dark:text-white capitalize" x-text="r.name.replace('_', ' ')"></h3>
+                                                <span class="px-2 py-0.5 rounded-md text-[9px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" x-text="r.code || r.name.toUpperCase()"></span>
+                                            </div>
+                                            <div class="text-[10px] font-semibold text-brand-600 dark:text-brand-400 mt-0.5" x-text="r.stakeholder_category || 'Operational / Student Life'"></div>
+                                        </div>
                                         <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" x-text="(r.user_count || 0) + ' Users'"></span>
                                     </div>
                                     <p class="text-xs text-slate-500 line-clamp-2" x-text="r.description || 'System access role'"></p>
                                     <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-                                        <span class="text-slate-400" x-text="(r.permissions.length || 0) + ' Permissions'"></span>
-                                        <button type="button" @click="openRolePermissionsModal(r)" class="px-3 py-1.5 rounded-xl bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-300 font-bold hover:bg-brand-100 transition">
-                                            Permissions
-                                        </button>
+                                        <div class="flex items-center space-x-2">
+                                            <span class="text-slate-400" x-text="(r.permissions.length || 0) + ' Permissions'"></span>
+                                            <span x-show="r.is_system || r.is_system_role" class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">System</span>
+                                            <span x-show="!r.is_system && !r.is_system_role" class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300">Custom</span>
+                                        </div>
+                                        <div class="flex items-center space-x-1.5">
+                                            <button type="button" @click="openRolePermissionsModal(r)" class="px-3 py-1.5 rounded-xl bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-300 font-bold hover:bg-brand-100 transition">
+                                                Permissions
+                                            </button>
+                                            <button type="button" x-show="!r.is_system && !r.is_system_role" @click="deleteCustomRole(r)" class="px-2 py-1.5 rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-950 dark:text-rose-400 font-bold hover:bg-rose-100 transition text-xs" title="Delete custom role">
+                                                <i class="fa-solid fa-trash-can"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </template>
+                        </div>
+                    </div>
+
+                    <!-- CREATE CUSTOM ROLE MODAL -->
+                    <div x-show="adminCreateRoleModalOpen" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+                        <div @click.away="adminCreateRoleModalOpen = false" class="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                            <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                                <h3 class="font-black text-base text-slate-900 dark:text-white">Create Custom System Role</h3>
+                                <button type="button" @click="adminCreateRoleModalOpen = false" class="text-slate-400 hover:text-slate-600">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                            <div class="space-y-3 text-xs">
+                                <div>
+                                    <label class="font-bold text-slate-700 dark:text-slate-300 block mb-1">Role Name (Identifier)</label>
+                                    <input type="text" x-model="newRoleForm.name" placeholder="e.g. floor_supervisor" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white font-mono text-xs">
+                                </div>
+                                <div>
+                                    <label class="font-bold text-slate-700 dark:text-slate-300 block mb-1">Canonical Code</label>
+                                    <input type="text" x-model="newRoleForm.code" placeholder="e.g. FLOOR_SUPERVISOR" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white font-mono text-xs uppercase">
+                                </div>
+                                <div>
+                                    <label class="font-bold text-slate-700 dark:text-slate-300 block mb-1">Stakeholder Category</label>
+                                    <select x-model="newRoleForm.stakeholder_category" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white text-xs">
+                                        <option value="Executive / Leadership">Executive / Leadership</option>
+                                        <option value="Operational / Student Life">Operational / Student Life</option>
+                                        <option value="Administrative / Support">Administrative / Support</option>
+                                        <option value="Security & Gate">Security & Gate</option>
+                                        <option value="Technical & Compliance">Technical & Compliance</option>
+                                        <option value="Resident & Beneficiary">Resident & Beneficiary</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="font-bold text-slate-700 dark:text-slate-300 block mb-1">Description</label>
+                                    <textarea x-model="newRoleForm.description" rows="2" placeholder="Responsibilities and functional scope..." class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white text-xs"></textarea>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                <button type="button" @click="adminCreateRoleModalOpen = false" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800">Cancel</button>
+                                <button type="button" @click="submitCreateRole()" class="px-4 py-2 rounded-xl text-xs font-bold bg-brand-600 hover:bg-brand-700 text-white shadow-xs">Create Role</button>
+                            </div>
                         </div>
                     </div>
 

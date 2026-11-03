@@ -4,12 +4,15 @@ Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
 Quality Goal: Q05 - Fast Response Time (< 10ms)
 """
 
+import os
+import socket
 import sqlite3
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Any, Optional
 from fastapi import HTTPException, status
 
 from backend.app.database.connection import get_db_connection
+from backend.app.services.auth_dependencies import get_parent_authorized_ward_ids, verify_student_isolation
 from backend.app.models.visitor_dto import (
     VisitorRegistrationRequest,
     VisitorApprovalRequest,
@@ -34,12 +37,23 @@ class VisitorService:
             return "****"
         return "X" * (len(id_proof_number) - 4) + id_proof_number[-4:]
 
+    @staticmethod
+    def _mask_phone(phone: str) -> str:
+        """Securely mask phone numbers for privacy protection."""
+        if not phone:
+            return ""
+        p = str(phone).strip()
+        if len(p) <= 4:
+            return "****"
+        return "*" * (len(p) - 4) + p[-4:]
+
     @classmethod
     def register_visitor(cls, payload: VisitorRegistrationRequest, current_user: Dict[str, Any]) -> Dict[str, Any]:
         """Register a visitor and log their visit pass, preventing active duplicate entries."""
         role = current_user.get("role") or current_user.get("active_role")
         user_roles = set(current_user.get("roles", []))
-        if role not in ["security_guard", "super_admin", "hostel_admin", "warden", "assistant_warden"] and not user_roles.intersection({"super_admin", "hostel_admin", "security_guard", "warden", "assistant_warden"}):
+        allowed_reg_roles = {"super_admin", "hostel_admin", "security_guard", "security_supervisor", "warden", "assistant_warden", "hostel_clerk"}
+        if role not in allowed_reg_roles and not user_roles.intersection(allowed_reg_roles):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Unauthorized: Only security guards and hostel staff can register visitors."
@@ -191,11 +205,25 @@ class VisitorService:
                 raise HTTPException(status_code=404, detail="Visitor pass not found.")
 
             res = dict(record)
-            role = current_user.get("role")
+            active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
 
-            # Student isolation
-            if role == "student" and res.get("student_user_id") != current_user.get("user_id"):
-                raise HTTPException(status_code=403, detail="Forbidden: You cannot view other students' visitors.")
+            # Strict Active-Role Scoping
+            if active_role == "student":
+                my_sid = current_user.get("linked_student_id")
+                if res.get("student_id") != my_sid and res.get("student_user_id") != current_user.get("user_id"):
+                    raise HTTPException(status_code=403, detail="Forbidden: You cannot view other students' visitors.")
+            elif active_role in ("parent_guardian", "parent"):
+                wards = get_parent_authorized_ward_ids(conn, current_user)
+                if res.get("student_id") not in wards:
+                    raise HTTPException(status_code=403, detail="Forbidden: You cannot view visitors of unlinked students.")
+            elif active_role in ("warden", "assistant_warden", "hostel_clerk"):
+                linked_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+                if not linked_hid:
+                    raise HTTPException(status_code=403, detail="Access Denied: Staff member has no assigned hostel facility.")
+                if not res.get("hostel_id") or int(res["hostel_id"]) != int(linked_hid):
+                    raise HTTPException(status_code=403, detail="Forbidden: Visitor pass belongs to another hostel facility.")
+            elif active_role not in ("security_guard", "security_supervisor", "super_admin", "hostel_admin", "auditor"):
+                raise HTTPException(status_code=403, detail="Forbidden: Unauthorized active role for visitor log access.")
 
             # Overdue calculation
             now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -204,9 +232,10 @@ class VisitorService:
             else:
                 res["is_overdue"] = res["status"] == "Overdue"
 
-            # Mask sensitive ID proof number for unauthorized users (students/parents)
-            if role in ["student", "parent"]:
+            # Privacy masking for resident and parent queries
+            if active_role in ["student", "parent", "parent_guardian"]:
                 res["id_proof_number"] = cls._mask_id_proof(res.get("id_proof_number", ""))
+                res["phone"] = cls._mask_phone(res.get("phone", ""))
 
             return res
         finally:
@@ -215,8 +244,10 @@ class VisitorService:
     @classmethod
     def approve_visitor(cls, log_id: int, payload: VisitorApprovalRequest, current_user: Dict[str, Any]) -> Dict[str, Any]:
         """Warden approval for a pending visitor entry request."""
-        role = current_user.get("role")
-        if role not in ["super_admin", "hostel_admin", "warden", "assistant_warden"]:
+        role = current_user.get("role") or current_user.get("active_role")
+        user_roles = set(current_user.get("roles", []))
+        allowed_approvers = {"super_admin", "hostel_admin", "warden", "assistant_warden", "security_supervisor", "hostel_clerk"}
+        if role not in allowed_approvers and not user_roles.intersection(allowed_approvers):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Unauthorized: Only hostel wardens and administrators can approve visitor entry requests."
@@ -247,8 +278,10 @@ class VisitorService:
     @classmethod
     def reject_visitor(cls, log_id: int, payload: VisitorRejectionRequest, current_user: Dict[str, Any]) -> Dict[str, Any]:
         """Reject a visitor pass with mandatory justification reason."""
-        role = current_user.get("role")
-        if role not in ["super_admin", "hostel_admin", "warden", "assistant_warden"]:
+        role = current_user.get("role") or current_user.get("active_role")
+        user_roles = set(current_user.get("roles", []))
+        allowed_approvers = {"super_admin", "hostel_admin", "warden", "assistant_warden", "security_supervisor", "hostel_clerk"}
+        if role not in allowed_approvers and not user_roles.intersection(allowed_approvers):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Unauthorized: Only hostel wardens and administrators can reject visitor entry requests."
@@ -284,7 +317,8 @@ class VisitorService:
         """Log visitor ingress into hostel campus."""
         role = current_user.get("role") or current_user.get("active_role")
         user_roles = set(current_user.get("roles", []))
-        if role not in ["security_guard", "super_admin", "hostel_admin", "warden", "assistant_warden"] and not user_roles.intersection({"super_admin", "hostel_admin", "security_guard", "warden", "assistant_warden"}):
+        allowed_gate_staff = {"super_admin", "hostel_admin", "security_guard", "security_supervisor", "warden", "assistant_warden", "hostel_clerk"}
+        if role not in allowed_gate_staff and not user_roles.intersection(allowed_gate_staff):
             raise HTTPException(status_code=403, detail="Unauthorized: Only security guards and authorized staff can log check-ins.")
 
         conn = get_db_connection()
@@ -341,7 +375,8 @@ class VisitorService:
         """Log visitor departure and campus egress."""
         role = current_user.get("role") or current_user.get("active_role")
         user_roles = set(current_user.get("roles", []))
-        if role not in ["security_guard", "super_admin", "hostel_admin", "warden", "assistant_warden"] and not user_roles.intersection({"super_admin", "hostel_admin", "security_guard", "warden", "assistant_warden"}):
+        allowed_gate_staff = {"super_admin", "hostel_admin", "security_guard", "security_supervisor", "warden", "assistant_warden", "hostel_clerk"}
+        if role not in allowed_gate_staff and not user_roles.intersection(allowed_gate_staff):
             raise HTTPException(status_code=403, detail="Unauthorized: Only security guards and authorized staff can log check-outs.")
 
         conn = get_db_connection()
@@ -390,10 +425,13 @@ class VisitorService:
     @classmethod
     def get_active_visitors(cls, hostel_id: Optional[int], current_user: Dict[str, Any]) -> List[Dict[str, Any]]:
         """List all visitors currently on campus premises (checked in without check out)."""
-        role = current_user.get("role")
-        user_hostel_id = current_user.get("hostel_id")
-        if role in ["warden", "assistant_warden"] and user_hostel_id:
-            hostel_id = int(user_hostel_id)
+        active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+        linked_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+
+        if active_role in ("warden", "assistant_warden", "hostel_clerk"):
+            if not linked_hid:
+                return []
+            hostel_id = int(linked_hid)
 
         conn = get_db_connection()
         try:
@@ -405,13 +443,22 @@ class VisitorService:
                 where_clauses.append("vl.hostel_id = ?")
                 params.append(hostel_id)
 
-            if role == "student":
-                cursor.execute("SELECT id FROM students WHERE user_id = ?;", (current_user.get("user_id"),))
-                st = cursor.fetchone()
-                if not st:
+            if active_role == "student":
+                my_sid = current_user.get("linked_student_id")
+                if not my_sid:
+                    cursor.execute("SELECT id FROM students WHERE user_id = ?;", (current_user.get("user_id"),))
+                    st = cursor.fetchone()
+                    my_sid = st["id"] if st else None
+                if not my_sid:
                     return []
                 where_clauses.append("vl.student_id = ?")
-                params.append(st["id"])
+                params.append(my_sid)
+            elif active_role in ("parent_guardian", "parent"):
+                wards = get_parent_authorized_ward_ids(conn, current_user)
+                if not wards:
+                    return []
+                where_clauses.append(f"vl.student_id IN ({','.join('?' for _ in wards)})")
+                params.extend(wards)
 
             where_str = " AND ".join(where_clauses)
             query = f"""
@@ -438,8 +485,10 @@ class VisitorService:
                 else:
                     item["is_overdue"] = False
 
-                if role in ["student", "parent"]:
+                active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+                if active_role in ["student", "parent", "parent_guardian"]:
                     item["id_proof_number"] = cls._mask_id_proof(item.get("id_proof_number", ""))
+                    item["phone"] = cls._mask_phone(item.get("phone", ""))
                 records.append(item)
 
             return records
@@ -452,23 +501,36 @@ class VisitorService:
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
-            role = current_user.get("role")
-            user_hostel_id = current_user.get("hostel_id")
+            active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+            linked_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
 
             where_clauses = ["1=1"]
             params: List[Any] = []
 
-            # RBAC Isolation
-            if role == "student":
-                cursor.execute("SELECT id FROM students WHERE user_id = ?;", (current_user.get("user_id"),))
-                st = cursor.fetchone()
-                if not st:
+            # Active-Role RBAC Isolation
+            if active_role == "student":
+                my_sid = current_user.get("linked_student_id")
+                if not my_sid:
+                    cursor.execute("SELECT id FROM students WHERE user_id = ?;", (current_user.get("user_id"),))
+                    st = cursor.fetchone()
+                    my_sid = st["id"] if st else None
+                if not my_sid:
                     return {"total": 0, "records": []}
                 where_clauses.append("vl.student_id = ?")
-                params.append(st["id"])
-            elif role in ["warden", "assistant_warden"] and user_hostel_id:
+                params.append(my_sid)
+            elif active_role in ("parent_guardian", "parent"):
+                wards = get_parent_authorized_ward_ids(conn, current_user)
+                if not wards:
+                    return {"total": 0, "records": []}
+                where_clauses.append(f"vl.student_id IN ({','.join('?' for _ in wards)})")
+                params.extend(wards)
+            elif active_role in ("warden", "assistant_warden", "hostel_clerk"):
+                if not linked_hid:
+                    return {"total": 0, "records": []}
                 where_clauses.append("vl.hostel_id = ?")
-                params.append(int(user_hostel_id))
+                params.append(int(linked_hid))
+            elif active_role not in ("security_guard", "security_supervisor", "super_admin", "hostel_admin", "auditor"):
+                return {"total": 0, "records": []}
 
             # Query Filters
             if filters.get("status"):
@@ -525,8 +587,10 @@ class VisitorService:
                 else:
                     item["is_overdue"] = item["status"] == "Overdue"
 
-                if role in ["student", "parent"]:
+                active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+                if active_role in ["student", "parent", "parent_guardian"]:
                     item["id_proof_number"] = cls._mask_id_proof(item.get("id_proof_number", ""))
+                    item["phone"] = cls._mask_phone(item.get("phone", ""))
                 records.append(item)
 
             return {
@@ -570,3 +634,131 @@ class VisitorService:
             }
         finally:
             conn.close()
+
+    @classmethod
+    def acquire_job_lease(cls, conn: sqlite3.Connection, job_name: str, owner_id: str, lease_duration_seconds: int = 60) -> bool:
+        """Acquire an atomic distributed lease for multi-worker background job execution."""
+        from datetime import timedelta
+        now_dt = datetime.now()
+        now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+        expires_str = (now_dt + timedelta(seconds=lease_duration_seconds)).strftime("%Y-%m-%d %H:%M:%S")
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                INSERT INTO background_job_leases (job_name, owner_id, acquired_at, expires_at, heartbeat_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(job_name) DO UPDATE SET
+                    owner_id = excluded.owner_id,
+                    acquired_at = excluded.acquired_at,
+                    expires_at = excluded.expires_at,
+                    heartbeat_at = excluded.heartbeat_at
+                WHERE expires_at < excluded.acquired_at OR owner_id = excluded.owner_id;
+            """, (job_name, owner_id, now_str, expires_str, now_str))
+            conn.commit()
+            return cursor.rowcount > 0
+        except sqlite3.OperationalError:
+            return True
+
+    @classmethod
+    def release_job_lease(cls, conn: sqlite3.Connection, job_name: str, owner_id: str) -> None:
+        """Release an acquired background job lease upon execution completion."""
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                UPDATE background_job_leases
+                SET last_completed_at = ?, expires_at = ?
+                WHERE job_name = ? AND owner_id = ?;
+            """, (now_str, now_str, job_name, owner_id))
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
+    @classmethod
+    def check_visitor_curfew(cls, conn: Optional[sqlite3.Connection] = None, worker_id: Optional[str] = None, bypass_lease: bool = False) -> Dict[str, Any]:
+        """Automated curfew monitor with atomic status transitions, distributed multi-worker lease, and alert deduplication."""
+        should_close = False
+        if conn is None:
+            conn = get_db_connection()
+            should_close = True
+        try:
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            effective_worker = worker_id or str(os.getpid())
+
+            # 1. Distributed multi-worker lease coordination
+            if not bypass_lease:
+                acquired = cls.acquire_job_lease(conn, "visitor_curfew_monitor", effective_worker, lease_duration_seconds=120)
+                if not acquired:
+                    logger.debug(f"Curfew monitor lease currently held by another worker. Skipping worker {effective_worker}.")
+                    return {
+                        "checked_at": now_str,
+                        "status": "Skipped_Lease_Held",
+                        "overdue_count": 0,
+                        "overdue_visitors": []
+                    }
+
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT vl.id, vl.pass_number, vl.student_id, vl.hostel_id, vl.expected_exit_time,
+                       v.name as visitor_name, s.first_name || ' ' || s.last_name as student_name
+                FROM visitor_logs vl
+                JOIN visitors v ON v.id = vl.visitor_id
+                JOIN students s ON s.id = vl.student_id
+                WHERE vl.status = 'Checked_In'
+                  AND vl.check_out_time IS NULL
+                  AND vl.expected_exit_time IS NOT NULL
+                  AND vl.expected_exit_time < ?;
+            """, (now_str,))
+            overdue_list = [dict(r) for r in cursor.fetchall()]
+
+            updated_count = 0
+            if overdue_list:
+                for ov in overdue_list:
+                    # 2. Atomic conditional state transition (checked_in -> overdue)
+                    cursor.execute("""
+                        UPDATE visitor_logs
+                        SET status = 'Overdue'
+                        WHERE id = ? AND status = 'Checked_In';
+                    """, (ov["id"],))
+                    if cursor.rowcount == 1:
+                        updated_count += 1
+                        event_k = f"visitor_curfew:{ov['id']}"
+
+                        # 3. Notification deduplication and facility-scoped recipients
+                        cursor.execute("""
+                            INSERT INTO notifications (user_id, title, message, category, priority, is_read, event_key, delivery_channel)
+                            SELECT u.id, 'Visitor Curfew Violation Alert', ?, 'security', 'Urgent', 0, ?, 'in_app'
+                            FROM users u
+                            JOIN user_roles ur ON u.id = ur.user_id
+                            JOIN roles r ON ur.role_id = r.id
+                            WHERE (
+                                (r.name IN ('security_guard', 'warden') AND u.linked_hostel_id = ?)
+                                OR
+                                (? IS NULL AND r.name = 'super_admin')
+                            )
+                            AND NOT EXISTS (
+                                SELECT 1 FROM notifications n WHERE n.user_id = u.id AND n.event_key = ?
+                            );
+                        """, (
+                            f"Visitor {ov['visitor_name']} (Pass #{ov['pass_number']}) visiting student {ov['student_name']} has exceeded curfew time {ov['expected_exit_time']}.",
+                            event_k,
+                            ov.get("hostel_id"),
+                            ov.get("hostel_id"),
+                            event_k
+                        ))
+
+                conn.commit()
+                cache_service.invalidate_by_tag("visitors")
+                logger.warning(f"Visitor curfew monitor detected and updated {updated_count} overdue visitors.")
+
+            if not bypass_lease:
+                cls.release_job_lease(conn, "visitor_curfew_monitor", effective_worker)
+
+            return {
+                "checked_at": now_str,
+                "overdue_count": updated_count,
+                "overdue_visitors": overdue_list
+            }
+        finally:
+            if should_close:
+                conn.close()

@@ -383,7 +383,7 @@ const API = {
             throw new Error(data.detail || "Failed to change password.");
         }
         if (data.access_token) {
-            localStorage.setItem('auth_token', data.access_token);
+            this.setToken(data.access_token);
         }
         return data;
     },
@@ -1855,6 +1855,27 @@ const API = {
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load roles.");
         return await response.json();
+    },
+
+    async createAdminRole(payload) {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/roles`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to create custom role.");
+        return res;
+    },
+
+    async deleteAdminRole(roleId) {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/roles/${roleId}`, {
+            method: "DELETE",
+            headers: this.getHeaders()
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to delete role.");
+        return res;
     },
 
     async getAdminPermissions() {

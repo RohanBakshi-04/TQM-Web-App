@@ -48,6 +48,7 @@ class TestCachedDashboardAndNavigation(unittest.TestCase):
 
     def setUp(self):
         cache_service.clear()
+        cache_service.reset_stats()
 
     def test_01_cache_creation_and_hit(self):
         """Verify cold fetch causes MISS and subsequent fetch causes HIT with <1ms latency."""
@@ -77,6 +78,8 @@ class TestCachedDashboardAndNavigation(unittest.TestCase):
 
     def test_03_cache_hit_and_miss_telemetry(self):
         """Verify cache statistics accurately track hits, misses, and hit ratio."""
+        cache_service.clear()
+        cache_service.reset_stats()
         # Generate 1 miss and 3 hits
         self.client.get("/api/v1/metrics/dashboard", headers=self.admin_headers)
         self.client.get("/api/v1/metrics/dashboard", headers=self.admin_headers)

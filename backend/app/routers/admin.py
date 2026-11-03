@@ -20,6 +20,8 @@ from backend.app.models.admin_dto import (
     UserPasswordResetAdmin,
     PermissionResponse,
     RoleDetailResponse,
+    RoleCreateRequest,
+    RoleUpdateRequest,
     RolePermissionsUpdate,
     AuditLogResponse,
     AuditLogListResponse
@@ -58,7 +60,7 @@ def update_system_settings(
 @admin_router.get("/settings/history", response_model=List[SystemSettingHistoryResponse])
 def get_settings_change_history(
     limit: int = Query(50, ge=1, le=200, description="Max history items"),
-    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "auditor"))
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "auditor", "it_admin"))
 ) -> List[SystemSettingHistoryResponse]:
     """Inspect history of settings changes."""
     return AdminService.get_settings_history(limit=limit)
@@ -130,15 +132,33 @@ def admin_password_reset(
 
 @admin_router.get("/roles", response_model=List[RoleDetailResponse])
 def get_roles(
-    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "auditor"))
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "auditor", "it_admin"))
 ) -> List[RoleDetailResponse]:
-    """List 12 system roles with permission counts."""
+    """List all system and custom roles with permission counts."""
     return AdminService.get_roles()
+
+
+@admin_router.post("/roles", response_model=RoleDetailResponse, status_code=status.HTTP_201_CREATED)
+def create_role(
+    payload: RoleCreateRequest,
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin"))
+) -> RoleDetailResponse:
+    """Create a new custom system role with assigned permissions."""
+    return AdminService.create_role(payload=payload, current_user=current_user)
+
+
+@admin_router.delete("/roles/{role_id}")
+def delete_role(
+    role_id: int,
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin"))
+) -> Dict[str, Any]:
+    """Delete a custom non-system role."""
+    return AdminService.delete_role(role_id=role_id, current_user=current_user)
 
 
 @admin_router.get("/permissions", response_model=List[PermissionResponse])
 def get_permissions(
-    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "auditor"))
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "auditor", "it_admin"))
 ) -> List[PermissionResponse]:
     """List all 173 system permissions."""
     return AdminService.get_permissions()
@@ -167,7 +187,7 @@ def list_audit_logs(
     search: Optional[str] = Query(None, description="Search action, details, username"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(25, ge=1, le=200, description="Items per page"),
-    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "auditor"))
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "auditor", "it_admin"))
 ) -> AuditLogListResponse:
     """Search and inspect immutable audit trail logs with Q05 < 10ms SLA."""
     return AdminService.get_audit_logs(
@@ -190,7 +210,7 @@ def export_audit_logs(
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
     search: Optional[str] = Query(None, description="Search term"),
-    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "auditor"))
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "auditor", "it_admin", "hostel_admin"))
 ) -> Response:
     """Stream RFC 4180 CSV export of system audit trail."""
     csv_content = AdminService.export_audit_logs_csv(
@@ -215,7 +235,7 @@ def export_audit_logs(
 @admin_router.get("/audit-logs/{log_id}", response_model=AuditLogResponse)
 def get_audit_log_detail(
     log_id: int,
-    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "auditor"))
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "auditor", "it_admin"))
 ) -> AuditLogResponse:
     """Retrieve detailed metadata of single audit record."""
     return AdminService.get_audit_log_by_id(log_id=log_id)
@@ -226,7 +246,7 @@ def get_audit_log_detail(
 @admin_router.post("/backups")
 def create_database_backup(
     note: Optional[str] = Query(None, description="Optional note for the backup"),
-    current_user: Dict[str, Any] = Depends(require_roles("super_admin"))
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "it_admin"))
 ) -> Dict[str, Any]:
     """Trigger a timestamped SQLite-safe online backup with integrity verification."""
     return BackupService.create_backup(note=note)
@@ -234,7 +254,7 @@ def create_database_backup(
 
 @admin_router.get("/backups")
 def list_database_backups(
-    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "auditor"))
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "auditor", "it_admin"))
 ) -> List[Dict[str, Any]]:
     """List all available database backup files and their integrity status."""
     return BackupService.list_backups()
@@ -243,7 +263,7 @@ def list_database_backups(
 @admin_router.post("/backups/restore")
 def restore_database_backup(
     backup_filename: str = Query(..., description="Backup filename to restore from"),
-    current_user: Dict[str, Any] = Depends(require_roles("super_admin"))
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "it_admin"))
 ) -> Dict[str, Any]:
     """Safely restore database from a verified backup with pre-restore safety snapshot."""
     return BackupService.restore_backup(backup_filename=backup_filename)

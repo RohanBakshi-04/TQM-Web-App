@@ -38,14 +38,16 @@ router = APIRouter(prefix="/api/v1", tags=["Authentication & RBAC"])
 
 
 def get_client_ip_and_ua(request: Request) -> tuple[str, str]:
-    """Helper to extract remote client IP and User-Agent."""
+    """Helper to extract remote client IP and User-Agent safely respecting trusted proxies."""
+    direct_ip = request.client.host if (request.client and request.client.host) else "127.0.0.1"
     forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
+
+    # Only trust X-Forwarded-For if the immediate connection comes from a configured trusted proxy
+    if forwarded and direct_ip in getattr(settings, "trusted_proxies", ["127.0.0.1", "::1", "localhost"]):
         ip = forwarded.split(",")[0].strip()
-    elif request.client and request.client.host:
-        ip = request.client.host
     else:
-        ip = "127.0.0.1"
+        ip = direct_ip
+
     ua = request.headers.get("User-Agent", "Unknown-Client")
     return ip, ua
 

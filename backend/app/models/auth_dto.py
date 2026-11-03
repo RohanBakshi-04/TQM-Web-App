@@ -5,8 +5,8 @@ Quality Goal: Q05 - Reduce Response Time
 """
 
 import re
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field, field_validator
+from typing import Any, Dict, List, Optional, Union
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class LoginRequest(BaseModel):
@@ -30,6 +30,78 @@ class RegisterRequest(BaseModel):
     child_identifier: Optional[str] = Field(None, max_length=100, description="Child's student ID, roll number, or university email (required for parent registration)")
     relationship: Optional[str] = Field("Parent / Guardian", max_length=50, description="Relationship: Father, Mother, Guardian")
     hostel_id: Optional[int] = Field(None, description="Hostel ID assigned/applied for when registering as hostel warden")
+    # Student Profile Details
+    date_of_birth: Optional[str] = Field(None, max_length=20, description="Student date of birth (YYYY-MM-DD)")
+    course: Optional[str] = Field(None, max_length=50, description="Student course or program")
+    academic_year: Optional[str] = Field(None, max_length=50, description="Academic year")
+    semester: Optional[int] = Field(None, description="Semester number")
+    permanent_address: Optional[str] = Field(None, max_length=255)
+    current_address: Optional[str] = Field(None, max_length=255)
+    city: Optional[str] = Field(None, max_length=100)
+    state: Optional[str] = Field(None, max_length=100)
+    postal_code: Optional[str] = Field(None, max_length=20)
+    country: Optional[str] = Field("India", max_length=100)
+    guardian_name: Optional[str] = Field(None, max_length=100)
+    guardian_relation: Optional[str] = Field(None, max_length=50)
+    guardian_phone: Optional[str] = Field(None, max_length=20)
+    guardian_email: Optional[str] = Field(None, max_length=100)
+    emergency_contact_name: Optional[str] = Field(None, max_length=100)
+    emergency_contact_phone: Optional[str] = Field(None, max_length=20)
+    # Staff Profile Details
+    employee_id: Optional[str] = Field(None, max_length=50)
+    category: Optional[str] = Field(None, max_length=50, description="Warden, Maintenance, Security, Mess, Accounts, Faculty")
+    designation: Optional[str] = Field(None, max_length=100)
+    department: Optional[str] = Field(None, max_length=100)
+    employment_type: Optional[str] = Field("Full-Time", max_length=50)
+    date_of_joining: Optional[str] = Field(None, max_length=50)
+    assigned_location: Optional[str] = Field(None, max_length=100)
+    work_location: Optional[str] = Field(None, max_length=100, description="Alias for assigned_location")
+    # Parent Multi-Ward & Profile Details
+    child_identifiers: Optional[Union[List[str], str]] = Field(None, description="Multiple child roll numbers or emails")
+    ward_identifiers: Optional[Union[List[str], str]] = Field(None, description="Alias for child_identifiers")
+    ward_identifier: Optional[str] = Field(None, max_length=100, description="Alias for child_identifier")
+    occupation: Optional[str] = Field(None, max_length=100)
+
+    @model_validator(mode="before")
+    @classmethod
+    def harmonize_aliases(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "work_location" in data and not data.get("assigned_location"):
+                data["assigned_location"] = data["work_location"]
+            elif "assigned_location" in data and not data.get("work_location"):
+                data["work_location"] = data["assigned_location"]
+
+            if "ward_identifiers" in data and not data.get("child_identifiers"):
+                data["child_identifiers"] = data["ward_identifiers"]
+            elif "child_identifiers" in data and not data.get("ward_identifiers"):
+                data["ward_identifiers"] = data["child_identifiers"]
+
+            if "ward_identifier" in data and not data.get("child_identifier"):
+                data["child_identifier"] = data["ward_identifier"]
+            elif "child_identifier" in data and not data.get("ward_identifier"):
+                data["ward_identifier"] = data["child_identifier"]
+        return data
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def validate_dob(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return None
+        v = v.strip()
+        if not v:
+            return None
+        from datetime import datetime, date
+        try:
+            dob_date = datetime.strptime(v, "%Y-%m-%d").date()
+        except ValueError:
+            raise ValueError("Invalid date_of_birth format. Must be YYYY-MM-DD.")
+        today = date.today()
+        if dob_date >= today:
+            raise ValueError("Date of birth cannot be in the future or today.")
+        age = (today - dob_date).days // 365
+        if age < 14 or age > 100:
+            raise ValueError(f"Age calculated from date of birth ({age} years) is outside eligible range (14-100).")
+        return v
 
     @field_validator("email")
     @classmethod
@@ -122,6 +194,10 @@ class UserProfileResponse(BaseModel):
     roles: List[str]
     permissions: List[str]
     active_role: Optional[str] = None
+    role_code: Optional[str] = None
+    stakeholder_category: Optional[str] = None
+    can_switch_roles: Optional[bool] = False
+    user_scopes: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
     linked_student_id: Optional[int] = None
     linked_hostel_id: Optional[int] = None
     staff_id: Optional[str] = None
@@ -135,6 +211,7 @@ class SwitchRoleRequest(BaseModel):
 class SwitchRoleResponse(BaseModel):
     success: bool
     active_role: str
+    role_code: Optional[str] = None
     access_token: str
     permissions: List[str]
     message: str

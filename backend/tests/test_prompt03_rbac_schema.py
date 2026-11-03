@@ -20,12 +20,13 @@ class TestPrompt03RBACSchema(unittest.TestCase):
         cursor = self.conn.cursor()
         cursor.execute("SELECT name FROM roles ORDER BY name ASC;")
         roles = [r[0] for r in cursor.fetchall()]
-        expected_12 = [
+        expected_15 = [
             "accountant", "admission_officer", "assistant_warden", "auditor",
-            "hostel_admin", "maintenance_staff", "mess_manager", "parent_guardian",
-            "security_guard", "student", "super_admin", "warden"
+            "hostel_admin", "hostel_clerk", "it_admin", "maintenance_staff",
+            "mess_manager", "parent_guardian", "security_guard",
+            "security_supervisor", "student", "super_admin", "warden"
         ]
-        self.assertEqual(roles, expected_12)
+        self.assertEqual(roles, expected_15)
 
     def test_auth_tables_created(self):
         cursor = self.conn.cursor()

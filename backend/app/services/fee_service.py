@@ -767,13 +767,24 @@ class FeeService:
 
             res = dict(record)
 
-            # RBAC Isolation Check
-            role = current_user.get("role")
-            if role == "student" and res.get("student_user_id") != current_user.get("user_id"):
-                raise HTTPException(status_code=403, detail="Forbidden: You cannot access invoices of other students.")
-            if role in ["warden", "assistant_warden"] and res.get("hostel_id") and current_user.get("hostel_id"):
-                if int(res["hostel_id"]) != int(current_user["hostel_id"]):
+            # Strict Active-Role Authorization Scoping
+            active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+            if active_role == "student":
+                my_sid = current_user.get("linked_student_id")
+                if res.get("student_id") != my_sid and res.get("student_user_id") != current_user.get("user_id"):
+                    raise HTTPException(status_code=403, detail="Forbidden: You cannot access invoices of other students.")
+            elif active_role in ("parent_guardian", "parent"):
+                wards = get_parent_authorized_ward_ids(conn, current_user)
+                if res.get("student_id") not in wards:
+                    raise HTTPException(status_code=403, detail="Forbidden: You cannot access invoices of unlinked students.")
+            elif active_role in ("warden", "assistant_warden"):
+                linked_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+                if not linked_hid:
+                    raise HTTPException(status_code=403, detail="Access Denied: Staff member has no assigned hostel facility.")
+                if not res.get("hostel_id") or int(res["hostel_id"]) != int(linked_hid):
                     raise HTTPException(status_code=403, detail="Forbidden: Invoice belongs to another hostel facility.")
+            elif active_role not in ("accountant", "super_admin", "hostel_admin", "auditor"):
+                raise HTTPException(status_code=403, detail="Forbidden: Unauthorized active role for invoice access.")
 
             # Fetch line items
             cursor.execute("SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY id ASC;", (invoice_id,))
@@ -789,11 +800,25 @@ class FeeService:
             """, (invoice_id,))
             res["payments"] = [dict(p) for p in cursor.fetchall()]
 
-            # Balance
-            total_due = round(res["total_amount"] + res["fine_amount"] - res["discount_amount"], 2)
-            res["net_payable"] = total_due
-            balance = round(total_due - res["paid_amount"], 2)
-            res["outstanding_balance"] = max(0.0, balance)
+            # Authoritative Integer-Paise Balance Calculations
+            tot_p = res.get("total_amount_paise") if ("total_amount_paise" in res and res["total_amount_paise"] is not None) else to_paise(res["total_amount"])
+            fine_p = res.get("fine_amount_paise") if ("fine_amount_paise" in res and res["fine_amount_paise"] is not None) else to_paise(res.get("fine_amount", 0))
+            disc_p = res.get("discount_amount_paise") if ("discount_amount_paise" in res and res["discount_amount_paise"] is not None) else to_paise(res.get("discount_amount", 0))
+            paid_p = res.get("paid_amount_paise") if ("paid_amount_paise" in res and res["paid_amount_paise"] is not None) else to_paise(res.get("paid_amount", 0))
+
+            net_payable_paise = max(0, tot_p + fine_p - disc_p)
+            balance_paise = max(0, net_payable_paise - paid_p)
+
+            res["total_amount_paise"] = tot_p
+            res["fine_amount_paise"] = fine_p
+            res["discount_amount_paise"] = disc_p
+            res["paid_amount_paise"] = paid_p
+            res["net_payable_paise"] = net_payable_paise
+            res["balance_paise"] = balance_paise
+            res["outstanding_balance_paise"] = balance_paise
+
+            res["net_payable"] = round(net_payable_paise / 100.0, 2)
+            res["outstanding_balance"] = round(balance_paise / 100.0, 2)
             res["is_overdue"] = (res["status"] not in ["Paid", "Cancelled"]) and (res["due_date"] < date.today().isoformat())
 
             return res
