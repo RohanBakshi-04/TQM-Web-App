@@ -54,7 +54,7 @@ class AttendanceService:
             return
 
         user_hostel_id = current_user.get("hostel_id") or current_user.get("linked_hostel_id")
-        if active_role in ("warden", "assistant_warden"):
+        if active_role in ("warden", "assistant_warden", "hostel_clerk", "security_supervisor", "security_guard"):
             if not user_hostel_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -72,7 +72,7 @@ class AttendanceService:
         user_roles = set(current_user.get("roles", []))
         if current_user.get("role"):
             user_roles.add(current_user["role"])
-        if not user_roles.intersection({"super_admin", "hostel_admin", "warden", "assistant_warden", "security_guard"}):
+        if not user_roles.intersection({"super_admin", "hostel_admin", "warden", "assistant_warden", "security_guard", "security_supervisor", "hostel_clerk"}):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Unauthorized: Only hostel staff can record attendance."
@@ -164,7 +164,7 @@ class AttendanceService:
         user_roles = set(current_user.get("roles", []))
         if current_user.get("role"):
             user_roles.add(current_user["role"])
-        if not user_roles.intersection({"super_admin", "hostel_admin", "warden", "assistant_warden", "security_guard"}):
+        if not user_roles.intersection({"super_admin", "hostel_admin", "warden", "assistant_warden", "security_guard", "security_supervisor", "hostel_clerk"}):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Unauthorized: Only hostel staff can record attendance."
@@ -229,7 +229,7 @@ class AttendanceService:
     def correct_attendance(cls, attendance_id: int, payload: AttendanceCorrectionRequest, current_user: Dict[str, Any]) -> Dict[str, Any]:
         """Authorized correction of an existing attendance record with mandatory audit trail."""
         role = current_user.get("role")
-        if role not in ["super_admin", "hostel_admin", "warden", "assistant_warden"]:
+        if role not in ["super_admin", "hostel_admin", "warden", "assistant_warden", "hostel_clerk"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Unauthorized: Only administrators and wardens can correct marked attendance."
@@ -348,7 +348,7 @@ class AttendanceService:
                 placeholders = ",".join("?" for _ in wards)
                 where_clauses.append(f"a.student_id IN ({placeholders})")
                 params.extend(wards)
-            elif role in ["warden", "assistant_warden"] and user_hostel_id:
+            elif role in ["warden", "assistant_warden", "hostel_clerk", "security_supervisor", "security_guard"] and user_hostel_id:
                 where_clauses.append("bld.hostel_id = ?")
                 params.append(int(user_hostel_id))
 
@@ -527,8 +527,8 @@ class AttendanceService:
         try:
             cursor = conn.cursor()
 
-            # Strictly isolate warden to their assigned hostel
-            if user_roles.intersection({"warden", "assistant_warden"}):
+            # Strictly isolate warden and facility staff to their assigned hostel
+            if user_roles.intersection({"warden", "assistant_warden", "hostel_clerk", "security_supervisor", "security_guard"}):
                 if not user_hostel_id:
                     cursor.execute("SELECT linked_hostel_id FROM users WHERE id = ?;", (current_user.get("id") or current_user.get("user_id"),))
                     u_row = cursor.fetchone()
@@ -625,8 +625,8 @@ class AttendanceService:
         try:
             cursor = conn.cursor()
 
-            # Strictly isolate warden to their assigned hostel
-            if user_roles.intersection({"warden", "assistant_warden"}):
+            # Strictly isolate warden and facility staff to their assigned hostel
+            if user_roles.intersection({"warden", "assistant_warden", "hostel_clerk", "security_supervisor", "security_guard"}):
                 if not user_hostel_id:
                     cursor.execute("SELECT linked_hostel_id FROM users WHERE id = ?;", (current_user.get("id") or current_user.get("user_id"),))
                     u_row = cursor.fetchone()
@@ -728,8 +728,8 @@ class AttendanceService:
         try:
             cursor = conn.cursor()
 
-            # Strictly isolate warden to their assigned hostel
-            if user_roles.intersection({"warden", "assistant_warden"}):
+            # Strictly isolate warden and facility staff to their assigned hostel
+            if user_roles.intersection({"warden", "assistant_warden", "hostel_clerk", "security_supervisor", "security_guard"}):
                 if not user_hostel_id:
                     cursor.execute("SELECT linked_hostel_id FROM users WHERE id = ?;", (current_user.get("id") or current_user.get("user_id"),))
                     u_row = cursor.fetchone()

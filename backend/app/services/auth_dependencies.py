@@ -301,8 +301,8 @@ def verify_student_isolation(student_id: Union[str, int], current_user: Dict[str
         user_roles.add(norm_active)
     user_perms = {p.strip().lower() for p in current_user.get("permissions", []) if p}
 
-    # 1. Super Admin and Hostel Director: Campus-wide / Administrative oversight
-    if norm_active in ("super_admin", "hostel_admin"):
+    # 1. Super Admin, Hostel Director, and Admission Officer: Campus-wide / Administrative oversight
+    if norm_active in ("super_admin", "hostel_admin", "admission_officer"):
         return
 
     # 2. IT Administrator: Restricted from private student records

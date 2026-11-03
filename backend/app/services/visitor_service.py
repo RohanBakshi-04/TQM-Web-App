@@ -52,7 +52,8 @@ class VisitorService:
         """Register a visitor and log their visit pass, preventing active duplicate entries."""
         role = current_user.get("role") or current_user.get("active_role")
         user_roles = set(current_user.get("roles", []))
-        if role not in ["security_guard", "super_admin", "hostel_admin", "warden", "assistant_warden"] and not user_roles.intersection({"super_admin", "hostel_admin", "security_guard", "warden", "assistant_warden"}):
+        allowed_reg_roles = {"super_admin", "hostel_admin", "security_guard", "security_supervisor", "warden", "assistant_warden", "hostel_clerk"}
+        if role not in allowed_reg_roles and not user_roles.intersection(allowed_reg_roles):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Unauthorized: Only security guards and hostel staff can register visitors."
@@ -215,13 +216,13 @@ class VisitorService:
                 wards = get_parent_authorized_ward_ids(conn, current_user)
                 if res.get("student_id") not in wards:
                     raise HTTPException(status_code=403, detail="Forbidden: You cannot view visitors of unlinked students.")
-            elif active_role in ("warden", "assistant_warden"):
+            elif active_role in ("warden", "assistant_warden", "hostel_clerk"):
                 linked_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
                 if not linked_hid:
                     raise HTTPException(status_code=403, detail="Access Denied: Staff member has no assigned hostel facility.")
                 if not res.get("hostel_id") or int(res["hostel_id"]) != int(linked_hid):
                     raise HTTPException(status_code=403, detail="Forbidden: Visitor pass belongs to another hostel facility.")
-            elif active_role not in ("security_guard", "super_admin", "hostel_admin"):
+            elif active_role not in ("security_guard", "security_supervisor", "super_admin", "hostel_admin", "auditor"):
                 raise HTTPException(status_code=403, detail="Forbidden: Unauthorized active role for visitor log access.")
 
             # Overdue calculation
@@ -243,8 +244,10 @@ class VisitorService:
     @classmethod
     def approve_visitor(cls, log_id: int, payload: VisitorApprovalRequest, current_user: Dict[str, Any]) -> Dict[str, Any]:
         """Warden approval for a pending visitor entry request."""
-        role = current_user.get("role")
-        if role not in ["super_admin", "hostel_admin", "warden", "assistant_warden"]:
+        role = current_user.get("role") or current_user.get("active_role")
+        user_roles = set(current_user.get("roles", []))
+        allowed_approvers = {"super_admin", "hostel_admin", "warden", "assistant_warden", "security_supervisor", "hostel_clerk"}
+        if role not in allowed_approvers and not user_roles.intersection(allowed_approvers):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Unauthorized: Only hostel wardens and administrators can approve visitor entry requests."
@@ -275,8 +278,10 @@ class VisitorService:
     @classmethod
     def reject_visitor(cls, log_id: int, payload: VisitorRejectionRequest, current_user: Dict[str, Any]) -> Dict[str, Any]:
         """Reject a visitor pass with mandatory justification reason."""
-        role = current_user.get("role")
-        if role not in ["super_admin", "hostel_admin", "warden", "assistant_warden"]:
+        role = current_user.get("role") or current_user.get("active_role")
+        user_roles = set(current_user.get("roles", []))
+        allowed_approvers = {"super_admin", "hostel_admin", "warden", "assistant_warden", "security_supervisor", "hostel_clerk"}
+        if role not in allowed_approvers and not user_roles.intersection(allowed_approvers):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Unauthorized: Only hostel wardens and administrators can reject visitor entry requests."
@@ -312,7 +317,8 @@ class VisitorService:
         """Log visitor ingress into hostel campus."""
         role = current_user.get("role") or current_user.get("active_role")
         user_roles = set(current_user.get("roles", []))
-        if role not in ["security_guard", "super_admin", "hostel_admin", "warden", "assistant_warden"] and not user_roles.intersection({"super_admin", "hostel_admin", "security_guard", "warden", "assistant_warden"}):
+        allowed_gate_staff = {"super_admin", "hostel_admin", "security_guard", "security_supervisor", "warden", "assistant_warden", "hostel_clerk"}
+        if role not in allowed_gate_staff and not user_roles.intersection(allowed_gate_staff):
             raise HTTPException(status_code=403, detail="Unauthorized: Only security guards and authorized staff can log check-ins.")
 
         conn = get_db_connection()
@@ -369,7 +375,8 @@ class VisitorService:
         """Log visitor departure and campus egress."""
         role = current_user.get("role") or current_user.get("active_role")
         user_roles = set(current_user.get("roles", []))
-        if role not in ["security_guard", "super_admin", "hostel_admin", "warden", "assistant_warden"] and not user_roles.intersection({"super_admin", "hostel_admin", "security_guard", "warden", "assistant_warden"}):
+        allowed_gate_staff = {"super_admin", "hostel_admin", "security_guard", "security_supervisor", "warden", "assistant_warden", "hostel_clerk"}
+        if role not in allowed_gate_staff and not user_roles.intersection(allowed_gate_staff):
             raise HTTPException(status_code=403, detail="Unauthorized: Only security guards and authorized staff can log check-outs.")
 
         conn = get_db_connection()
@@ -421,7 +428,7 @@ class VisitorService:
         active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
         linked_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
 
-        if active_role in ("warden", "assistant_warden"):
+        if active_role in ("warden", "assistant_warden", "hostel_clerk"):
             if not linked_hid:
                 return []
             hostel_id = int(linked_hid)
@@ -517,12 +524,12 @@ class VisitorService:
                     return {"total": 0, "records": []}
                 where_clauses.append(f"vl.student_id IN ({','.join('?' for _ in wards)})")
                 params.extend(wards)
-            elif active_role in ("warden", "assistant_warden"):
+            elif active_role in ("warden", "assistant_warden", "hostel_clerk"):
                 if not linked_hid:
                     return {"total": 0, "records": []}
                 where_clauses.append("vl.hostel_id = ?")
                 params.append(int(linked_hid))
-            elif active_role not in ("security_guard", "super_admin", "hostel_admin"):
+            elif active_role not in ("security_guard", "security_supervisor", "super_admin", "hostel_admin", "auditor"):
                 return {"total": 0, "records": []}
 
             # Query Filters

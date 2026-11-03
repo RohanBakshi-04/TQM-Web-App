@@ -1397,7 +1397,7 @@ selectPreset(preset) {
                 if (filterHostel) params.hostel_id = filterHostel;
                 this.allocationsList = await window.API.getAllocations(params);
             } catch (err) {
-                this.showToast(`Failed to load allocations: ${err.message}`, "error");
+                console.warn(`Failed to load allocations: ${err.message}`);
             }
         },
 
@@ -1407,7 +1407,7 @@ selectPreset(preset) {
                 if (gender) params.gender = gender;
                 this.availableBedsList = await window.API.getAvailableBeds(params);
             } catch (err) {
-                this.showToast(`Failed to load available beds: ${err.message}`, "error");
+                console.warn(`Failed to load available beds: ${err.message}`);
             }
         },
 
@@ -1415,7 +1415,7 @@ selectPreset(preset) {
             try {
                 this.transferRequestsList = await window.API.getTransfers();
             } catch (err) {
-                this.showToast(`Failed to load transfer requests: ${err.message}`, "error");
+                console.warn(`Failed to load transfer requests: ${err.message}`);
             }
         },
 
@@ -1671,11 +1671,23 @@ selectPreset(preset) {
             } else if (section === 'announcements') {
                 this.loadAnnouncements();
             } else if (section === 'admin') {
-                this.loadAdminSettings();
-                this.loadAdminUsers();
-                this.loadAdminRolesAndPermissions();
-                this.loadAdminAuditLogs();
-                this.loadAdminBackups();
+                if (this.activeRoleView === 'auditor') {
+                    this.adminTab = 'audit';
+                    this.loadAdminAuditLogs();
+                } else if (this.activeRoleView === 'it_admin') {
+                    if (this.adminTab === 'settings' || this.adminTab === 'users' || this.adminTab === 'registrations') {
+                        this.adminTab = 'audit';
+                    }
+                    this.loadAdminRolesAndPermissions();
+                    this.loadAdminAuditLogs();
+                    this.loadAdminBackups();
+                } else {
+                    this.loadAdminSettings();
+                    this.loadAdminUsers();
+                    this.loadAdminRolesAndPermissions();
+                    this.loadAdminAuditLogs();
+                    this.loadAdminBackups();
+                }
             }
             this.navigationLatencyMs = parseFloat((performance.now() - t0).toFixed(2));
         },
@@ -2391,6 +2403,10 @@ selectPreset(preset) {
         },
 
         // ==================== VISITOR MANAGEMENT MODULE ====================
+        async loadVisitors() {
+            await Promise.allSettled([this.loadActiveVisitors(), this.loadVisitorLogs()]);
+        },
+
         async loadActiveVisitors() {
             try {
                 this.activeVisitorsList = await window.API.getActiveVisitors();
@@ -3516,7 +3532,7 @@ selectPreset(preset) {
                 const cat = this.selectedSettingsCategory === 'all' ? null : this.selectedSettingsCategory;
                 this.adminSettings = await window.API.getAdminSettings(cat);
             } catch (err) {
-                this.showToast(`Settings load error: ${err.message}`, "error");
+                console.warn(`Settings load: ${err.message}`);
             }
         },
 
@@ -3554,7 +3570,7 @@ selectPreset(preset) {
                 this.adminUsersList = res.items || [];
                 this.adminUsersTotal = res.total || 0;
             } catch (err) {
-                this.showToast(`Users load error: ${err.message}`, "error");
+                console.warn(`Users load: ${err.message}`);
             }
         },
 
@@ -3705,7 +3721,7 @@ selectPreset(preset) {
                 this.adminAuditLogsList = res.items || [];
                 this.adminAuditLogsTotal = res.total || 0;
             } catch (err) {
-                this.showToast(`Audit log load error: ${err.message}`, "error");
+                console.warn(`Audit log load: ${err.message}`);
             }
         },
 

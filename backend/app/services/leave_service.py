@@ -463,7 +463,8 @@ class LeaveService:
         """Record student physical exit at the campus security gate."""
         role = current_user.get("role") or current_user.get("active_role")
         user_roles = set(current_user.get("roles", []))
-        if role not in ["security_guard", "super_admin", "hostel_admin", "warden", "assistant_warden"] and not user_roles.intersection({"super_admin", "hostel_admin", "security_guard", "warden", "assistant_warden"}):
+        allowed_gate_roles = {"super_admin", "hostel_admin", "security_guard", "security_supervisor", "warden", "assistant_warden", "hostel_clerk"}
+        if role not in allowed_gate_roles and not user_roles.intersection(allowed_gate_roles):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Unauthorized: Only security guards and hostel staff can record gate exits."
@@ -536,7 +537,8 @@ class LeaveService:
         """Record student physical return to the hostel at campus security gate."""
         role = current_user.get("role") or current_user.get("active_role")
         user_roles = set(current_user.get("roles", []))
-        if role not in ["security_guard", "super_admin", "hostel_admin", "warden", "assistant_warden"] and not user_roles.intersection({"super_admin", "hostel_admin", "security_guard", "warden", "assistant_warden"}):
+        allowed_gate_roles = {"super_admin", "hostel_admin", "security_guard", "security_supervisor", "warden", "assistant_warden", "hostel_clerk"}
+        if role not in allowed_gate_roles and not user_roles.intersection(allowed_gate_roles):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Unauthorized: Only security guards and hostel staff can record gate returns."
@@ -674,7 +676,7 @@ class LeaveService:
                 placeholders = ",".join("?" for _ in wards)
                 where_clauses.append(f"lr.student_id IN ({placeholders})")
                 params.extend(wards)
-            elif role in ["warden", "assistant_warden"] and user_hostel_id:
+            elif role in ["warden", "assistant_warden", "hostel_clerk", "security_supervisor", "security_guard"] and user_hostel_id:
                 where_clauses.append("bld.hostel_id = ?")
                 params.append(int(user_hostel_id))
 
@@ -760,7 +762,7 @@ class LeaveService:
                     return {"total": 0, "records": []}
                 where_clauses.append("op.student_id = ?")
                 params.append(st["id"])
-            elif role in ["warden", "assistant_warden"] and user_hostel_id:
+            elif role in ["warden", "assistant_warden", "hostel_clerk", "security_supervisor", "security_guard"] and user_hostel_id:
                 where_clauses.append("bld.hostel_id = ?")
                 params.append(int(user_hostel_id))
 

@@ -1142,8 +1142,8 @@ class AuthService:
                 """, (linked_s_id, linked_s_id, linked_s_id))
                 return [dict(r) for r in cursor.fetchall()]
 
-            # 2. Warden view: can ONLY view and approve Students and Parents in assigned hostel (unassigned fails closed)
-            if active_role in ("warden", "assistant_warden"):
+            # 2. Warden & Clerk view: can view and verify Students and Parents in assigned hostel (unassigned fails closed)
+            if active_role in ("warden", "assistant_warden", "hostel_clerk"):
                 linked_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
                 if not linked_hid and current_user.get("id"):
                     cursor.execute("SELECT linked_hostel_id FROM users WHERE id = ?;", (current_user["id"],))
@@ -1210,8 +1210,8 @@ class AuthService:
                         req["wards"] = [w for w in all_wards if w.get("ward_hostel_id") == int(linked_hid)]
                 return results
 
-            # 3. Super Admin & Hostel Admin: all pending registrations campus-wide
-            if active_role in ("super_admin", "hostel_admin"):
+            # 3. Super Admin, Hostel Admin, Admission Officer, Auditor: view registrations campus-wide
+            if active_role in ("super_admin", "hostel_admin", "admission_officer", "auditor"):
                 cursor.execute("""
                     SELECT rr.*, s.first_name as student_first_name, s.last_name as student_last_name, s.student_id as student_roll_no_display, h.name as hostel_name, h.code as hostel_code, h.hostel_type
                     FROM registration_requests rr
@@ -1387,9 +1387,9 @@ class AuthService:
                     return {"success": True, "status": "Pending", "message": msg}
 
             # -------------------------------------------------------------
-            # RULE 2: WARDEN ACTIVE ROLE
+            # RULE 2: WARDEN, ASSISTANT WARDEN, HOSTEL CLERK ACTIVE ROLE
             # -------------------------------------------------------------
-            if active_role in ("warden", "assistant_warden"):
+            if active_role in ("warden", "assistant_warden", "hostel_clerk"):
                 linked_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
                 if not linked_hid and current_user.get("id"):
                     cursor.execute("SELECT linked_hostel_id FROM users WHERE id = ?;", (current_user["id"],))
@@ -1594,10 +1594,15 @@ class AuthService:
                         return {"success": True, "status": "Pending", "message": "Approval recorded for wards in your hostel facility. Parent account remains pending until remaining ward and facility approvals are completed."}
 
             # -------------------------------------------------------------
-            # RULE 3: SUPER ADMIN OR HOSTEL ADMIN ACTIVE ROLE
+            # RULE 3: SUPER ADMIN, HOSTEL ADMIN, ADMISSION OFFICER ACTIVE ROLE
             # -------------------------------------------------------------
-            if active_role in ("super_admin", "hostel_admin"):
+            if active_role in ("super_admin", "hostel_admin", "admission_officer"):
                 is_staff_role = target_role in ("staff", "maintenance_staff", "warden", "security_guard", "mess_manager", "accountant")
+                if active_role == "admission_officer" and is_staff_role:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Unauthorized: Admission officers can only verify student and parent registrations."
+                    )
                 if is_staff_role:
                     if action_normalized == "reject":
                         cursor.execute("""

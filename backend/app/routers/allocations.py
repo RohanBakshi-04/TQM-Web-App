@@ -31,15 +31,15 @@ router = APIRouter(prefix="/api/v1/allocations", tags=["Room Allocations & Poka-
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_room_allocation(
     data: AllocationCreate,
-    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden", "assistant_warden"))
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden", "assistant_warden", "admission_officer", "hostel_clerk"))
 ) -> Dict[str, Any]:
     """Allocate a student to a hostel room and bed with strict 10-layer Poka-Yoke error prevention."""
     conn = get_db_connection()
     try:
-        # Check hostel scope for warden and assistant warden (fail-closed)
+        # Check hostel scope for facility-scoped staff (fail-closed)
         active_role = current_user.get("active_role") or current_user.get("role")
         user_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
-        if active_role in ("warden", "assistant_warden"):
+        if active_role in ("warden", "assistant_warden", "hostel_clerk"):
             if not user_hid:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -100,8 +100,8 @@ def list_allocations(
             elif len(wards) == 1:
                 student_id = wards[0]
 
-        # Warden and Assistant Warden hostel scope enforcement (fail-closed)
-        if active_role in ("warden", "assistant_warden"):
+        # Warden, Assistant Warden, and Hostel Clerk hostel scope enforcement (fail-closed)
+        if active_role in ("warden", "assistant_warden", "hostel_clerk"):
             user_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
             if not user_hid:
                 raise HTTPException(status_code=403, detail="Access Denied: Staff member has no assigned hostel facility.")
@@ -136,7 +136,7 @@ def list_available_beds(
 ) -> List[Dict[str, Any]]:
     """Explore all currently assignable beds in real-time with strict hostel scoping."""
     active_role = current_user.get("active_role") or current_user.get("role")
-    if active_role in ("warden", "assistant_warden"):
+    if active_role in ("warden", "assistant_warden", "hostel_clerk"):
         user_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
         if not user_hid:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied: Staff member has no assigned hostel facility.")
@@ -199,13 +199,13 @@ def get_allocation_details(
 def checkin_student(
     allocation_id: int,
     checkin_data: Optional[Dict[str, Any]] = None,
-    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden", "assistant_warden"))
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden", "assistant_warden", "hostel_clerk"))
 ) -> Dict[str, Any]:
     """Verify and record student arrival and room check-in."""
     conn = get_db_connection()
     try:
         active_role = current_user.get("active_role") or current_user.get("role")
-        if active_role in ("warden", "assistant_warden"):
+        if active_role in ("warden", "assistant_warden", "hostel_clerk"):
             alloc = AllocationService.get_allocation_by_id(conn, allocation_id)
             user_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
             if not user_hid or int(user_hid) != int(alloc["hostel_id"]):
@@ -220,13 +220,13 @@ def checkin_student(
 def checkout_student(
     allocation_id: int,
     data: CheckoutRequest,
-    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden", "assistant_warden"))
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden", "assistant_warden", "hostel_clerk"))
 ) -> Dict[str, Any]:
     """Release assigned bed and update occupancy upon student check-out (Poka-Yoke protected)."""
     conn = get_db_connection()
     try:
         active_role = current_user.get("active_role") or current_user.get("role")
-        if active_role in ("warden", "assistant_warden"):
+        if active_role in ("warden", "assistant_warden", "hostel_clerk"):
             alloc = AllocationService.get_allocation_by_id(conn, allocation_id)
             user_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
             if not user_hid or int(user_hid) != int(alloc["hostel_id"]):
@@ -268,7 +268,7 @@ def request_or_perform_transfer(
 @router.post("/{allocation_id}/approve")
 def approve_allocation(
     allocation_id: int,
-    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden"))
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden", "assistant_warden", "admission_officer"))
 ) -> Dict[str, Any]:
     """Administrative approval of an allocation record."""
     conn = get_db_connection()
