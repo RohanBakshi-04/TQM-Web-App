@@ -29,6 +29,9 @@ class Settings(BaseModel):
         "http://127.0.0.1:8000",
         "http://localhost:8000",
     ]
+    trusted_proxies: List[str] = [
+        ip.strip() for ip in os.getenv("TRUSTED_PROXIES", "127.0.0.1,::1,localhost").split(",") if ip.strip()
+    ]
 
     def validate_production_secrets(self) -> None:
         """Enforce strong, non-default cryptographic secret keys when running in production."""

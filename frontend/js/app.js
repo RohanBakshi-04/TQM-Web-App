@@ -1510,13 +1510,22 @@ selectPreset(preset) {
             }
         },
 
+        escapeHtml(str) {
+            if (!str) return "";
+            const div = document.createElement("div");
+            div.textContent = String(str);
+            return div.innerHTML;
+        },
+
         highlightMatch(text, query) {
             if (!text) return "";
-            if (!query || !query.trim()) return text;
+            const safeText = this.escapeHtml(text);
+            if (!query || !query.trim()) return safeText;
             const terms = query.trim().split(/\s+/).filter(Boolean);
-            if (!terms.length) return text;
-            const pattern = new RegExp(`(${terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
-            return text.replace(pattern, '<mark class="bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 font-bold px-0.5 rounded">$1</mark>');
+            if (!terms.length) return safeText;
+            const escapedTerms = terms.map(t => this.escapeHtml(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+            const pattern = new RegExp(`(${escapedTerms.join('|')})`, 'gi');
+            return safeText.replace(pattern, '<mark class="bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 font-bold px-0.5 rounded">$1</mark>');
         },
 
         navigateTo(section) {

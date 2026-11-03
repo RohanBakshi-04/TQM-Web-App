@@ -36,17 +36,22 @@ class LeaveService:
 
     @staticmethod
     def _enforce_staff_hostel_access(current_user: Dict[str, Any], hostel_id: Optional[int]) -> None:
-        """Validate warden assigned hostel permissions."""
-        role = current_user.get("role")
-        user_hostel_id = current_user.get("hostel_id")
+        """Validate warden assigned hostel permissions with strict fail-closed enforcement."""
+        active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+        user_hostel_id = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
 
-        if role in ["super_admin", "auditor"]:
+        if active_role in ["super_admin", "auditor"]:
             return
-        if role in ["hostel_admin", "warden", "assistant_warden", "security_guard"]:
-            if user_hostel_id and hostel_id and int(user_hostel_id) != int(hostel_id):
+        if active_role in ["warden", "assistant_warden"]:
+            if not user_hostel_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Access denied: You are assigned to hostel ID {user_hostel_id}, not {hostel_id}."
+                    detail="Access Denied: Staff member has no assigned hostel facility."
+                )
+            if not hostel_id or int(user_hostel_id) != int(hostel_id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Access denied: Target record belongs to hostel #{hostel_id or 'Unassigned'}, outside your facility (#{user_hostel_id})."
                 )
 
     @classmethod
@@ -65,17 +70,36 @@ class LeaveService:
             user_id = current_user.get("user_id")
 
             # Determine student
+            active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
             student_id = None
-            if role == "student":
+            if active_role == "student" or role == "student":
                 st = cls._get_student_for_user(conn, user_id)
                 if not st:
                     raise HTTPException(status_code=404, detail="Student profile not linked to your user account.")
                 student_id = st["id"]
+            elif active_role in ("parent", "parent_guardian") or role in ("parent", "parent_guardian"):
+                from backend.app.services.auth_dependencies import get_parent_authorized_ward_ids
+                wards = get_parent_authorized_ward_ids(conn, current_user)
+                if not wards:
+                    raise HTTPException(status_code=403, detail="Access Denied: No verified student wards linked to your parent account.")
+                req_sid = getattr(payload, "student_id", None)
+                if req_sid and int(req_sid) in wards:
+                    student_id = int(req_sid)
+                elif len(wards) == 1:
+                    student_id = wards[0]
+                else:
+                    raise HTTPException(status_code=400, detail="Please select which linked ward to submit leave for.")
+            elif active_role in ("super_admin", "hostel_admin", "warden"):
+                req_sid = getattr(payload, "student_id", None)
+                if not req_sid:
+                    raise HTTPException(status_code=400, detail="Staff submitting leave on behalf must provide a valid student_id.")
+                cursor.execute("SELECT id FROM students WHERE id = ?;", (req_sid,))
+                row = cursor.fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail=f"Student #{req_sid} not found.")
+                student_id = row[0]
             else:
-                # If staff submitting on behalf
-                cursor.execute("SELECT id FROM students LIMIT 1;")
-                st = cursor.fetchone()
-                student_id = st["id"] if st else 1
+                raise HTTPException(status_code=403, detail="Unauthorized role to create leave requests.")
 
             initial_status = "Draft" if payload.is_draft else "Submitted"
 
@@ -203,6 +227,15 @@ class LeaveService:
             if not record:
                 raise HTTPException(status_code=404, detail="Leave application not found.")
 
+            from backend.app.services.auth_dependencies import verify_student_isolation
+            verify_student_isolation(record["student_id"], current_user)
+
+            active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+            if active_role == "student":
+                st = cls._get_student_for_user(conn, current_user.get("user_id") or current_user.get("id"))
+                if not st or st["id"] != record["student_id"]:
+                    raise HTTPException(status_code=403, detail="Access Denied: You can only edit your own leave applications.")
+
             if record["status"] not in ["Draft", "Submitted"]:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -285,8 +318,7 @@ class LeaveService:
             if record["student_user_id"] == current_user.get("user_id"):
                 raise HTTPException(status_code=403, detail="Poka-Yoke Security Violation: Students cannot approve their own leave applications.")
 
-            if record["hostel_id"]:
-                cls._enforce_staff_hostel_access(current_user, record["hostel_id"])
+            cls._enforce_staff_hostel_access(current_user, record["hostel_id"])
 
             # Workflow validation: must be Submitted or Under Review
             if record["status"] not in ["Submitted", "Under Review", "Pending"]:
@@ -378,8 +410,7 @@ class LeaveService:
             if not record:
                 raise HTTPException(status_code=404, detail="Leave application not found.")
 
-            if record["hostel_id"]:
-                cls._enforce_staff_hostel_access(current_user, record["hostel_id"])
+            cls._enforce_staff_hostel_access(current_user, record["hostel_id"])
 
             if record["status"] in ["Approved", "Cancelled"]:
                 raise HTTPException(

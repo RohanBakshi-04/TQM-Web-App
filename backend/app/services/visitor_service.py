@@ -34,6 +34,16 @@ class VisitorService:
             return "****"
         return "X" * (len(id_proof_number) - 4) + id_proof_number[-4:]
 
+    @staticmethod
+    def _mask_phone(phone: str) -> str:
+        """Securely mask phone numbers for privacy protection."""
+        if not phone:
+            return ""
+        p = str(phone).strip()
+        if len(p) <= 4:
+            return "****"
+        return "*" * (len(p) - 4) + p[-4:]
+
     @classmethod
     def register_visitor(cls, payload: VisitorRegistrationRequest, current_user: Dict[str, Any]) -> Dict[str, Any]:
         """Register a visitor and log their visit pass, preventing active duplicate entries."""
@@ -204,9 +214,13 @@ class VisitorService:
             else:
                 res["is_overdue"] = res["status"] == "Overdue"
 
-            # Mask sensitive ID proof number for unauthorized users (students/parents)
-            if role in ["student", "parent"]:
+            # Enforce student isolation and privacy masking for resident and parent queries
+            active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+            if active_role in ["student", "parent", "parent_guardian"]:
+                from backend.app.services.auth_dependencies import verify_student_isolation
+                verify_student_isolation(res["student_id"], current_user)
                 res["id_proof_number"] = cls._mask_id_proof(res.get("id_proof_number", ""))
+                res["phone"] = cls._mask_phone(res.get("phone", ""))
 
             return res
         finally:
@@ -438,8 +452,10 @@ class VisitorService:
                 else:
                     item["is_overdue"] = False
 
-                if role in ["student", "parent"]:
+                active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+                if active_role in ["student", "parent", "parent_guardian"]:
                     item["id_proof_number"] = cls._mask_id_proof(item.get("id_proof_number", ""))
+                    item["phone"] = cls._mask_phone(item.get("phone", ""))
                 records.append(item)
 
             return records
@@ -525,8 +541,10 @@ class VisitorService:
                 else:
                     item["is_overdue"] = item["status"] == "Overdue"
 
-                if role in ["student", "parent"]:
+                active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+                if active_role in ["student", "parent", "parent_guardian"]:
                     item["id_proof_number"] = cls._mask_id_proof(item.get("id_proof_number", ""))
+                    item["phone"] = cls._mask_phone(item.get("phone", ""))
                 records.append(item)
 
             return {

@@ -82,7 +82,7 @@ def create_maintenance_task(
 @router.post("/tasks/{task_id}/accept")
 def accept_maintenance_task(
     task_id: int,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(require_roles("maintenance_staff", "super_admin", "hostel_admin"))
 ) -> Dict[str, Any]:
     """Technician accepts an assigned maintenance work-order."""
     conn = get_db_connection()
@@ -99,7 +99,7 @@ def accept_maintenance_task(
 @router.post("/tasks/{task_id}/start")
 def start_maintenance_task(
     task_id: int,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(require_roles("maintenance_staff", "super_admin", "hostel_admin"))
 ) -> Dict[str, Any]:
     """Technician starts repair work on-site."""
     conn = get_db_connection()
@@ -117,7 +117,7 @@ def start_maintenance_task(
 def update_task_progress(
     task_id: int,
     data: MaintenanceTaskProgress,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(require_roles("maintenance_staff", "super_admin", "hostel_admin"))
 ) -> Dict[str, Any]:
     """Technician logs progress or spare parts updates."""
     conn = get_db_connection()
@@ -136,7 +136,7 @@ def update_task_progress(
 def hold_maintenance_task(
     task_id: int,
     data: MaintenanceTaskHold,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(require_roles("maintenance_staff", "super_admin", "hostel_admin"))
 ) -> Dict[str, Any]:
     """Put task on hold with stated reason (e.g. awaiting spare parts)."""
     conn = get_db_connection()
@@ -155,7 +155,7 @@ def hold_maintenance_task(
 def complete_maintenance_task(
     task_id: int,
     data: MaintenanceTaskComplete,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(require_roles("maintenance_staff", "super_admin", "hostel_admin"))
 ) -> Dict[str, Any]:
     """Technician submits work completion with resolution notes, actual cost, and photo."""
     conn = get_db_connection()

@@ -56,12 +56,22 @@ def get_current_user(
         if not user_row or not user_row["is_active"]:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User account inactive or not found.")
 
-        roles, permissions = AuthService.get_user_roles_and_permissions(conn, user_id)
+        roles, all_assigned_permissions = AuthService.get_user_roles_and_permissions(conn, user_id)
 
         # Resolve active_role from token payload or default to primary assigned role
         active_role = payload.get("active_role")
         if not active_role or active_role not in roles:
             active_role = roles[0] if roles else "student"
+
+        # Resolve permissions granted strictly by the ACTIVE role
+        cursor.execute("""
+            SELECT DISTINCT p.name
+            FROM permissions p
+            JOIN role_permissions rp ON p.id = rp.permission_id
+            JOIN roles r ON rp.role_id = r.id
+            WHERE r.name = ?;
+        """, (active_role,))
+        permissions = {row[0] for row in cursor.fetchall()}
 
         # Resolve student_id if linked to a student profile
         resolved_student_id = None
@@ -164,7 +174,7 @@ def get_parent_authorized_ward_ids(conn: sqlite3.Connection, current_user: Dict[
 
 
 def require_roles(*allowed_roles):
-    """Enforce that authenticated user belongs to at least one of the specified roles."""
+    """Enforce that authenticated user's ACTIVE ROLE matches at least one of the specified roles."""
     flat_roles = set()
     for r in allowed_roles:
         if isinstance(r, (list, tuple, set)):
@@ -174,15 +184,12 @@ def require_roles(*allowed_roles):
 
     def role_checker(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
         active_role = current_user.get("active_role") or current_user.get("role")
-        user_roles = set(current_user.get("roles", []))
-        if active_role:
-            user_roles.add(active_role)
 
-        # Super admin active role always has access
-        if active_role == "super_admin" or "super_admin" in user_roles:
+        # Super admin permission bypass applies ONLY when active_role is super_admin
+        if active_role == "super_admin":
             return current_user
 
-        if active_role in flat_roles or user_roles.intersection(flat_roles):
+        if active_role in flat_roles:
             return current_user
 
         raise HTTPException(
@@ -193,7 +200,7 @@ def require_roles(*allowed_roles):
 
 
 def require_permissions(*required_permissions):
-    """Enforce that authenticated user possesses all specified permissions."""
+    """Enforce that authenticated user possesses all specified permissions via their ACTIVE ROLE."""
     flat_perms = set()
     for p in required_permissions:
         if isinstance(p, (list, tuple, set)):
@@ -202,10 +209,8 @@ def require_permissions(*required_permissions):
             flat_perms.add(p)
 
     def permission_checker(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
-        user_roles = set(current_user.get("roles", []))
-        if current_user.get("role"):
-            user_roles.add(current_user["role"])
-        if "super_admin" in user_roles:
+        active_role = current_user.get("active_role") or current_user.get("role")
+        if active_role == "super_admin":
             return current_user
 
         user_perms = set(current_user.get("permissions", []))
@@ -213,7 +218,7 @@ def require_permissions(*required_permissions):
         if missing:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access denied. Missing permission(s): {', '.join(sorted(missing))}"
+                detail=f"Access denied. Missing permission(s): {', '.join(sorted(missing))} for active role '{active_role}'."
             )
         return current_user
     return permission_checker
@@ -237,13 +242,23 @@ def verify_student_isolation(student_id: Union[str, int], current_user: Dict[str
         user_roles.add(active_role)
     user_perms = {p.strip().lower() for p in current_user.get("permissions", []) if p}
 
-    # 1. Super Admin: Campus-wide oversight
-    if active_role == "super_admin":
+    # 1. Super Admin and Hostel Admin: Campus-wide / Administrative oversight
+    if active_role in ("super_admin", "hostel_admin"):
         return
 
     # 2. Student Role (takes precedence if active_role is student)
     if active_role == "student":
         linked_s_id = current_user.get("linked_student_id")
+        if linked_s_id is None and current_user.get("user_id"):
+            conn = get_db_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT id FROM students WHERE user_id = ?;", (current_user["user_id"],))
+                st_row = cursor.fetchone()
+                if st_row:
+                    linked_s_id = st_row[0]
+            finally:
+                conn.close()
         user_student_id = current_user.get("student_id")
         is_match = False
         if linked_s_id is not None and str(linked_s_id) == s_val:
@@ -342,8 +357,8 @@ def verify_student_isolation(student_id: Union[str, int], current_user: Dict[str
             )
         return
 
-    # 6. Fallback if active_role is super_admin in user_roles:
-    if "super_admin" in user_roles:
+    # 6. Operational Staff Roles (Security, Maintenance, Mess)
+    if active_role in ("security_guard", "guard", "maintenance_staff", "mess_manager"):
         return
 
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")

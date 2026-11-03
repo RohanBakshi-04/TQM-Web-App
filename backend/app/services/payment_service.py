@@ -307,6 +307,54 @@ class PaymentService:
             conn.close()
 
     @classmethod
+    def verify_payment(cls, payment_id: int, current_user: Dict[str, Any]) -> Dict[str, Any]:
+        """Verify and confirm payment record with audit logging."""
+        cls._enforce_accountant_or_admin(current_user)
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM payments WHERE id = ?;", (payment_id,))
+            pmt = cursor.fetchone()
+            if not pmt:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment record not found.")
+
+            if pmt["status"] == "Reversed":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid Workflow: Cannot verify a reversed payment transaction."
+                )
+
+            verifier_username = current_user.get("username", "staff")
+            verifier_id = current_user.get("id") or current_user.get("user_id")
+
+            # Transition to Completed if Pending, and annotate verification
+            new_status = 'Completed' if pmt["status"] in ('Pending', 'Completed') else pmt["status"]
+            cursor.execute("""
+                UPDATE payments
+                SET status = ?,
+                    notes = CASE 
+                        WHEN notes IS NULL OR notes = '' THEN 'Verified by ' || ?
+                        ELSE notes || ' [Verified by ' || ? || ']'
+                    END
+                WHERE id = ?;
+            """, (new_status, verifier_username, verifier_username, payment_id))
+
+            # Audit trail
+            cursor.execute("""
+                INSERT INTO audit_logs (user_id, username, action, entity_name, entity_id, details, latency_ms)
+                VALUES (?, ?, 'PAYMENT_VERIFIED', 'payment', ?, ?, 0.5);
+            """, (verifier_id, verifier_username, str(payment_id), f"Payment #{payment_id} verified by {verifier_username}"))
+
+            conn.commit()
+            cache_service.invalidate_by_tag("finance")
+            logger.info(f"Payment #{payment_id} verified by {verifier_username}")
+            rec = cls.get_payment(payment_id, current_user)
+            rec["verification_status"] = "Verified"
+            return rec
+        finally:
+            conn.close()
+
+    @classmethod
     def reverse_payment(cls, payment_id: int, payload: PaymentReverseRequest, current_user: Dict[str, Any]) -> Dict[str, Any]:
         """Audited payment reversal for erroneous or bounced entries."""
         cls._enforce_accountant_or_admin(current_user)

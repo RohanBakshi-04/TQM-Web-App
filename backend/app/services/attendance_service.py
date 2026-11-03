@@ -48,19 +48,22 @@ class AttendanceService:
 
     @staticmethod
     def _enforce_staff_hostel_access(current_user: Dict[str, Any], hostel_id: Optional[int]) -> None:
-        """Validate that warden/assistant warden only manages attendance for their assigned hostel."""
-        user_roles = set(current_user.get("roles", []))
-        if current_user.get("role"):
-            user_roles.add(current_user["role"])
-        user_hostel_id = current_user.get("hostel_id") or current_user.get("linked_hostel_id")
-
-        if user_roles.intersection({"super_admin", "auditor"}):
+        """Validate that warden/assistant warden only manages attendance for their assigned hostel (fail-closed)."""
+        active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+        if active_role in ("super_admin", "auditor"):
             return
-        if user_roles.intersection({"hostel_admin", "warden", "assistant_warden", "security_guard"}):
-            if user_hostel_id and hostel_id and int(user_hostel_id) != int(hostel_id):
+
+        user_hostel_id = current_user.get("hostel_id") or current_user.get("linked_hostel_id")
+        if active_role in ("warden", "assistant_warden"):
+            if not user_hostel_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Access denied: You are assigned to hostel ID {user_hostel_id}, not {hostel_id}."
+                    detail="Access denied: Staff member has no assigned hostel facility."
+                )
+            if not hostel_id or int(user_hostel_id) != int(hostel_id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Access denied: Target attendance belongs to hostel #{hostel_id or 'Unassigned'}, outside your facility (#{user_hostel_id})."
                 )
 
     @classmethod
@@ -167,8 +170,7 @@ class AttendanceService:
                 detail="Unauthorized: Only hostel staff can record attendance."
             )
 
-        if payload.hostel_id:
-            cls._enforce_staff_hostel_access(current_user, payload.hostel_id)
+        cls._enforce_staff_hostel_access(current_user, payload.hostel_id)
 
         conn = get_db_connection()
         try:

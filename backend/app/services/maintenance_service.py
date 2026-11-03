@@ -269,9 +269,15 @@ class MaintenanceService:
     def accept_task(conn: sqlite3.Connection, task_id: int, worker_user_id: int, notes: str = "") -> Dict[str, Any]:
         """Technician accepts an assigned maintenance work-order."""
         cursor = conn.cursor()
-        task = cursor.execute("SELECT id, status, complaint_id, title FROM maintenance_tasks WHERE id = ?;", (task_id,)).fetchone()
+        task = cursor.execute("SELECT id, status, complaint_id, title, assigned_to FROM maintenance_tasks WHERE id = ?;", (task_id,)).fetchone()
         if not task:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Maintenance task not found.")
+
+        if task["assigned_to"] and task["assigned_to"] != worker_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access Denied: Task is assigned to technician #{task['assigned_to']}, not #{worker_user_id}."
+            )
 
         if task["status"] not in ("Open", "Assigned"):
             raise HTTPException(
@@ -301,9 +307,21 @@ class MaintenanceService:
     def start_task(conn: sqlite3.Connection, task_id: int, worker_user_id: int, notes: str = "") -> Dict[str, Any]:
         """Technician marks task as actively In Progress."""
         cursor = conn.cursor()
-        task = cursor.execute("SELECT id, status, complaint_id FROM maintenance_tasks WHERE id = ?;", (task_id,)).fetchone()
+        task = cursor.execute("SELECT id, status, complaint_id, assigned_to FROM maintenance_tasks WHERE id = ?;", (task_id,)).fetchone()
         if not task:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Maintenance task not found.")
+
+        if task["assigned_to"] and task["assigned_to"] != worker_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access Denied: Task is assigned to technician #{task['assigned_to']}, not #{worker_user_id}."
+            )
+
+        if task["status"] not in ("Accepted", "On Hold", "Assigned", "In Progress", "Open"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot start task in current status '{task['status']}'."
+            )
 
         cursor.execute("UPDATE maintenance_tasks SET status = 'In Progress' WHERE id = ?;", (task_id,))
         cursor.execute("""
@@ -379,9 +397,21 @@ class MaintenanceService:
     def complete_task(conn: sqlite3.Connection, task_id: int, worker_user_id: int, data: MaintenanceTaskComplete) -> Dict[str, Any]:
         """Technician completes repairs and logs materials/cost."""
         cursor = conn.cursor()
-        task = cursor.execute("SELECT id, status, complaint_id, task_code, title FROM maintenance_tasks WHERE id = ?;", (task_id,)).fetchone()
+        task = cursor.execute("SELECT id, status, complaint_id, task_code, title, assigned_to FROM maintenance_tasks WHERE id = ?;", (task_id,)).fetchone()
         if not task:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Maintenance task not found.")
+
+        if task["assigned_to"] and task["assigned_to"] != worker_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access Denied: Task is assigned to technician #{task['assigned_to']}, not #{worker_user_id}."
+            )
+
+        if task["status"] not in ("In Progress", "Accepted", "On Hold"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot complete task from '{task['status']}' status. Work must be In Progress first."
+            )
 
         cursor.execute("""
             UPDATE maintenance_tasks

@@ -383,7 +383,7 @@ const API = {
             throw new Error(data.detail || "Failed to change password.");
         }
         if (data.access_token) {
-            localStorage.setItem('auth_token', data.access_token);
+            this.setToken(data.access_token);
         }
         return data;
     },

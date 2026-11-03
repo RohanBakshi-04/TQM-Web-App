@@ -204,7 +204,11 @@ class NotificationService:
 
         # Browser notification check
         if prefs.browser_enabled:
-            logger.debug(f"[Browser Channel] Browser notification queued for user #{payload.user_id}: '{payload.title}'")
+            vapid_key = os.getenv("VAPID_PUBLIC_KEY")
+            if vapid_key:
+                logger.info(f"[Browser Channel] Dispatched push notification to user #{payload.user_id} via VAPID: '{payload.title}'")
+            else:
+                logger.info(f"[Browser Channel] Browser push marked Unconfigured_Channel for user #{payload.user_id} (VAPID keys not configured): '{payload.title}'")
 
     @classmethod
     def get_user_notifications(

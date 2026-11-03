@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, Query, status, Response
 
-from backend.app.services.auth_dependencies import get_current_user, verify_student_isolation
+from backend.app.services.auth_dependencies import get_current_user, require_roles, verify_student_isolation
 from backend.app.models.finance_dto import (
     FeeStructureCreate,
     FeeStructureUpdate,
@@ -226,10 +226,10 @@ def get_student_payments(
 @fees_router.post("/payments/{id}/verify", summary="Verify and confirm payment record")
 def verify_payment(
     id: int,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "accountant"))
 ):
-    # Fetch details confirming verification
-    return PaymentService.get_payment(id, current_user)
+    """Verify and officially confirm a recorded payment transaction (Accountants & Admins only)."""
+    return PaymentService.verify_payment(id, current_user)
 
 
 @fees_router.post("/payments/{id}/reverse", summary="Audited payment reversal")

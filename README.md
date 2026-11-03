@@ -125,6 +125,10 @@ python scripts/benchmark_q05.py
 
 ## 📚 Technical Documentation Directory
 
+- [Remediation Status Log](REMEDIATION_STATUS.md) — Master defect tracking and remediation log across all subsystems
+- [Role & Permission Matrix](docs/ROLE_PERMISSION_MATRIX.md) — 12-role RBAC enforcement, active role precedence, and student isolation rules
+- [Registration & Onboarding Workflows](docs/REGISTRATION_WORKFLOWS.md) — Student, Faculty/Staff, and Parent onboarding chains and dual approval
+- [Acceptance Test Report](docs/ACCEPTANCE_TEST_REPORT.md) — 267/267 automated tests passing with zero defects
 - [Installation Guide](docs/INSTALLATION_GUIDE.md) — Comprehensive local and production setup instructions
 - [User Manual](docs/USER_MANUAL.md) — Operational walkthrough for all 12 stakeholder roles
 - [REST API Documentation](docs/API_DOCUMENTATION.md) — Endpoint specifications for all 21 modules

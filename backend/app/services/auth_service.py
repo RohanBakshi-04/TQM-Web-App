@@ -597,6 +597,14 @@ class AuthService:
 
             roles, all_permissions = cls.get_user_roles_and_permissions(conn, user_id)
             if target_role not in roles:
+                try:
+                    cursor.execute("""
+                        INSERT INTO audit_logs (user_id, username, action, entity_name, entity_id, details, ip_address, latency_ms)
+                        VALUES (?, ?, 'UNAUTHORIZED_ROLE_SWITCH_ATTEMPT', 'user_session', ?, ?, ?, 0.0);
+                    """, (user_id, user_row["username"], str(user_id), f"Attempted switch to unauthorized role '{target_role}'", ip_address))
+                    conn.commit()
+                except Exception:
+                    pass
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"Unauthorized role switch: Role '{target_role}' is not assigned to your account."
