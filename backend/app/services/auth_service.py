@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from fastapi import HTTPException, status
 from backend.app.config import settings
 from backend.app.database.connection import get_db_connection
+from backend.app.services.rbac_data import normalize_role_name, ROLE_METADATA
 from backend.app.services.security import (
     hash_password,
     verify_password,
@@ -227,6 +228,14 @@ class AuthService:
         if not active_role or active_role not in user["roles"]:
             active_role = user["roles"][0] if user["roles"] else "student"
         user["active_role"] = active_role
+
+        norm_role = normalize_role_name(active_role)
+        meta = ROLE_METADATA.get(norm_role, {})
+        user["role_code"] = meta.get("code", norm_role.upper())
+        user["stakeholder_category"] = meta.get("category", "Operational / Student Life")
+        user["can_switch_roles"] = len(user.get("roles", [])) > 1
+        if "user_scopes" not in user:
+            user["user_scopes"] = []
 
         token_payload = {
             "sub": user["username"],
@@ -596,7 +605,27 @@ class AuthService:
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User account not found or inactive.")
 
             roles, all_permissions = cls.get_user_roles_and_permissions(conn, user_id)
-            if target_role not in roles:
+            if len(roles) <= 1:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Role '{target_role}' is not assigned to this account. Role switching is disabled for single-role accounts."
+                )
+
+            norm_target = normalize_role_name(target_role)
+            user_norm_roles = [normalize_role_name(r) for r in roles]
+
+            canonical_target = None
+            if target_role in roles:
+                canonical_target = target_role
+            elif norm_target in roles:
+                canonical_target = norm_target
+            elif norm_target in user_norm_roles:
+                for r in roles:
+                    if normalize_role_name(r) == norm_target:
+                        canonical_target = r
+                        break
+
+            if not canonical_target:
                 try:
                     cursor.execute("""
                         INSERT INTO audit_logs (user_id, username, action, entity_name, entity_id, details, ip_address, latency_ms)
@@ -617,15 +646,22 @@ class AuthService:
                 JOIN role_permissions rp ON p.id = rp.permission_id
                 JOIN roles r ON rp.role_id = r.id
                 WHERE r.name = ?;
-            """, (target_role,))
+            """, (canonical_target,))
             target_permissions = [row[0] for row in cursor.fetchall()]
+
+            # Fetch canonical role code
+            cursor.execute("SELECT code FROM roles WHERE name = ?;", (canonical_target,))
+            r_code_row = cursor.fetchone()
+            role_code = (r_code_row["code"] if (r_code_row and r_code_row["code"])
+                         else ROLE_METADATA.get(canonical_target, {}).get("code", canonical_target.upper()))
 
             # Issue new token with updated active_role
             token_payload = {
                 "sub": user_row["username"],
                 "user_id": user_id,
                 "roles": roles,
-                "active_role": target_role
+                "active_role": canonical_target,
+                "role_code": role_code
             }
             new_access_token = create_access_token(token_payload)
 
@@ -633,15 +669,16 @@ class AuthService:
             cursor.execute("""
                 INSERT INTO audit_logs (user_id, username, action, entity_name, entity_id, details, ip_address, latency_ms)
                 VALUES (?, ?, 'ROLE_SWITCH', 'user_session', ?, ?, ?, 0.0);
-            """, (user_id, user_row["username"], str(user_id), f"Switched active role to {target_role}", ip_address))
+            """, (user_id, user_row["username"], str(user_id), f"Switched active role to {canonical_target} ({role_code})", ip_address))
             conn.commit()
 
             return {
                 "success": True,
-                "active_role": target_role,
+                "active_role": canonical_target,
+                "role_code": role_code,
                 "access_token": new_access_token,
                 "permissions": target_permissions,
-                "message": f"Successfully switched active context to {target_role}."
+                "message": f"Successfully switched active context to {canonical_target}."
             }
         finally:
             conn.close()

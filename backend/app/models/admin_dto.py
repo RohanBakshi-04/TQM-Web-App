@@ -95,11 +95,28 @@ class PermissionResponse(BaseModel):
 class RoleDetailResponse(BaseModel):
     id: int
     name: str
+    code: Optional[str] = None
+    stakeholder_category: Optional[str] = None
     description: Optional[str] = ""
     is_system: bool
+    is_system_role: bool = True
     user_count: int = 0
     permissions: List[str] = Field(default_factory=list)
     created_at: Optional[str] = None
+
+
+class RoleCreateRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=50, description="Internal unique role identifier, e.g. floor_manager")
+    code: str = Field(..., min_length=2, max_length=50, description="Canonical uppercase code, e.g. FLOOR_MANAGER")
+    description: Optional[str] = Field("", max_length=255)
+    stakeholder_category: Optional[str] = Field("Operational / Student Life", max_length=100)
+    permissions: List[str] = Field(default_factory=list, description="Initial list of assigned permissions")
+
+
+class RoleUpdateRequest(BaseModel):
+    description: Optional[str] = Field(None, max_length=255)
+    stakeholder_category: Optional[str] = Field(None, max_length=100)
+    permissions: Optional[List[str]] = None
 
 
 class RolePermissionsUpdate(BaseModel):

@@ -20,6 +20,8 @@ from backend.app.models.admin_dto import (
     UserPasswordResetAdmin,
     PermissionResponse,
     RoleDetailResponse,
+    RoleCreateRequest,
+    RoleUpdateRequest,
     RolePermissionsUpdate,
     AuditLogResponse,
     AuditLogListResponse
@@ -132,8 +134,26 @@ def admin_password_reset(
 def get_roles(
     current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "auditor"))
 ) -> List[RoleDetailResponse]:
-    """List 12 system roles with permission counts."""
+    """List all system and custom roles with permission counts."""
     return AdminService.get_roles()
+
+
+@admin_router.post("/roles", response_model=RoleDetailResponse, status_code=status.HTTP_201_CREATED)
+def create_role(
+    payload: RoleCreateRequest,
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin"))
+) -> RoleDetailResponse:
+    """Create a new custom system role with assigned permissions."""
+    return AdminService.create_role(payload=payload, current_user=current_user)
+
+
+@admin_router.delete("/roles/{role_id}")
+def delete_role(
+    role_id: int,
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin"))
+) -> Dict[str, Any]:
+    """Delete a custom non-system role."""
+    return AdminService.delete_role(role_id=role_id, current_user=current_user)
 
 
 @admin_router.get("/permissions", response_model=List[PermissionResponse])

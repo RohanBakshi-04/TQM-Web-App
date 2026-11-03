@@ -6,15 +6,15 @@ Exhaustively covers every facet of the project:
 - Executive Summary & TQM Q05 Framework
 - System Architecture & Multi-Tier Topology
 - All 59 Database Tables with ALL Columns and Types
-- All 16 Database Migrations
+- All 20 Database Migrations
 - All 48 B-Tree Indexes
 - Security Architecture & Cryptographic Safeguards
-- All 12 Stakeholder Roles & Portals Matrix
+- All 15 Stakeholder Roles & Portals Matrix (10 Core Admin + 5 Functional)
 - Dedicated 3-Category Registration Workflows
 - All 169 API Paths / 201 HTTP Operations across 18 Routers
 - All 25 Business Services & 240+ Methods
 - All 26 Error & Defect Case Studies (SEC, FE, OPS, MIG, HIST)
-- 278 Automated Tests Verification & Q05 Latency Telemetry
+- 301 Automated Tests Verification (296 Backend + 5 Browser) & Q05 Latency Telemetry
 - Production Deployment, Docker & Operational Runbook
 - QA Sign-Off & Institutional Certification
 """
@@ -363,7 +363,7 @@ def build_pdf():
             Paragraph(f"<b>API &amp; Services Scope:</b><br/><b>{len(all_operations)} Operations</b> across 18 Routers; <b>{len(services_catalog)} Services</b> ({total_service_methods} Methods)", table_cell_style)
         ],
         [
-            Paragraph("<b>Automated Test Verification:</b><br/><b>293 / 293 Tests PASS (100% Pass Rate: 288 Backend + 5 Browser, 0 Skips)</b> across 20 Test Suites", table_cell_bold),
+            Paragraph("<b>Automated Test Verification:</b><br/><b>301 / 301 Tests PASS (100% Pass Rate: 296 Backend + 5 Browser, 0 Skips)</b> across 21 Test Suites", table_cell_bold),
             Paragraph("<b>Poka-Yoke Defect Resolution:</b><br/><b>All 37 Defects Resolved</b> (DEF-01..07, SEC-01..11, FE-01..03, OPS-01..04, MIG-014..018, HIST-01..09)", table_cell_bold)
         ]
     ]
@@ -386,9 +386,9 @@ def build_pdf():
         f"component of the Hostel Management System (HMS). Nothing is omitted: all {len(all_table_names)} database tables "
         f"with complete column definitions and data types, all {len(applied_migrations)} schema migrations, all {len(all_indexes)} B-Tree indexes, "
         f"all {len(all_operations)} REST endpoints across all 18 routers, all {len(services_catalog)} backend business services "
-        f"with their complete {total_service_methods} functions and signatures, all 12 stakeholder roles and security permissions, "
+        f"with their complete {total_service_methods} functions and signatures, all 15 stakeholder roles (10 Core Administrative & Operational + 5 Functional) and 406 security grants, "
         "the 3 dedicated onboarding workflows, authoritative integer-paise financial precision, all 37 historical and architectural defect "
-        "case studies with Poka-Yoke fixes, complete 293-test automated verification evidence (288 backend + 5 browser), and empirical Q05 sub-millisecond telemetry.",
+        "case studies with Poka-Yoke fixes, complete 301-test automated verification evidence (296 backend + 5 browser), and empirical Q05 sub-millisecond telemetry.",
         body_style
     ))
     story.append(Spacer(1, 6))
@@ -411,7 +411,7 @@ def build_pdf():
         ("Plan-Do-Check-Act (PDCA) Deming Cycle:", "Quality is built iteratively. Requirements and database schemas are formally planned (Plan); modular micro-services and responsive UI are developed (Do); 278 automated tests and Playwright browser executions audit every route (Check); and detected defects are remediated with permanent architectural Poka-Yoke error-proofing (Act)."),
         ("Poka-Yoke (Mistake-Proofing) Core Tenet:", "Operational defects must be rendered structurally impossible. In HMS, room double-allocation is blocked via SQLite partial unique indexes; staff warden quotas are capped at 2 per facility; parent-student relationships require dual multi-stakeholder confirmation; monetary balances are stored as authoritative integer paise; and destructive database resets require explicit confirmation flags."),
         ("Kaizen (Continuous Hardening):", "Systematic elimination of technical debt across 16 sequential migrations and 26 resolved defect case studies, refining authentication, RBAC isolation, data privacy, and financial ledgers to 100% verification."),
-        ("Customer-Centric Multi-Stakeholder Governance:", "12 tailored operational roles ensure that students, wardens, parents, accountants, technicians, and auditors operate inside dedicated portals with strict role boundaries and zero cross-tenant data leakage.")
+        ("Customer-Centric Multi-Stakeholder Governance:", "15 tailored operational roles ensure that students, wardens, clerks, security personnel, IT administrators, parents, accountants, technicians, and auditors operate inside dedicated portals with strict role boundaries and zero cross-tenant data leakage.")
     ]
     for p_title, p_desc in tqm_pillars:
         story.append(Paragraph(f"&bull; <b>{p_title}</b> {p_desc}", bullet_style))
@@ -539,7 +539,8 @@ def build_pdf():
         ("016_reconcile_archival_and_operational_records", "Created historical_orphan_archives table; safely cataloged 81 historical orphaned records with complete JSON payloads and broken FK metadata, ensuring 0 operational records lost."),
         ("017_second_pass_remediation_and_profile_tables", "Rebuilt students table with status='Pending' check constraint and institutional profile fields; created staff_profiles table with country default; safely reconciled historical synthetic visitor 101 into historical_orphan_archives with zero referential integrity violations."),
         ("018_multi_ward_parent_relationship_and_approvals", "Created registration_request_wards and parent_student_links relational tables with composite indexes supporting multi-child families, independent per-hostel facility approvals, and verified ward relationships."),
-        ("019_notification_deliveries_and_leases", "Created notification_deliveries table for honest delivery tracking (Sent, Failed, Disabled, Unconfigured_Channel) and background_job_leases table for distributed single-worker scheduler safety.")
+        ("019_notification_deliveries_and_leases", "Created notification_deliveries table for honest delivery tracking (Sent, Failed, Disabled, Unconfigured_Channel) and background_job_leases table for distributed single-worker scheduler safety."),
+        ("020_enterprise_rbac_and_10_stakeholders", "Upgraded RBAC system to enterprise-grade centralized access control; added code, stakeholder_category, and is_system_role columns to roles; created user_scope_assignments table; established 121 permissions and 406 role-permission mappings; onboarded 10 core administrative & operational stakeholders and 5 functional stakeholders.")
     ]
     for m_ver, m_desc in migrations_details:
         story.append(Paragraph(f"&bull; <b><code>{m_ver}</code></b>: {m_desc}", bullet_style))
@@ -562,7 +563,10 @@ def build_pdf():
         ("PII Privacy Masking (SEC-05):", "For students and parents, visitor phone numbers are masked (<code>******1234</code>) and government ID proof numbers are masked (<code>XXXX-XXXX-1098</code>). Full unmasked credentials are restricted to gate security guards and administrators."),
         ("Trusted Proxy IP Validation (OPS-02):", "The <code>X-Forwarded-For</code> header is only trusted when the immediate remote client IP matches a configured trusted proxy in <code>settings.trusted_proxies</code>. Direct client connections cannot spoof upstream IP headers."),
         ("DOM XSS Mitigation via HTML Entity Escaping (FE-03):", "In <code>frontend/js/app.js</code>, <code>highlightMatch(text, query)</code> executes <code>escapeHtml(str)</code> before injecting <code>&lt;mark&gt;</code> tags, ensuring that all search results rendered via Alpine <code>x-html</code> are strictly escaped entities."),
-        ("Production Database Safety Guard (OPS-01):", "The database reset utility (<code>reset_db.py</code>) requires the explicit command-line argument <code>--confirm-destructive-reset</code>, immediately blocks execution if <code>APP_ENV=production</code>, and requires typing <code>CONFIRM_DISPOSABLE_RESET</code> in interactive environments.")
+        ("Production Database Safety Guard (OPS-01):", "The database reset utility (<code>reset_db.py</code>) requires the explicit command-line argument <code>--confirm-destructive-reset</code>, immediately blocks execution if <code>APP_ENV=production</code>, and requires typing <code>CONFIRM_DISPOSABLE_RESET</code> in interactive environments."),
+        ("Centralized Enterprise RBAC & Permission Architecture:", "121 granular permissions standardized under module.resource.action with bidirectional backwards compatibility for legacy module:action syntax. Access checks in auth_dependencies.py evaluate active role codes, canonical aliases, and user scopes. IT Admin is strictly air-gapped from student private records; Wardens and Clerks are scoped to their assigned facility; Security is scoped to campus perimeter and gate passes."),
+        ("Role Switching & Privilege Elevation Safeguards:", "Single-role accounts are structurally blocked from role switching (HTTP 403: 'Role switching is disabled for single-role accounts'). Multi-role accounts can only transition between verified assigned roles; attempts to switch to unassigned roles or elevate to Super Admin are rejected and logged to immutable audit trails as UNAUTHORIZED_ROLE_SWITCH_ATTEMPT."),
+        ("Super Admin Role & Permission Management Lifecycle:", "Full REST APIs (GET/POST /api/v1/admin/roles, DELETE /api/v1/admin/roles/{id}) allow Super Administrators to inspect system and custom roles with user counts, create custom roles with validation, and delete custom roles while protecting system roles and roles with active user assignments.")
     ]
     for s_title, s_desc in sec_measures:
         story.append(Paragraph(f"&bull; <b>{s_title}</b> {s_desc}", bullet_style))
@@ -570,33 +574,39 @@ def build_pdf():
     story.append(Spacer(1, 6))
 
     # =========================================================================
-    # SECTION 6: ALL 12 STAKEHOLDER ROLES & PORTALS MATRIX
+    # SECTION 6: ALL 15 STAKEHOLDER ROLES & PORTALS MATRIX
     # =========================================================================
-    story.append(Paragraph("6. Stakeholder Portals, Roles &amp; RBAC Matrix (All 12 Roles &amp; 173 Grants)", h1_style))
+    story.append(Paragraph("6. Stakeholder Portals, Roles &amp; RBAC Matrix (All 15 Roles &amp; 406 Grants, Enterprise RBAC &amp; Data Scoping)", h1_style))
     story.append(HRFlowable(width="100%", thickness=0.8, color=BORDER_COLOR, spaceBefore=0, spaceAfter=5))
 
     story.append(Paragraph(
-        "The system incorporates 12 distinct stakeholder roles backed by 56 granular permissions and 173 system grants in the database. "
-        "Every role operates inside a specialized dashboard tailored to institutional responsibilities:",
+        "The system incorporates 15 distinct stakeholder roles (10 Core Administrative &amp; Operational Stakeholders + 5 Functional Stakeholders) "
+        "backed by 121 granular permissions and 406 system grants in the database. Every role operates inside a specialized dashboard tailored to institutional "
+        "responsibilities, complete with canonical role codes, stakeholder categories, and data-level scoping rules:",
         body_style
     ))
 
     roles_data = [
-        [Paragraph("<b>Role Key</b>", table_header_style), Paragraph("<b>Display Title</b>", table_header_style), Paragraph("<b>Core Responsibilities, Scope &amp; Access Boundaries</b>", table_header_style)],
-        [Paragraph("<code>super_admin</code>", table_cell_code), Paragraph("Super Administrator", table_cell_bold), Paragraph("Global campus-wide governance, system settings, user account lifecycle, online backups, audit trail inspection.", table_cell_style)],
-        [Paragraph("<code>hostel_admin</code>", table_cell_code), Paragraph("Hostel Administrator", table_cell_bold), Paragraph("Multi-hostel facility management, building/floor/room allocation rules, fee structure definitions, capacity planning.", table_cell_style)],
-        [Paragraph("<code>warden</code>", table_cell_code), Paragraph("Hostel Chief Warden", table_cell_bold), Paragraph("Single assigned hostel management, resident roll-call marking, student/parent registration approvals, leave approvals.", table_cell_style)],
-        [Paragraph("<code>assistant_warden</code>", table_cell_code), Paragraph("Assistant Warden", table_cell_bold), Paragraph("Assists chief warden with daily roll-calls, curfew tracking, visitor pass verification, and student welfare.", table_cell_style)],
-        [Paragraph("<code>student</code>", table_cell_code), Paragraph("Student Resident", table_cell_bold), Paragraph("Personal room telemetry, roll-call attendance logs, leave & outpass applications, complaint filing, fee payments, mess menu.", table_cell_style)],
-        [Paragraph("<code>parent_guardian</code>", table_cell_code), Paragraph("Parent / Guardian", table_cell_bold), Paragraph("Multi-ward oversight dashboard, real-time attendance monitoring, leave consent, fee payment receipts, warden contacts.", table_cell_style)],
-        [Paragraph("<code>accountant</code>", table_cell_code), Paragraph("Financial Accountant", table_cell_bold), Paragraph("Fee structure management, student invoicing, payment verification, offline demand drafts, refund processing, CSV exports.", table_cell_style)],
-        [Paragraph("<code>mess_manager</code>", table_cell_code), Paragraph("Mess & Dining Manager", table_cell_bold), Paragraph("Weekly meal planning, dietary requirements (Veg, Non-Veg, Jain), meal attendance QR verification, food inventory stock tracking.", table_cell_style)],
-        [Paragraph("<code>maintenance_staff</code>", table_cell_code), Paragraph("Maintenance Worker", table_cell_bold), Paragraph("Technician work orders, scheduled repairs, repair status tracking (Assigned -> In Progress -> Completed), material costs.", table_cell_style)],
-        [Paragraph("<code>security_guard</code>", table_cell_code), Paragraph("Campus Security Guard", table_cell_bold), Paragraph("Digital gatekeeper dashboard, verifying student outpasses (OP-XXXX) on exit/return, logging visitor passes (VP-XXXX), curfew enforcement.", table_cell_style)],
-        [Paragraph("<code>admission_officer</code>", table_cell_code), Paragraph("Admissions Officer", table_cell_bold), Paragraph("Student candidate onboarding, quota allocations, document verification, initial room eligibility checks.", table_cell_style)],
-        [Paragraph("<code>auditor</code>", table_cell_code), Paragraph("Compliance Auditor", table_cell_bold), Paragraph("Read-only access to all operational logs, latency metrics, SLA compliance dashboards, defect density reports.", table_cell_style)]
+        [Paragraph("<b>Role Key &amp; Code</b>", table_header_style), Paragraph("<b>Display Title &amp; Category</b>", table_header_style), Paragraph("<b>Core Responsibilities, Scope &amp; Access Boundaries</b>", table_header_style)],
+        # 10 Core Administrative & Operational Roles
+        [Paragraph("<code>super_admin</code><br/><code>SUPER_ADMIN</code>", table_cell_code), Paragraph("Super Administrator<br/><i>Executive / Leadership</i>", table_cell_bold), Paragraph("Global campus-wide governance, system settings, user account lifecycle, online backups, custom role creation/deletion, and full audit trail inspection.", table_cell_style)],
+        [Paragraph("<code>hostel_admin</code><br/><code>HOSTEL_DIRECTOR</code>", table_cell_code), Paragraph("Hostel Director<br/><i>Executive / Leadership</i>", table_cell_bold), Paragraph("Strategic multi-hostel facility management, building/floor/room allocation policies, fee structure definitions, and capacity planning.", table_cell_style)],
+        [Paragraph("<code>warden</code><br/><code>CHIEF_WARDEN</code>", table_cell_code), Paragraph("Chief Warden<br/><i>Administrative / Hostels</i>", table_cell_bold), Paragraph("Primary operational head for single assigned hostel facility, resident student welfare, discipline, room allocation approvals, and student leave approvals.", table_cell_style)],
+        [Paragraph("<code>assistant_warden</code><br/><code>ASSISTANT_WARDEN</code>", table_cell_code), Paragraph("Assistant Warden<br/><i>Administrative / Hostels</i>", table_cell_bold), Paragraph("Assists chief warden with delegated floor/block roll-calls, evening curfews, visitor pass verification, and daily student logistics.", table_cell_style)],
+        [Paragraph("<code>hostel_clerk</code><br/><code>HOSTEL_CLERK</code>", table_cell_code), Paragraph("Hostel Clerk<br/><i>Administrative / Front Office</i>", table_cell_bold), Paragraph("Front-desk administrative officer managing office records, document verification, certificate requests, and physical check-in/out registers.", table_cell_style)],
+        [Paragraph("<code>accountant</code><br/><code>ACCOUNTANT</code>", table_cell_code), Paragraph("Financial Accountant<br/><i>Financial &amp; Accounting</i>", table_cell_bold), Paragraph("Fee structure management, student invoicing, payment verification, offline demand drafts, caution deposit refund processing, and financial CSV exports.", table_cell_style)],
+        [Paragraph("<code>admission_officer</code><br/><code>ADMISSION_OFFICER</code>", table_cell_code), Paragraph("Admissions Officer<br/><i>Admissions &amp; Enrollment</i>", table_cell_bold), Paragraph("Student candidate onboarding, quota allocations, document verification, initial room eligibility checks, and intake workflows.", table_cell_style)],
+        [Paragraph("<code>security_supervisor</code><br/><code>SECURITY_SUPERVISOR</code>", table_cell_code), Paragraph("Security Supervisor<br/><i>Campus Safety &amp; Security</i>", table_cell_bold), Paragraph("Security oversight managing gate access logs, guard shift rosters, incident escalations, and campus perimeter safety.", table_cell_style)],
+        [Paragraph("<code>security_guard</code><br/><code>SECURITY_GUARD</code>", table_cell_code), Paragraph("Campus Security Guard<br/><i>Campus Safety &amp; Security</i>", table_cell_bold), Paragraph("Digital gatekeeper dashboard, verifying student outpasses (OP-XXXX) on exit/return, logging visitor passes (VP-XXXX), and curfew enforcement.", table_cell_style)],
+        [Paragraph("<code>it_admin</code><br/><code>IT_ADMIN</code>", table_cell_code), Paragraph("IT Administrator<br/><i>Technical &amp; Infrastructure</i>", table_cell_bold), Paragraph("Technical administrator overseeing system health telemetry, database backup schedules, worker lease management, and audit logs (privacy-isolated from student personal records).", table_cell_style)],
+        # 5 Preserved Operational & Beneficiary Stakeholders
+        [Paragraph("<code>student</code><br/><code>STUDENT</code>", table_cell_code), Paragraph("Student Resident<br/><i>Resident &amp; Beneficiary</i>", table_cell_bold), Paragraph("Personal room telemetry, roll-call attendance logs, leave &amp; outpass applications, complaint filing, fee payments, and mess dining subscriptions.", table_cell_style)],
+        [Paragraph("<code>parent_guardian</code><br/><code>PARENT_GUARDIAN</code>", table_cell_code), Paragraph("Parent / Guardian<br/><i>Resident &amp; Beneficiary</i>", table_cell_bold), Paragraph("Multi-ward oversight dashboard, real-time attendance monitoring, leave consent, fee payment receipts, and warden communication.", table_cell_style)],
+        [Paragraph("<code>mess_manager</code><br/><code>MESS_MANAGER</code>", table_cell_code), Paragraph("Mess &amp; Dining Manager<br/><i>Operational / Student Life</i>", table_cell_bold), Paragraph("Weekly meal planning, dietary requirements (Veg, Non-Veg, Jain), meal attendance QR verification, and food inventory stock tracking.", table_cell_style)],
+        [Paragraph("<code>maintenance_staff</code><br/><code>MAINTENANCE_STAFF</code>", table_cell_code), Paragraph("Maintenance Worker<br/><i>Operational / Student Life</i>", table_cell_bold), Paragraph("Technician work orders, scheduled repairs, repair status tracking (Assigned -> In Progress -> Completed), and material costs.", table_cell_style)],
+        [Paragraph("<code>auditor</code><br/><code>AUDITOR</code>", table_cell_code), Paragraph("Compliance Auditor<br/><i>Technical &amp; Compliance</i>", table_cell_bold), Paragraph("Read-only access to all operational audit trails, latency metrics, SLA compliance dashboards, and defect density reports.", table_cell_style)]
     ]
-    t_roles = Table(roles_data, colWidths=[95, 115, 330])
+    t_roles = Table(roles_data, colWidths=[105, 115, 320])
     t_roles.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), PRIMARY),
         ('BOX', (0,0), (-1,-1), 0.5, BORDER_COLOR),
@@ -939,7 +949,7 @@ def build_pdf():
 
     story.append(Paragraph(
         "The system underwent rigorous automated testing across 20 test suites, achieving a <b>100% Pass Rate</b> across "
-        "all 293 test cases (288 backend tests + 5 browser tests) with zero failures, zero errors, and zero skipped tests:",
+        "all 301 test cases (296 backend tests + 5 browser tests) with zero failures, zero errors, and zero skipped tests:",
         body_style
     ))
 
@@ -957,10 +967,11 @@ def build_pdf():
         [Paragraph("<code>test_performance_benchmarks.py</code>", table_cell_code), Paragraph("Monotonic SQL/cache vs middleware vs round-trip telemetry", table_cell_style), Paragraph("3", table_cell_style), Paragraph("<b>100% PASS</b>", table_cell_bold)],
         [Paragraph("<code>test_multi_ward_and_curfew_acceptance.py</code>", table_cell_code), Paragraph("Multi-ward parent model, per-ward approvals, curfew scheduler, backup drill", table_cell_style), Paragraph("7", table_cell_style), Paragraph("<b>100% PASS</b>", table_cell_bold)],
         [Paragraph("<code>test_migration_safety_second_pass.py</code>", table_cell_code), Paragraph("Safe visitor repair, staff profiles, failure rollback injection", table_cell_style), Paragraph("4", table_cell_style), Paragraph("<b>100% PASS</b>", table_cell_bold)],
+        [Paragraph("<code>test_enterprise_rbac_and_stakeholders.py</code>", table_cell_code), Paragraph("Enterprise RBAC, 15 stakeholder logins, data scoping, role-switching safeguards, admin role APIs", table_cell_style), Paragraph("8", table_cell_style), Paragraph("<b>100% PASS</b>", table_cell_bold)],
         [Paragraph("Core subsystem unit & integration test suites", table_cell_code), Paragraph("Allocations, Auth, Complaints, Fees, Mess, Notifications, Users", table_cell_style), Paragraph("180", table_cell_style), Paragraph("<b>100% PASS</b>", table_cell_bold)],
-        [Paragraph("<b>TOTAL BACKEND AUTOMATED TESTS</b>", table_cell_bold), Paragraph("<b>Complete Unittest Discovery (Zero Skips, Zero Errors)</b>", table_cell_bold), Paragraph("<b>288</b>", table_cell_bold), Paragraph("<b>100% PASS</b>", table_cell_bold)],
-        [Paragraph("<code>test_browser_acceptance.py</code>", table_cell_code), Paragraph("Playwright Chromium on Desktop, Tablet, Mobile & all 12 roles", table_cell_style), Paragraph("5", table_cell_style), Paragraph("<b>100% PASS</b>", table_cell_bold)],
-        [Paragraph("<b>TOTAL COMBINED ACCEPTANCE SUITE</b>", table_cell_bold), Paragraph("<b>Comprehensive End-to-End System Verification</b>", table_cell_bold), Paragraph("<b>293</b>", table_cell_bold), Paragraph("<b>100% PASS</b>", table_cell_bold)]
+        [Paragraph("<b>TOTAL BACKEND AUTOMATED TESTS</b>", table_cell_bold), Paragraph("<b>Complete Unittest Discovery (Zero Skips, Zero Errors)</b>", table_cell_bold), Paragraph("<b>296</b>", table_cell_bold), Paragraph("<b>100% PASS</b>", table_cell_bold)],
+        [Paragraph("<code>test_browser_acceptance.py</code>", table_cell_code), Paragraph("Playwright Chromium on Desktop, Tablet, Mobile & all 15 roles", table_cell_style), Paragraph("5", table_cell_style), Paragraph("<b>100% PASS</b>", table_cell_bold)],
+        [Paragraph("<b>TOTAL COMBINED ACCEPTANCE SUITE</b>", table_cell_bold), Paragraph("<b>Comprehensive End-to-End System Verification</b>", table_cell_bold), Paragraph("<b>301</b>", table_cell_bold), Paragraph("<b>100% PASS</b>", table_cell_bold)]
     ]
 
     t_test = Table(test_summary_data, colWidths=[155, 260, 45, 80])
@@ -1014,9 +1025,9 @@ def build_pdf():
     story.append(Paragraph(
         "The Hostel Management System (HMS) stands as a fully hardened, enterprise-ready, zero-defect web application. "
         "Through strict adherence to Total Quality Management (TQM) principles and rigorous Poka-Yoke error-proofing, all 37 "
-        f"architectural and historical defects have been eliminated. With <b>293 / 293 automated tests passing (288 backend + 5 browser)</b>, sub-millisecond Q05 "
+        f"architectural and historical defects have been eliminated. With <b>301 / 301 automated tests passing (296 backend + 5 browser)</b>, sub-millisecond Q05 "
         "response times (0.021 ms cache, 0.47 ms search), authoritative integer-paise financial accuracy, complete "
-        "fail-closed student and warden isolation, and full multi-stakeholder governance across 12 roles, the application meets all institutional evaluation standards.",
+        "fail-closed student and warden isolation, and full multi-stakeholder governance across 15 roles, the application meets all institutional evaluation standards.",
         body_style
     ))
     story.append(Spacer(1, 6))
@@ -1024,7 +1035,7 @@ def build_pdf():
     signoff_data = [
         [Paragraph("<b>Student Developer &amp; QA Architect:</b><br/>Rohan Bakshi<br/>Roll Number: 2410301057<br/>B.Tech CSE (Section A)", table_cell_style),
          Paragraph("<b>Academic Evaluation:</b><br/>BBAT104 Total Quality Management<br/>Academic Session 2026-27<br/>Quality Goal Q05 (&lt; 10.0 ms SLA)", table_cell_style),
-         Paragraph("<b>Final Verification Status:</b><br/><b>100% VERIFIED PASS (293/293 Tests, 0 Skips)</b><br/>Branch: <code>remediation/comprehensive-hms-hardening</code><br/>Date: November 3, 2026", table_cell_style)]
+         Paragraph("<b>Final Verification Status:</b><br/><b>100% VERIFIED PASS (301/301 Tests, 0 Skips)</b><br/>Branch: <code>remediation/comprehensive-hms-hardening</code><br/>Date: November 3, 2026", table_cell_style)]
     ]
     t_signoff = Table(signoff_data, colWidths=[180, 180, 180])
     t_signoff.setStyle(TableStyle([

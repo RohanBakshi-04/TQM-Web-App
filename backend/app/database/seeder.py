@@ -7,7 +7,7 @@ Quality Goal: Q05 - Reduce Response Time
 import sqlite3
 from typing import Optional
 from backend.app.database.connection import get_db_connection
-from backend.app.services.rbac_data import ROLES_LIST, PERMISSIONS_LIST, ROLE_PERMISSIONS_MAP
+from backend.app.services.rbac_data import ROLES_LIST, ROLE_METADATA, PERMISSIONS_LIST, ROLE_PERMISSIONS_MAP
 from backend.app.services.security import hash_password
 from backend.app.utils.logger import logger
 
@@ -23,26 +23,53 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
         cursor = conn.cursor()
 
         # Check if users already exist to avoid duplicate seeding
-        cursor.execute("SELECT COUNT(*) FROM users;")
+        cursor.execute("SELECT COUNT(*) FROM users WHERE username = 'superadmin';")
         if cursor.fetchone()[0] > 0:
             logger.info("Database already seeded. Skipping seeder execution.")
             return False
 
         logger.info("Beginning database demonstration data seeding...")
 
-        # 1. Seed 12 User Roles
-        roles_data = [(name, desc, 1) for name, desc in ROLES_LIST]
-        cursor.executemany("INSERT INTO roles (name, description, is_system) VALUES (?, ?, ?);", roles_data)
+        # 1. Seed 15 User Roles
+        cursor.execute("PRAGMA table_info(roles);")
+        role_cols = {col[1] for col in cursor.fetchall()}
+        if "code" not in role_cols:
+            cursor.execute("ALTER TABLE roles ADD COLUMN code TEXT;")
+        if "stakeholder_category" not in role_cols:
+            cursor.execute("ALTER TABLE roles ADD COLUMN stakeholder_category TEXT DEFAULT 'Operational / Student Life';")
+        if "is_system_role" not in role_cols:
+            cursor.execute("ALTER TABLE roles ADD COLUMN is_system_role INTEGER DEFAULT 1;")
+
+        for name, desc in ROLES_LIST:
+            meta = ROLE_METADATA.get(name, {})
+            r_code = meta.get("code", name.upper())
+            r_cat = meta.get("category", "Operational / Student Life")
+            cursor.execute("""
+                INSERT INTO roles (name, code, description, stakeholder_category, is_system, is_system_role)
+                VALUES (?, ?, ?, ?, 1, 1)
+                ON CONFLICT(name) DO UPDATE SET
+                    code = excluded.code,
+                    description = excluded.description,
+                    stakeholder_category = excluded.stakeholder_category,
+                    is_system = 1,
+                    is_system_role = 1;
+            """, (name, r_code, desc, r_cat))
+
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_roles_code ON roles(code);")
 
         # Build role_name -> role_id lookup
         cursor.execute("SELECT id, name FROM roles;")
         role_id_map = {name: r_id for r_id, name in cursor.fetchall()}
 
         # 2. Seed Granular Permissions
-        cursor.executemany(
-            "INSERT INTO permissions (name, module, description) VALUES (?, ?, ?);",
-            PERMISSIONS_LIST
-        )
+        for p_name, p_mod, p_desc in PERMISSIONS_LIST:
+            cursor.execute("""
+                INSERT INTO permissions (name, module, description)
+                VALUES (?, ?, ?)
+                ON CONFLICT(name) DO UPDATE SET
+                    module = excluded.module,
+                    description = excluded.description;
+            """, (p_name, p_mod, p_desc))
 
         # Build perm_name -> perm_id lookup
         cursor.execute("SELECT id, name FROM permissions;")
@@ -63,7 +90,7 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
             "INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?);",
             role_perm_rows
         )
-        logger.info(f"Seeded {len(roles_data)} roles and {len(role_perm_rows)} role-permission mappings.")
+        logger.info(f"Seeded {len(ROLES_LIST)} roles and {len(role_perm_rows)} role-permission mappings.")
 
         # 3. Seed Demo Users for Primary Roles (bcrypt hashed)
         default_pw = "Password123!" # Consistent safe demo password for all demo accounts
@@ -81,7 +108,10 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
             ("security", "security@univ.edu", hashed_pw, "", "Baljit", "Singh", "9800000009", "security_guard", None, 1),
             ("admission", "admission@univ.edu", hashed_pw, "", "Geeta", "Iyer", "9800000010", "admission_officer", None, None),
             ("parent", "parent@univ.edu", hashed_pw, "", "Sunil", "Bakshi", "9800000011", "parent_guardian", 1, 1),
-            ("evaluator", "evaluator@univ.edu", hashed_pw, "", "TQM Faculty", "Auditor", "9800000012", "auditor", None, None)
+            ("evaluator", "evaluator@univ.edu", hashed_pw, "", "TQM Faculty", "Auditor", "9800000012", "auditor", None, None),
+            ("clerk", "clerk@univ.edu", hashed_pw, "", "Amit", "Patel", "9800000013", "hostel_clerk", None, 1),
+            ("secsupervisor", "secsupervisor@univ.edu", hashed_pw, "", "Gurpreet", "Singh", "9800000014", "security_supervisor", None, 1),
+            ("itadmin", "itadmin@univ.edu", hashed_pw, "", "Neha", "Verma", "9800000015", "it_admin", None, None)
         ]
 
         user_id_map = {}
@@ -95,7 +125,12 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
             user_id_map[uname] = u_id
             r_id = role_id_map[role_name]
             cursor.execute("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?);", (u_id, r_id))
-            staff_roles = {'super_admin', 'hostel_admin', 'warden', 'assistant_warden', 'accountant', 'mess_manager', 'maintenance_staff', 'security_guard', 'admission_officer', 'auditor'}
+            staff_roles = {
+                'super_admin', 'hostel_admin', 'warden', 'assistant_warden',
+                'hostel_clerk', 'accountant', 'mess_manager', 'maintenance_staff',
+                'security_supervisor', 'security_guard', 'admission_officer',
+                'it_admin', 'auditor'
+            }
             if role_name in staff_roles:
                 s_id = f"STF-{u_id:04d}"
                 cursor.execute("UPDATE users SET staff_id = ? WHERE id = ?;", (s_id, u_id))

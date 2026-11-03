@@ -1857,6 +1857,27 @@ const API = {
         return await response.json();
     },
 
+    async createAdminRole(payload) {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/roles`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to create custom role.");
+        return res;
+    },
+
+    async deleteAdminRole(roleId) {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/roles/${roleId}`, {
+            method: "DELETE",
+            headers: this.getHeaders()
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to delete role.");
+        return res;
+    },
+
     async getAdminPermissions() {
         const response = await this.request(`${this.baseUrl}/api/v1/admin/permissions`, {
             headers: this.getHeaders()

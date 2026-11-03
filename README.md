@@ -13,20 +13,23 @@
 
 ## 🎯 Project Overview
 
-This project develops an enterprise-grade, high-performance web application for institutional hostel administration, built under strict Total Quality Management (TQM) principles. Targeting **Quality Goal Q05 (Reduce Response Time)**, the system achieves sub-millisecond query execution, client-side reactivity, and mistake-proofing (**Poka-Yoke**) across 21 functional domains and 12 distinct stakeholder roles:
+This project develops an enterprise-grade, high-performance web application for institutional hostel administration, built under strict Total Quality Management (TQM) principles. Targeting **Quality Goal Q05 (Reduce Response Time)**, the system achieves sub-millisecond query execution, client-side reactivity, and mistake-proofing (**Poka-Yoke**) across 21 functional domains and 15 distinct stakeholder roles (10 Core Administrative & Operational + 5 Functional):
 
-1. **Super Administrator** (`superadmin`) — Institutional configuration, user security, audit logs, and online backups
-2. **Hostel Administrator** (`hosteladmin`) — Hostels, buildings, floors, rooms, and capacity allocation
-3. **Warden** (`warden`) — Daily attendance roll-call, leave/outpass approvals, and student welfare
-4. **Assistant Warden** (`asstwarden`) — Floor checks, curfew monitoring, and roll-call assistance
-5. **Resident Student** (`rohan`) — Room details, leave requests, complaint submission, mess menu, and fee payment
-6. **Accountant** (`accountant`) — Fee structures, invoices, payment receipts, and balance ledgers
-7. **Mess Manager** (`messmanager`) — Weekly dining schedules, meal feedback, and grocery inventory
-8. **Maintenance Staff** (`maintenance`) — Repair work orders, spare parts utilization, and status updates
-9. **Security Guard** (`security`) — Visitor pass issuance and gate outpass verification
-10. **Admission Officer** (`admission`) — Student onboarding and room allocation requests
-11. **Parent / Guardian** (`parent`) — Ward attendance monitoring, fee ledger, and leave tracking
-12. **TQM Faculty Auditor** (`evaluator`) — Quality metrics audit, Q05 telemetry, and SLA verification
+1. **Super Administrator** (`superadmin`) — Institutional configuration, user security, custom role management, audit logs, and online backups
+2. **Hostel Administrator / Director** (`hosteladmin`) — Hostels, buildings, floors, rooms, allocation policy, and capacity planning
+3. **Chief Warden** (`warden`) — Primary facility head, resident student welfare, room allocation approvals, and leave approvals
+4. **Assistant Warden** (`asstwarden`) — Delegated floor roll-calls, curfew monitoring, and student welfare logistics
+5. **Hostel Clerk** (`clerk`) — Front-office student intake, certificate requests, document verification, and physical registers
+6. **Financial Accountant** (`accountant`) — Fee structures, invoices, payment verification, caution deposit refunds, and financial ledgers
+7. **Admission Officer** (`admission`) — Student onboarding, quota management, document validation, and room eligibility
+8. **Security Supervisor** (`secsupervisor`) — Perimeter safety, guard shift rosters, incident escalation, and gate audit telemetry
+9. **Security Guard** (`security`) — Visitor pass issuance, student outpass check-in/out, and curfew enforcement
+10. **IT Administrator** (`itadmin`) — Infrastructure health, backup automation, worker leases, and audit telemetry (air-gapped from student private records)
+11. **Resident Student** (`rohan`) — Room details, leave requests, grievance submission, mess subscriptions, and fee payments
+12. **Parent / Guardian** (`parent`) — Multi-ward oversight, attendance monitoring, fee ledgers, and leave tracking
+13. **Mess Manager** (`messmanager`) — Weekly dining schedules, dietary options, meal feedback, and grocery inventory
+14. **Maintenance Staff** (`maintenance`) — Repair work orders, spare parts utilization, and status updates
+15. **TQM Faculty Auditor** (`evaluator`) — Quality metrics audit, Q05 telemetry, and SLA verification
 
 ---
 
@@ -131,13 +134,13 @@ python scripts/benchmark_q05.py
 
 ## 📚 Technical Documentation Directory
 
-- [Final Remediation & Release Report](docs/FINAL_REMEDIATION_REPORT.md) — Comprehensive evidence report covering all 7 defect groups, 293 passing tests, and release sign-off
+- [Final Remediation & Release Report](docs/FINAL_REMEDIATION_REPORT.md) — Comprehensive evidence report covering all 7 defect groups, 301 passing tests, and release sign-off
 - [Remediation Status Log](REMEDIATION_STATUS.md) — Master defect tracking and remediation log across all subsystems
-- [Role & Permission Matrix](docs/ROLE_PERMISSION_MATRIX.md) — 12-role RBAC enforcement, active role precedence, and student isolation rules
+- [Role & Permission Matrix](docs/ROLE_PERMISSION_MATRIX.md) — 15-role enterprise RBAC enforcement, canonical codes, data scoping, and role switching safeguards
 - [Registration & Onboarding Workflows](docs/REGISTRATION_WORKFLOWS.md) — Student, Faculty/Staff, and Parent onboarding chains and dual approval
-- [Acceptance Test Report](docs/ACCEPTANCE_TEST_REPORT.md) — 278/278 automated tests passing with zero defects
+- [Acceptance Test Report](docs/ACCEPTANCE_TEST_REPORT.md) — 301/301 automated tests passing with zero defects (296 backend + 5 browser)
 - [Installation Guide](docs/INSTALLATION_GUIDE.md) — Comprehensive local and production setup instructions
-- [User Manual](docs/USER_MANUAL.md) — Operational walkthrough for all 12 stakeholder roles
+- [User Manual](docs/USER_MANUAL.md) — Operational walkthrough for all 15 stakeholder roles
 - [REST API Documentation](docs/API_DOCUMENTATION.md) — Endpoint specifications for all 21 modules
 - [Production Deployment Guide](docs/DEPLOYMENT_GUIDE.md) — Nginx reverse proxy, SSL, systemd, and backup policies
 - [TQM Final Project Report](docs/TQM_FINAL_PROJECT_REPORT.md) — Academic report on TQM methodology, Q05 SLA, and Poka-Yoke
@@ -160,14 +163,17 @@ python scripts/benchmark_q05.py
 Universal demo account password: `Password123!`
 
 - Super Admin: `superadmin`
-- Hostel Admin: `hosteladmin`
-- Warden: `warden`
+- Hostel Director / Admin: `hosteladmin`
+- Chief Warden: `warden`
 - Assistant Warden: `asstwarden`
+- Hostel Clerk: `clerk`
+- Financial Accountant: `accountant`
+- Admission Officer: `admission`
+- Security Supervisor: `secsupervisor`
+- Campus Security Guard: `security`
+- IT Administrator: `itadmin`
 - Resident Student: `rohan`
-- Accountant: `accountant`
+- Parent / Guardian: `parent`
 - Mess Manager: `messmanager`
 - Maintenance Staff: `maintenance`
-- Security Guard: `security`
-- Admission Officer: `admission`
-- Parent / Guardian: `parent`
 - TQM Auditor: `evaluator`

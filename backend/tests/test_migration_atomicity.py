@@ -44,13 +44,14 @@ class TestMigrationAtomicity(unittest.TestCase):
             self.conn.close()
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def test_01_all_19_migrations_fresh_db_zero_violations(self):
-        """All 19 migrations must execute in atomic order with 0 foreign key violations."""
+    def test_01_all_20_migrations_fresh_db_zero_violations(self):
+        """All 20 migrations must execute in atomic order with 0 foreign key violations."""
         applied = run_migrations(self.conn)
-        self.assertEqual(len(applied), 19, f"Expected 19 migrations, applied: {len(applied)}")
+        self.assertEqual(len(applied), 20, f"Expected 20 migrations, applied: {len(applied)}")
         self.assertIn("001_initial_schema", applied)
         self.assertIn("018_multi_ward_parent_relationship_and_approvals", applied)
         self.assertIn("019_notification_deliveries_and_leases", applied)
+        self.assertIn("020_enterprise_rbac_and_10_stakeholders", applied)
 
         violations = self.conn.execute("PRAGMA foreign_key_check;").fetchall()
         self.assertEqual(len(violations), 0, f"Expected 0 foreign key violations, found {len(violations)}")

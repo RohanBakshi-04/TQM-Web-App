@@ -174,11 +174,21 @@ document.addEventListener("alpine:init", () => {
 
         // Primary Core Stakeholders (Simplified for clear operational governance)
         rolePresets: [
-            { role: "super_admin", username: "superadmin", label: "Administrator", icon: "fa-shield-halved", badge: "Governance", desc: "Institutional oversight, room allocations, student admissions, finance & system settings" },
-            { role: "warden", username: "warden", label: "Hostel Warden", icon: "fa-user-tie", badge: "Welfare & Discipline", desc: "Student welfare, daily roll-calls, leaves, digital gate outpasses & discipline" },
-            { role: "maintenance_staff", username: "maintenance", label: "Staff Member", icon: "fa-user-gear", badge: "Operations", desc: "Maintenance tasks (electrician, plumber, carpentry), mess operations & gate check-ins" },
-            { role: "student", username: "rohan", label: "Student Resident", icon: "fa-graduation-cap", badge: "Resident Portal", desc: "Personal room details, daily attendance [Present/Absent], leave requests & grievances" },
-            { role: "parent_guardian", username: "parent", label: "Parent / Guardian", icon: "fa-people-roof", badge: "Family Portal", desc: "Ward daily attendance status, fee dues, payment receipts & warden communication" }
+            { role: "super_admin", username: "superadmin", label: "Super Admin", icon: "fa-shield-halved", badge: "Super Admin", desc: "Global administrative control, system settings, RBAC role management & full audit access" },
+            { role: "hostel_admin", username: "hosteladmin", label: "Hostel Director", icon: "fa-hotel", badge: "Director", desc: "Multi-hostel institutional leadership, facility policies, cross-hostel allocations & budgets" },
+            { role: "warden", username: "warden", label: "Chief Warden", icon: "fa-user-tie", badge: "Chief Warden", desc: "Hostel head: student welfare, room allocations, leave/outpass approvals & discipline" },
+            { role: "assistant_warden", username: "asstwarden", label: "Assistant Warden", icon: "fa-user-shield", badge: "Asst Warden", desc: "Block/floor roll-calls, night curfews, initial grievance review & gate verification" },
+            { role: "hostel_clerk", username: "clerk", label: "Hostel Clerk", icon: "fa-id-card-clip", badge: "Front Desk", desc: "Student document verification, physical register maintenance & certificate requests" },
+            { role: "accountant", username: "accountant", label: "Accountant", icon: "fa-calculator", badge: "Finance", desc: "Fee structures, term invoicing, payment collection, refunds & financial ledgers" },
+            { role: "admission_officer", username: "admission", label: "Admission Officer", icon: "fa-user-plus", badge: "Admissions", desc: "Application processing, eligibility screening, room quota management & onboarding" },
+            { role: "security_supervisor", username: "secsupervisor", label: "Security Supervisor", icon: "fa-tower-observation", badge: "Gate Oversight", desc: "Gate log auditing, guard shift rosters, incident escalations & campus perimeter" },
+            { role: "security_guard", username: "security", label: "Security Guard", icon: "fa-person-military-pointing", badge: "Gate Security", desc: "Real-time gate logging, visitor check-in/checkout & student outpass validation" },
+            { role: "it_admin", username: "itadmin", label: "IT Administrator", icon: "fa-server", badge: "IT Operations", desc: "System telemetry, database backups, background worker leases & security audit logs" },
+            { role: "student", username: "rohan", label: "Student Resident", icon: "fa-graduation-cap", badge: "Student Portal", desc: "Personal room details, daily attendance, leave/outpass applications & grievances" },
+            { role: "parent_guardian", username: "parent", label: "Parent / Guardian", icon: "fa-people-roof", badge: "Family Portal", desc: "Ward attendance status, fee dues, payment receipts & leave communications" },
+            { role: "mess_manager", username: "messmanager", label: "Mess Manager", icon: "fa-utensils", badge: "Dining", desc: "Dietary planning, weekly menus, meal subscriptions & food inventory" },
+            { role: "maintenance_staff", username: "maintenance", label: "Maintenance Staff", icon: "fa-user-gear", badge: "Facility Tech", desc: "Facility repair work orders (electrical, plumbing, carpentry) & spare parts stock" },
+            { role: "auditor", username: "evaluator", label: "TQM Auditor", icon: "fa-clipboard-check", badge: "Quality & SLA", desc: "TQM response time telemetry (<10ms SLA), process compliance & immutable audit logs" }
         ],
         // Role-Specific Navigation Mappings
         roleNavigationMap: {
@@ -270,6 +280,26 @@ document.addEventListener("alpine:init", () => {
                 { id: "dashboard", label: "Compliance Dashboard", icon: "fa-gauge-high" },
                 { id: "admin", label: "System Audit Logs", icon: "fa-sliders" },
                 { id: "finance", label: "Financial Ledger Audit", icon: "fa-file-invoice-dollar" }
+            ],
+            hostel_clerk: [
+                { id: "dashboard", label: "Clerk Dashboard", icon: "fa-gauge-high" },
+                { id: "registrations", label: "Document Verification", icon: "fa-user-check" },
+                { id: "allocations", label: "Student Records & Desks", icon: "fa-bed" },
+                { id: "visitors", label: "Visitor Register", icon: "fa-user-clock" },
+                { id: "attendance", label: "Attendance Records", icon: "fa-clipboard-user" },
+                { id: "announcements", label: "Campus Notices", icon: "fa-bullhorn" }
+            ],
+            security_supervisor: [
+                { id: "dashboard", label: "Security Supervisor Console", icon: "fa-gauge-high" },
+                { id: "visitors", label: "Visitor Passes & Audit", icon: "fa-user-clock" },
+                { id: "leaves", label: "Gate Passes & Outpasses", icon: "fa-id-badge" },
+                { id: "attendance", label: "Night Curfew Attendance", icon: "fa-clipboard-user" },
+                { id: "announcements", label: "Security Alerts", icon: "fa-bullhorn" }
+            ],
+            it_admin: [
+                { id: "dashboard", label: "IT Administration Console", icon: "fa-gauge-high" },
+                { id: "admin", label: "System Audit & Telemetry", icon: "fa-sliders" },
+                { id: "announcements", label: "System Maintenance Broadcasts", icon: "fa-bullhorn" }
             ]
         },
 
@@ -1264,8 +1294,13 @@ selectPreset(preset) {
         },
 
         async handleSwitchRole(roleKey) {
+            // Role-switching is disabled for single-role users
+            if (!this.userRoles || this.userRoles.length <= 1) {
+                this.showToast("Role switching is disabled for single-role accounts.", "error");
+                return;
+            }
             // Strictly reject if target role is not assigned to current authenticated user
-            if (!this.userRoles || !this.userRoles.includes(roleKey)) {
+            if (!this.userRoles.includes(roleKey)) {
                 this.showToast(`Access Denied: Role '${roleKey}' is not assigned to your account.`, "error");
                 return;
             }
@@ -3455,6 +3490,14 @@ selectPreset(preset) {
         selectedRoleForPermissions: null,
         editingRolePermissions: [],
         adminRolePermissionsModalOpen: false,
+        adminCreateRoleModalOpen: false,
+        newRoleForm: {
+            name: "",
+            code: "",
+            description: "",
+            stakeholder_category: "Operational / Student Life",
+            permissions: []
+        },
         adminAuditLogsList: [],
         adminAuditLogsTotal: 0,
         adminAuditLogsPage: 1,
@@ -3606,6 +3649,43 @@ selectPreset(preset) {
                 await this.loadAdminRolesAndPermissions();
             } catch (err) {
                 this.showToast(`Error: ${err.message}`, "error");
+            }
+        },
+
+        openCreateRoleModal() {
+            this.newRoleForm = {
+                name: "",
+                code: "",
+                description: "",
+                stakeholder_category: "Operational / Student Life",
+                permissions: []
+            };
+            this.adminCreateRoleModalOpen = true;
+        },
+
+        async submitCreateRole() {
+            if (!this.newRoleForm.name || !this.newRoleForm.code) {
+                this.showToast("Please provide both role name and canonical code.", "error");
+                return;
+            }
+            try {
+                const res = await window.API.createAdminRole(this.newRoleForm);
+                this.showToast(`Custom role '${res.name}' (${res.code}) created successfully!`, "success");
+                this.adminCreateRoleModalOpen = false;
+                await this.loadAdminRolesAndPermissions();
+            } catch (err) {
+                this.showToast(`Creation failed: ${err.message}`, "error");
+            }
+        },
+
+        async deleteCustomRole(r) {
+            if (!confirm(`Are you sure you want to delete role '${r.name}' (${r.code})?`)) return;
+            try {
+                await window.API.deleteAdminRole(r.id);
+                this.showToast(`Role '${r.name}' deleted successfully.`, "success");
+                await this.loadAdminRolesAndPermissions();
+            } catch (err) {
+                this.showToast(`Deletion failed: ${err.message}`, "error");
             }
         },
 

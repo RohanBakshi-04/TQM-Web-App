@@ -127,8 +127,8 @@ class TestBrowserAcceptance(unittest.TestCase):
         }""")
         page.wait_for_timeout(300)
 
-    def test_01_desktop_viewport_and_all_12_stakeholder_logins(self):
-        """Test Desktop (1440x900): verify landing, invalid credentials rejection, and successful logins for all 12 roles."""
+    def test_01_desktop_viewport_and_all_15_stakeholder_logins(self):
+        """Test Desktop (1440x900): verify landing, invalid credentials rejection, and successful logins for all 15 roles."""
         context = self.browser.new_context(viewport={"width": 1440, "height": 900})
         page = context.new_page()
 
@@ -142,19 +142,22 @@ class TestBrowserAcceptance(unittest.TestCase):
         self.assertTrue(bool(login_err), "Expected loginError state to be populated on invalid login")
         self.logout_role(page)
 
-        # 3. Verify all 12 roles can log in and render role-specific dashboard views
+        # 3. Verify all 15 roles can log in and render role-specific dashboard views
         all_roles = [
             ("superadmin", "super_admin"),
             ("hosteladmin", "hostel_admin"),
             ("warden", "warden"),
             ("asstwarden", "assistant_warden"),
-            ("rohan", "student"),
+            ("clerk", "hostel_clerk"),
             ("accountant", "accountant"),
+            ("admission", "admission_officer"),
+            ("secsupervisor", "security_supervisor"),
+            ("security", "security_guard"),
+            ("itadmin", "it_admin"),
+            ("rohan", "student"),
+            ("parent", "parent_guardian"),
             ("messmanager", "mess_manager"),
             ("maintenance", "maintenance_staff"),
-            ("security", "security_guard"),
-            ("admission", "admission_officer"),
-            ("parent", "parent_guardian"),
             ("evaluator", "auditor")
         ]
 

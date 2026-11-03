@@ -24,6 +24,8 @@ from backend.app.models.admin_dto import (
     UserPasswordResetAdmin,
     PermissionResponse,
     RoleDetailResponse,
+    RoleCreateRequest,
+    RoleUpdateRequest,
     RolePermissionsUpdate,
     AuditLogResponse,
     AuditLogListResponse
@@ -463,11 +465,12 @@ class AdminService:
 
     @classmethod
     def get_roles(cls) -> List[RoleDetailResponse]:
-        """Directory of 12 system roles with assigned user counts and permissions."""
+        """Directory of all system and custom roles with assigned user counts and permissions."""
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT r.id, r.name, r.description, r.is_system, r.created_at,
+                SELECT r.id, r.name, r.code, r.stakeholder_category, r.description,
+                       r.is_system, COALESCE(r.is_system_role, r.is_system) AS is_system_role, r.created_at,
                        (SELECT COUNT(*) FROM user_roles ur WHERE ur.role_id = r.id) AS user_count,
                        (SELECT GROUP_CONCAT(p.name) FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id WHERE rp.role_id = r.id) AS perm_names
                 FROM roles r
@@ -480,13 +483,91 @@ class AdminService:
                 results.append(RoleDetailResponse(
                     id=r["id"],
                     name=r["name"],
+                    code=r["code"] or r["name"].upper(),
+                    stakeholder_category=r["stakeholder_category"] or "Operational / Student Life",
                     description=r["description"] or "",
                     is_system=bool(r["is_system"]),
+                    is_system_role=bool(r["is_system_role"]),
                     user_count=r["user_count"] or 0,
                     permissions=p_list,
                     created_at=r["created_at"]
                 ))
             return results
+
+    @classmethod
+    def create_role(cls, payload: RoleCreateRequest, current_user: Dict[str, Any]) -> RoleDetailResponse:
+        """Create a new custom role with granular permissions and safeguards."""
+        actor_id = cls._extract_user_id(current_user)
+        actor_username = current_user.get("username", "admin")
+        name = payload.name.strip().lower()
+        code = payload.code.strip().upper()
+
+        if not name or not code:
+            raise HTTPException(status_code=400, detail="Role name and code cannot be empty.")
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM roles WHERE name = ? OR code = ?;", (name, code))
+            if cursor.fetchone():
+                raise HTTPException(status_code=409, detail=f"Role with name '{name}' or code '{code}' already exists.")
+
+            cursor.execute("""
+                INSERT INTO roles (name, code, description, stakeholder_category, is_system, is_system_role)
+                VALUES (?, ?, ?, ?, 0, 0);
+            """, (name, code, payload.description, payload.stakeholder_category))
+            role_id = cursor.lastrowid
+
+            # Assign permissions if provided
+            perm_ids = []
+            for pname in payload.permissions:
+                cursor.execute("SELECT id FROM permissions WHERE name = ?;", (pname,))
+                p_row = cursor.fetchone()
+                if p_row:
+                    perm_ids.append(p_row["id"])
+
+            for pid in perm_ids:
+                cursor.execute("INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?);", (role_id, pid))
+
+            cursor.execute("""
+                INSERT INTO audit_logs (user_id, username, action, entity_name, entity_id, details, latency_ms)
+                VALUES (?, ?, 'CREATE_CUSTOM_ROLE', 'roles', ?, ?, 0.5);
+            """, (actor_id, actor_username, str(role_id), f"Created custom role '{name}' ({code}) with {len(perm_ids)} permissions"))
+            conn.commit()
+
+        cache_service.invalidate_by_tag("rbac")
+        return [r for r in cls.get_roles() if r.id == role_id][0]
+
+    @classmethod
+    def delete_role(cls, role_id: int, current_user: Dict[str, Any]) -> Dict[str, Any]:
+        """Delete a custom non-system role with active user assignment protection."""
+        actor_id = cls._extract_user_id(current_user)
+        actor_username = current_user.get("username", "admin")
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, name, is_system, is_system_role FROM roles WHERE id = ?;", (role_id,))
+            role = cursor.fetchone()
+            if not role:
+                raise HTTPException(status_code=404, detail="Role not found.")
+
+            if role["is_system"] or role["is_system_role"]:
+                raise HTTPException(status_code=400, detail=f"Protected system role '{role['name']}' cannot be deleted.")
+
+            cursor.execute("SELECT COUNT(*) FROM user_roles WHERE role_id = ?;", (role_id,))
+            assigned_count = cursor.fetchone()[0]
+            if assigned_count > 0:
+                raise HTTPException(status_code=400, detail=f"Cannot delete role '{role['name']}': active users ({assigned_count}) are currently assigned to it.")
+
+            cursor.execute("DELETE FROM role_permissions WHERE role_id = ?;", (role_id,))
+            cursor.execute("DELETE FROM roles WHERE id = ?;", (role_id,))
+            cursor.execute("""
+                INSERT INTO audit_logs (user_id, username, action, entity_name, entity_id, details, latency_ms)
+                VALUES (?, ?, 'DELETE_CUSTOM_ROLE', 'roles', ?, ?, 0.5);
+            """, (actor_id, actor_username, str(role_id), f"Deleted custom role '{role['name']}'"))
+            conn.commit()
+
+        cache_service.invalidate_by_tag("rbac")
+        return {"status": "success", "message": f"Role '{role['name']}' deleted successfully."}
 
     @classmethod
     def get_permissions(cls) -> List[PermissionResponse]:

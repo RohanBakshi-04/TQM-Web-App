@@ -25,6 +25,8 @@ from backend.app.database.schema import initialize_all_tables
 
 from backend.app.database.schema_auth import AUTH_TABLES_SQL
 
+from backend.app.services.rbac_data import ROLES_LIST, ROLE_METADATA, PERMISSIONS_LIST, ROLE_PERMISSIONS_MAP
+
 from backend.app.utils.logger import logger
 
 
@@ -3531,6 +3533,123 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
             conn.commit()
             applied_now.append("019_notification_deliveries_and_leases")
             logger.info("Migration 019_notification_deliveries_and_leases applied successfully.")
+
+        # Migration 020: Enterprise RBAC, 10 Core Administrative Stakeholders and Data Scoping
+        if "020_enterprise_rbac_and_10_stakeholders" not in applied:
+            logger.info("Applying Migration 020_enterprise_rbac_and_10_stakeholders...")
+            begin_migration_transaction(conn)
+            cursor = conn.cursor()
+
+            # 1. Add metadata columns to roles table if missing
+            cursor.execute("PRAGMA table_info(roles);")
+            role_cols = {col[1] for col in cursor.fetchall()}
+            if "code" not in role_cols:
+                cursor.execute("ALTER TABLE roles ADD COLUMN code TEXT;")
+            if "stakeholder_category" not in role_cols:
+                cursor.execute("ALTER TABLE roles ADD COLUMN stakeholder_category TEXT DEFAULT 'Operational / Student Life';")
+            if "is_system_role" not in role_cols:
+                cursor.execute("ALTER TABLE roles ADD COLUMN is_system_role INTEGER DEFAULT 1;")
+
+            # 2. Insert or update all 15 system roles with canonical codes and categories
+            for r_name, r_desc in ROLES_LIST:
+                meta = ROLE_METADATA.get(r_name, {})
+                r_code = meta.get("code", r_name.upper())
+                r_cat = meta.get("category", "Operational / Student Life")
+                cursor.execute("""
+                    INSERT INTO roles (name, code, description, stakeholder_category, is_system, is_system_role)
+                    VALUES (?, ?, ?, ?, 1, 1)
+                    ON CONFLICT(name) DO UPDATE SET
+                        code = excluded.code,
+                        description = excluded.description,
+                        stakeholder_category = excluded.stakeholder_category,
+                        is_system = 1,
+                        is_system_role = 1,
+                        updated_at = CURRENT_TIMESTAMP;
+                """, (r_name, r_code, r_desc, r_cat))
+
+            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_roles_code ON roles(code);")
+
+            # 3. Create user_scope_assignments table for fine-grained multi-scope authorization
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS user_scope_assignments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    scope_type TEXT NOT NULL CHECK(scope_type IN ('hostel', 'block', 'gate', 'financial', 'global')),
+                    scope_id TEXT NOT NULL,
+                    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    UNIQUE(user_id, scope_type, scope_id)
+                );
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_scope_user ON user_scope_assignments(user_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_scope_lookup ON user_scope_assignments(scope_type, scope_id);")
+
+            # 4. Insert or update granular permissions
+            for p_name, p_mod, p_desc in PERMISSIONS_LIST:
+                cursor.execute("""
+                    INSERT INTO permissions (name, module, description)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(name) DO UPDATE SET
+                        module = excluded.module,
+                        description = excluded.description;
+                """, (p_name, p_mod, p_desc))
+
+            # 5. Populate role_permissions for all 15 roles
+            cursor.execute("SELECT id, name FROM roles;")
+            role_id_map = {r[1]: r[0] for r in cursor.fetchall()}
+            cursor.execute("SELECT id, name FROM permissions;")
+            perm_id_map = {p[1]: p[0] for p in cursor.fetchall()}
+
+            for r_name, p_names in ROLE_PERMISSIONS_MAP.items():
+                r_id = role_id_map.get(r_name)
+                if not r_id:
+                    continue
+                for p_name in p_names:
+                    p_id = perm_id_map.get(p_name)
+                    if p_id:
+                        cursor.execute("""
+                            INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
+                            VALUES (?, ?);
+                        """, (r_id, p_id))
+
+            # 6. Seed demo accounts for the 3 new roles if running on an existing seeded database
+            cursor.execute("SELECT id FROM users WHERE username = 'superadmin';")
+            if cursor.fetchone():
+                from backend.app.services.security import hash_password
+                default_pw = "Password123!"
+                hashed_pw = hash_password(default_pw)
+                new_demo_users = [
+                    ("clerk", "clerk@univ.edu", "Amit", "Patel", "9800000013", "hostel_clerk", 1, "STF-0013"),
+                    ("secsupervisor", "secsupervisor@univ.edu", "Gurpreet", "Singh", "9800000014", "security_supervisor", 1, "STF-0014"),
+                    ("itadmin", "itadmin@univ.edu", "Neha", "Verma", "9800000015", "it_admin", None, "STF-0015"),
+                ]
+                for uname, uemail, ufn, uln, uph, rname, l_hid, stf_id in new_demo_users:
+                    cursor.execute("SELECT id FROM users WHERE username = ? OR email = ?;", (uname, uemail))
+                    existing_u = cursor.fetchone()
+                    if not existing_u:
+                        cursor.execute("""
+                            INSERT INTO users (username, email, password_hash, salt, first_name, last_name, phone, linked_hostel_id, staff_id, is_active)
+                            VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, 1);
+                        """, (uname, uemail, hashed_pw, ufn, uln, uph, l_hid, stf_id))
+                        u_id = cursor.lastrowid
+                        r_id = role_id_map.get(rname)
+                        if r_id:
+                            cursor.execute("INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?);", (u_id, r_id))
+                        if l_hid:
+                            cursor.execute("INSERT OR IGNORE INTO user_scope_assignments (user_id, scope_type, scope_id) VALUES (?, 'hostel', ?);", (u_id, str(l_hid)))
+
+            # 7. Validate zero foreign key violations
+            violations = cursor.execute("PRAGMA foreign_key_check;").fetchall()
+            if violations:
+                violation_summary = [f"table={v[0]}, rowid={v[1]}, target={v[2]}, fkid={v[3]}" for v in violations]
+                err_msg = f"Migration 020 foreign key validation failed with {len(violations)} unresolved violations: {violation_summary}"
+                logger.error(err_msg)
+                raise RuntimeError(err_msg)
+
+            record_migration(conn, "020_enterprise_rbac_and_10_stakeholders", "Enterprise RBAC, 10 Core Administrative Stakeholders and Data Scoping", commit=False)
+            conn.commit()
+            applied_now.append("020_enterprise_rbac_and_10_stakeholders")
+            logger.info("Migration 020_enterprise_rbac_and_10_stakeholders applied successfully.")
 
         return applied_now
 

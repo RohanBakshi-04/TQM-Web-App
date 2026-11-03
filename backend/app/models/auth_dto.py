@@ -194,6 +194,10 @@ class UserProfileResponse(BaseModel):
     roles: List[str]
     permissions: List[str]
     active_role: Optional[str] = None
+    role_code: Optional[str] = None
+    stakeholder_category: Optional[str] = None
+    can_switch_roles: Optional[bool] = False
+    user_scopes: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
     linked_student_id: Optional[int] = None
     linked_hostel_id: Optional[int] = None
     staff_id: Optional[str] = None
@@ -207,6 +211,7 @@ class SwitchRoleRequest(BaseModel):
 class SwitchRoleResponse(BaseModel):
     success: bool
     active_role: str
+    role_code: Optional[str] = None
     access_token: str
     permissions: List[str]
     message: str
