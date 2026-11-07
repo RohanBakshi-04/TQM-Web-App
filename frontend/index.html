@@ -2014,10 +2014,10 @@
                                             <span class="px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest bg-brand-500 text-white shadow-xs">SA-01 Executive</span>
                                             <span class="text-xs font-semibold text-slate-300 flex items-center space-x-1.5">
                                                 <i class="fa-solid fa-building-columns text-brand-400"></i>
-                                                <span x-text="executiveOverviewData?.metadata?.institution_name || 'University College of Engineering'"></span>
+                                                <span x-text="executiveOverviewData?.metadata?.institution_name || '—'"></span>
                                             </span>
                                             <span class="text-xs text-slate-400">•</span>
-                                            <span class="text-xs text-slate-300 font-mono" x-text="'Session: ' + (executiveOverviewData?.metadata?.academic_session || '2026-27')"></span>
+                                            <span class="text-xs text-slate-300 font-mono" x-text="'Session: ' + (executiveOverviewData?.metadata?.academic_session || '—')"></span>
                                         </div>
                                         <h1 class="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-3">
                                             <span>Institutional Executive Overview</span>
@@ -2043,9 +2043,9 @@
                                         <!-- Sync / Latency Badge -->
                                         <div class="px-3.5 py-1.5 rounded-xl bg-slate-800/80 border border-slate-700 text-xs text-slate-200 flex items-center space-x-2 font-mono">
                                             <i class="fa-solid fa-bolt text-amber-400 text-[11px]"></i>
-                                            <span x-text="executiveOverviewData?.metadata?.execution_time_ms ? (executiveOverviewData.metadata.execution_time_ms + ' ms') : '8.4 ms'"></span>
+                                            <span x-text="executiveOverviewData?.metadata?.execution_time_ms !== undefined ? (executiveOverviewData.metadata.execution_time_ms + ' ms') : '—'"></span>
                                             <span class="text-slate-400">|</span>
-                                            <span class="text-emerald-400" x-text="executiveOverviewData?.metadata?.cache_status || 'READY'"></span>
+                                            <span class="text-emerald-400" x-text="executiveOverviewData?.metadata?.cache_status || '—'"></span>
                                         </div>
 
                                         <!-- Refresh Button -->
@@ -2076,7 +2076,7 @@
                                         <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Campus</label>
                                         <select x-model="executiveFilters.campus" @change="loadExecutiveOverview(true)"
                                                 class="w-full text-xs font-semibold bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-white focus:outline-hidden focus:border-brand-500">
-                                            <option value="all">All Campuses (2)</option>
+                                            <option value="all">All Campuses</option>
                                             <option value="North Campus">North Campus (Boys)</option>
                                             <option value="South Campus">South Campus (Girls)</option>
                                         </select>
@@ -2087,7 +2087,7 @@
                                         <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Hostel Facility</label>
                                         <select x-model="executiveFilters.hostel_id" @change="loadExecutiveOverview(true)"
                                                 class="w-full text-xs font-semibold bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-white focus:outline-hidden focus:border-brand-500">
-                                            <option value="all">All Hostels (3)</option>
+                                            <option value="all">All Hostels</option>
                                             <option value="1">Rabindranath Tagore Hostel (Boys)</option>
                                             <option value="2">Sarojini Naidu Girls Hostel</option>
                                             <option value="3">Mother Teresa Girls Hostel</option>
@@ -2099,7 +2099,7 @@
                                         <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Department</label>
                                         <select x-model="executiveFilters.department" @change="loadExecutiveOverview(true)"
                                                 class="w-full text-xs font-semibold bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-white focus:outline-hidden focus:border-brand-500">
-                                            <option value="all">All Departments (17)</option>
+                                            <option value="all">All Departments</option>
                                             <option value="EXEC_ADMIN">Executive Administration</option>
                                             <option value="HOSTEL_ADMIN">Hostel Administration</option>
                                             <option value="ADMISSIONS">Admissions & Accommodation</option>
@@ -2167,7 +2167,7 @@
                                             <i class="fa-solid fa-city"></i>
                                         </div>
                                     </div>
-                                    <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="executiveOverviewData?.institution_overview?.campuses || 2"></div>
+                                    <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="executiveOverviewData?.institution_overview?.campuses ?? '—'"></div>
                                     <div class="text-[10px] text-slate-500 mt-0.5">North & South Campuses</div>
                                 </div>
 
@@ -2179,7 +2179,7 @@
                                             <i class="fa-solid fa-hotel"></i>
                                         </div>
                                     </div>
-                                    <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="executiveOverviewData?.institution_overview?.hostels || 3"></div>
+                                    <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="executiveOverviewData?.institution_overview?.hostels ?? '—'"></div>
                                     <div class="text-[10px] text-slate-500 mt-0.5">Tagore, Sarojini, Teresa</div>
                                 </div>
 
@@ -2191,7 +2191,7 @@
                                             <i class="fa-solid fa-building"></i>
                                         </div>
                                     </div>
-                                    <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="executiveOverviewData?.institution_overview?.buildings || 3"></div>
+                                    <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="executiveOverviewData?.institution_overview?.buildings ?? '—'"></div>
                                     <div class="text-[10px] text-slate-500 mt-0.5">Residential Blocks</div>
                                 </div>
 
@@ -2203,7 +2203,7 @@
                                             <i class="fa-solid fa-sitemap"></i>
                                         </div>
                                     </div>
-                                    <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="executiveOverviewData?.institution_overview?.departments || 17"></div>
+                                    <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="executiveOverviewData?.institution_overview?.departments ?? '—'"></div>
                                     <div class="text-[10px] text-slate-500 mt-0.5">Functional Divisions</div>
                                 </div>
 
@@ -2215,7 +2215,7 @@
                                             <i class="fa-solid fa-layer-group"></i>
                                         </div>
                                     </div>
-                                    <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="executiveOverviewData?.institution_overview?.floors || 4"></div>
+                                    <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="executiveOverviewData?.institution_overview?.floors ?? '—'"></div>
                                     <div class="text-[10px] text-slate-500 mt-0.5">Hostel Living Levels</div>
                                 </div>
 
@@ -2227,7 +2227,7 @@
                                             <i class="fa-solid fa-door-open"></i>
                                         </div>
                                     </div>
-                                    <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="executiveOverviewData?.institution_overview?.rooms || 25"></div>
+                                    <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="executiveOverviewData?.institution_overview?.rooms ?? '—'"></div>
                                     <div class="text-[10px] text-slate-500 mt-0.5">Single & Shared Rooms</div>
                                 </div>
 
@@ -2239,8 +2239,8 @@
                                             <i class="fa-solid fa-bed"></i>
                                         </div>
                                     </div>
-                                    <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="executiveOverviewData?.institution_overview?.beds || 39"></div>
-                                    <div class="text-[10px] text-slate-500 mt-0.5" x-text="(executiveOverviewData?.kpi_grid?.hostels?.available_beds || 36) + ' Available'"></div>
+                                    <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="executiveOverviewData?.institution_overview?.beds ?? '—'"></div>
+                                    <div class="text-[10px] text-slate-500 mt-0.5" x-text="(executiveOverviewData?.kpi_grid?.hostels?.available_beds ?? 0) + ' Available'"></div>
                                 </div>
 
                                 <!-- 8. Students -->
@@ -2251,8 +2251,8 @@
                                             <i class="fa-solid fa-user-graduate"></i>
                                         </div>
                                     </div>
-                                    <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="executiveOverviewData?.institution_overview?.students || 417"></div>
-                                    <div class="text-[10px] text-emerald-600 font-semibold mt-0.5" x-text="(executiveOverviewData?.institution_overview?.students_active || 292) + ' Active'"></div>
+                                    <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="executiveOverviewData?.institution_overview?.students ?? '—'"></div>
+                                    <div class="text-[10px] text-emerald-600 font-semibold mt-0.5" x-text="(executiveOverviewData?.institution_overview?.students_active ?? 0) + ' Active'"></div>
                                 </div>
 
                                 <!-- 9. System Accounts -->
@@ -2263,8 +2263,8 @@
                                             <i class="fa-solid fa-id-card-clip"></i>
                                         </div>
                                     </div>
-                                    <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="executiveOverviewData?.institution_overview?.users || 613"></div>
-                                    <div class="text-[10px] text-slate-500 mt-0.5" x-text="(executiveOverviewData?.institution_overview?.users_active || 198) + ' Active'"></div>
+                                    <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="executiveOverviewData?.institution_overview?.users ?? '—'"></div>
+                                    <div class="text-[10px] text-slate-500 mt-0.5" x-text="(executiveOverviewData?.institution_overview?.users_active ?? 0) + ' Active'"></div>
                                 </div>
 
                                 <!-- 10. Dashboards & Roles -->
@@ -2275,8 +2275,8 @@
                                             <i class="fa-solid fa-gauge-high"></i>
                                         </div>
                                     </div>
-                                    <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="executiveOverviewData?.institution_overview?.dashboards || 28"></div>
-                                    <div class="text-[10px] text-slate-500 mt-0.5" x-text="(executiveOverviewData?.institution_overview?.stakeholders || 32) + ' Stakeholder Roles'"></div>
+                                    <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1" x-text="executiveOverviewData?.institution_overview?.dashboards ?? '—'"></div>
+                                    <div class="text-[10px] text-slate-500 mt-0.5" x-text="(executiveOverviewData?.institution_overview?.stakeholders ?? 0) + ' Stakeholder Roles'"></div>
                                 </div>
                             </div>
                         </div>
@@ -2408,20 +2408,20 @@
                                                 <i class="fa-solid fa-user-graduate"></i>
                                             </div>
                                         </div>
-                                        <div class="text-3xl font-black text-slate-900 dark:text-white mt-2" x-text="executiveOverviewData?.kpi_grid?.students?.total || 417"></div>
+                                        <div class="text-3xl font-black text-slate-900 dark:text-white mt-2" x-text="executiveOverviewData?.kpi_grid?.students?.total ?? 0"></div>
                                         <div class="flex items-center space-x-2 text-xs mt-1">
-                                            <span class="font-bold text-emerald-600" x-text="(executiveOverviewData?.kpi_grid?.students?.active || 292) + ' Active'"></span>
+                                            <span class="font-bold text-emerald-600" x-text="(executiveOverviewData?.kpi_grid?.students?.active ?? 0) + ' Active'"></span>
                                             <span class="text-slate-400">•</span>
-                                            <span class="text-slate-500" x-text="(executiveOverviewData?.kpi_grid?.students?.inactive_withdrawn || 125) + ' Inactive'"></span>
+                                            <span class="text-slate-500" x-text="(executiveOverviewData?.kpi_grid?.students?.inactive_withdrawn ?? 0) + ' Inactive'"></span>
                                         </div>
                                     </div>
                                     <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
                                         <div class="flex items-center justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
                                             <span>Retention Rate</span>
-                                            <span x-text="(executiveOverviewData?.kpi_grid?.students?.retention_rate_pct || 70.0) + '%'"></span>
+                                            <span x-text="(executiveOverviewData?.kpi_grid?.students?.retention_rate_pct ?? 0) + '%'"></span>
                                         </div>
                                         <div class="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                                            <div class="bg-emerald-500 h-full rounded-full transition-all" :style="'width: ' + (executiveOverviewData?.kpi_grid?.students?.retention_rate_pct || 70) + '%'"></div>
+                                            <div class="bg-emerald-500 h-full rounded-full transition-all" :style="'width: ' + (executiveOverviewData?.kpi_grid?.students?.retention_rate_pct ?? 0) + '%'"></div>
                                         </div>
                                     </div>
                                 </div>
@@ -2435,20 +2435,20 @@
                                                 <i class="fa-solid fa-bed"></i>
                                             </div>
                                         </div>
-                                        <div class="text-3xl font-black text-slate-900 dark:text-white mt-2" x-text="(executiveOverviewData?.kpi_grid?.hostels?.occupancy_rate_pct || 5.1) + '%'"></div>
+                                        <div class="text-3xl font-black text-slate-900 dark:text-white mt-2" x-text="(executiveOverviewData?.kpi_grid?.hostels?.occupancy_rate_pct ?? 0) + '%'"></div>
                                         <div class="flex items-center space-x-2 text-xs mt-1">
-                                            <span class="font-bold text-indigo-600" x-text="(executiveOverviewData?.kpi_grid?.hostels?.occupied_beds || 2) + ' Occupied'"></span>
+                                            <span class="font-bold text-indigo-600" x-text="(executiveOverviewData?.kpi_grid?.hostels?.occupied_beds ?? 0) + ' Occupied'"></span>
                                             <span class="text-slate-400">•</span>
-                                            <span class="text-slate-500" x-text="(executiveOverviewData?.kpi_grid?.hostels?.available_beds || 36) + ' Available'"></span>
+                                            <span class="text-slate-500" x-text="(executiveOverviewData?.kpi_grid?.hostels?.available_beds ?? 0) + ' Available'"></span>
                                         </div>
                                     </div>
                                     <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
                                         <div class="flex items-center justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
                                             <span>Total Bed Capacity</span>
-                                            <span x-text="(executiveOverviewData?.kpi_grid?.hostels?.total_capacity || 39) + ' Beds'"></span>
+                                            <span x-text="(executiveOverviewData?.kpi_grid?.hostels?.total_capacity ?? 0) + ' Beds'"></span>
                                         </div>
                                         <div class="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                                            <div class="bg-indigo-600 h-full rounded-full transition-all" :style="'width: ' + (executiveOverviewData?.kpi_grid?.hostels?.occupancy_rate_pct || 5) + '%'"></div>
+                                            <div class="bg-indigo-600 h-full rounded-full transition-all" :style="'width: ' + (executiveOverviewData?.kpi_grid?.hostels?.occupancy_rate_pct ?? 0) + '%'"></div>
                                         </div>
                                     </div>
                                 </div>
@@ -2462,16 +2462,16 @@
                                                 <i class="fa-solid fa-users-gear"></i>
                                             </div>
                                         </div>
-                                        <div class="text-3xl font-black text-slate-900 dark:text-white mt-2" x-text="executiveOverviewData?.kpi_grid?.users?.total_accounts || 613"></div>
+                                        <div class="text-3xl font-black text-slate-900 dark:text-white mt-2" x-text="executiveOverviewData?.kpi_grid?.users?.total_accounts ?? 0"></div>
                                         <div class="flex items-center space-x-2 text-xs mt-1">
-                                            <span class="font-bold text-purple-600" x-text="(executiveOverviewData?.kpi_grid?.users?.active_accounts || 198) + ' Active'"></span>
+                                            <span class="font-bold text-purple-600" x-text="(executiveOverviewData?.kpi_grid?.users?.active_accounts ?? 0) + ' Active'"></span>
                                             <span class="text-slate-400">•</span>
-                                            <span class="text-slate-500" x-text="(executiveOverviewData?.kpi_grid?.users?.inactive_accounts || 415) + ' Inactive'"></span>
+                                            <span class="text-slate-500" x-text="(executiveOverviewData?.kpi_grid?.users?.inactive_accounts ?? 0) + ' Inactive'"></span>
                                         </div>
                                     </div>
                                     <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
-                                        <span>32 Roles Configured</span>
-                                        <span class="font-mono font-bold text-brand-600">28 Dashboards</span>
+                                        <span x-text="(executiveOverviewData?.institution_overview?.stakeholders ?? 0) + ' Roles Configured'"></span>
+                                        <span class="font-mono font-bold text-brand-600" x-text="(executiveOverviewData?.institution_overview?.dashboards ?? 0) + ' Dashboards'"></span>
                                     </div>
                                 </div>
 
@@ -2484,16 +2484,16 @@
                                                 <i class="fa-solid fa-clipboard-check"></i>
                                             </div>
                                         </div>
-                                        <div class="text-3xl font-black text-slate-900 dark:text-white mt-2" x-text="executiveOverviewData?.kpi_grid?.admissions?.total_applications || 1"></div>
+                                        <div class="text-3xl font-black text-slate-900 dark:text-white mt-2" x-text="executiveOverviewData?.kpi_grid?.admissions?.total_applications ?? 0"></div>
                                         <div class="flex items-center space-x-2 text-xs mt-1">
-                                            <span class="font-bold text-cyan-600" x-text="(executiveOverviewData?.kpi_grid?.admissions?.pending_review || 1) + ' In Review'"></span>
+                                            <span class="font-bold text-cyan-600" x-text="(executiveOverviewData?.kpi_grid?.admissions?.pending_review ?? 0) + ' In Review'"></span>
                                             <span class="text-slate-400">•</span>
-                                            <span class="text-slate-500" x-text="(executiveOverviewData?.kpi_grid?.admissions?.admitted_approved || 0) + ' Admitted'"></span>
+                                            <span class="text-slate-500" x-text="(executiveOverviewData?.kpi_grid?.admissions?.admitted_approved ?? 0) + ' Admitted'"></span>
                                         </div>
                                     </div>
                                     <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
                                         <span>Conversion Rate</span>
-                                        <span class="font-mono font-bold text-emerald-600" x-text="(executiveOverviewData?.kpi_grid?.admissions?.conversion_rate_pct || 0.0) + '%'"></span>
+                                        <span class="font-mono font-bold text-emerald-600" x-text="(executiveOverviewData?.kpi_grid?.admissions?.conversion_rate_pct ?? 0) + '%'"></span>
                                     </div>
                                 </div>
                             </div>
@@ -2517,14 +2517,14 @@
                                     <div class="space-y-1">
                                         <div class="flex items-center justify-between">
                                             <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Complaints SLA</span>
-                                            <span class="text-xs font-bold text-amber-600" x-text="(executiveOverviewData?.operational_performance?.complaints?.open_in_progress || 155) + ' Open'"></span>
+                                            <span class="text-xs font-bold text-amber-600" x-text="(executiveOverviewData?.operational_performance?.complaints?.open_in_progress ?? 0) + ' Open'"></span>
                                         </div>
-                                        <div class="text-2xl font-black text-slate-900 dark:text-white" x-text="(executiveOverviewData?.operational_performance?.complaints?.resolution_rate_pct || 50.2) + '%'"></div>
-                                        <div class="text-[10px] text-slate-500" x-text="(executiveOverviewData?.operational_performance?.complaints?.resolved || 156) + ' of ' + (executiveOverviewData?.operational_performance?.complaints?.total || 311) + ' Resolved'"></div>
+                                        <div class="text-2xl font-black text-slate-900 dark:text-white" x-text="(executiveOverviewData?.operational_performance?.complaints?.resolution_rate_pct ?? 0) + '%'"></div>
+                                        <div class="text-[10px] text-slate-500" x-text="(executiveOverviewData?.operational_performance?.complaints?.resolved ?? 0) + ' of ' + (executiveOverviewData?.operational_performance?.complaints?.total ?? 0) + ' Resolved'"></div>
                                     </div>
                                     <div class="mt-2 text-[10px] font-bold text-rose-600 dark:text-rose-400 flex items-center space-x-1" x-show="executiveOverviewData?.operational_performance?.complaints?.high_critical_open > 0">
                                         <i class="fa-solid fa-triangle-exclamation"></i>
-                                        <span x-text="(executiveOverviewData?.operational_performance?.complaints?.high_critical_open || 0) + ' High Priority Open'"></span>
+                                        <span x-text="(executiveOverviewData?.operational_performance?.complaints?.high_critical_open ?? 0) + ' High Priority Open'"></span>
                                     </div>
                                 </div>
 
@@ -2533,10 +2533,10 @@
                                     <div class="space-y-1">
                                         <div class="flex items-center justify-between">
                                             <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Maintenance Orders</span>
-                                            <span class="text-xs font-bold text-blue-600" x-text="(executiveOverviewData?.operational_performance?.maintenance?.pending_assigned || 92) + ' Active'"></span>
+                                            <span class="text-xs font-bold text-blue-600" x-text="(executiveOverviewData?.operational_performance?.maintenance?.pending_assigned ?? 0) + ' Active'"></span>
                                         </div>
-                                        <div class="text-2xl font-black text-slate-900 dark:text-white" x-text="(executiveOverviewData?.operational_performance?.maintenance?.completion_rate_pct || 48.3) + '%'"></div>
-                                        <div class="text-[10px] text-slate-500" x-text="(executiveOverviewData?.operational_performance?.maintenance?.completed || 86) + ' Completed Work Orders'"></div>
+                                        <div class="text-2xl font-black text-slate-900 dark:text-white" x-text="(executiveOverviewData?.operational_performance?.maintenance?.completion_rate_pct ?? 0) + '%'"></div>
+                                        <div class="text-[10px] text-slate-500" x-text="(executiveOverviewData?.operational_performance?.maintenance?.completed ?? 0) + ' Completed Work Orders'"></div>
                                     </div>
                                     <div class="mt-2 text-[10px] font-semibold text-slate-400">Facilities & Asset Maintenance</div>
                                 </div>
@@ -2548,8 +2548,8 @@
                                             <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Leaves & Outpass</span>
                                             <i class="fa-solid fa-id-badge text-brand-600"></i>
                                         </div>
-                                        <div class="text-2xl font-black text-slate-900 dark:text-white" x-text="executiveOverviewData?.operational_performance?.leaves_outpasses?.active_outpasses || 93"></div>
-                                        <div class="text-[10px] text-slate-500" x-text="(executiveOverviewData?.operational_performance?.leaves_outpasses?.active_leaves || 186) + ' Active Leave Requests'"></div>
+                                        <div class="text-2xl font-black text-slate-900 dark:text-white" x-text="executiveOverviewData?.operational_performance?.leaves_outpasses?.active_outpasses ?? 0"></div>
+                                        <div class="text-[10px] text-slate-500" x-text="(executiveOverviewData?.operational_performance?.leaves_outpasses?.active_leaves ?? 0) + ' Active Leave Requests'"></div>
                                     </div>
                                     <div class="mt-2 text-[10px] font-bold" :class="(executiveOverviewData?.operational_performance?.leaves_outpasses?.overdue_outpasses || 0) > 0 ? 'text-rose-600' : 'text-emerald-600'">
                                         <span x-text="(executiveOverviewData?.operational_performance?.leaves_outpasses?.overdue_outpasses || 0) + ' Overdue Returns'"></span>
@@ -2563,8 +2563,8 @@
                                             <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Campus Visitors</span>
                                             <i class="fa-solid fa-user-clock text-amber-600"></i>
                                         </div>
-                                        <div class="text-2xl font-black text-slate-900 dark:text-white" x-text="executiveOverviewData?.operational_performance?.visitors?.active_inside || 2"></div>
-                                        <div class="text-[10px] text-slate-500" x-text="(executiveOverviewData?.operational_performance?.visitors?.total_logs || 4) + ' Total Registered Logs'"></div>
+                                        <div class="text-2xl font-black text-slate-900 dark:text-white" x-text="executiveOverviewData?.operational_performance?.visitors?.active_inside ?? 0"></div>
+                                        <div class="text-[10px] text-slate-500" x-text="(executiveOverviewData?.operational_performance?.visitors?.total_logs ?? 0) + ' Total Registered Logs'"></div>
                                     </div>
                                     <div class="mt-2 text-[10px] font-bold text-amber-600">Active Gate Passes Verified</div>
                                 </div>
@@ -2598,7 +2598,7 @@
                                 </div>
                                 <div class="flex items-center space-x-2">
                                     <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200"
-                                          x-text="'Efficiency: ' + (executiveOverviewData?.financial_overview?.collection_efficiency_pct || 38.2) + '%'"></span>
+                                          x-text="'Efficiency: ' + (executiveOverviewData?.financial_overview?.collection_efficiency_pct ?? 0) + '%'"></span>
                                 </div>
                             </div>
 
@@ -2607,30 +2607,30 @@
                                 <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
                                     <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Invoiced</span>
                                     <div class="text-2xl font-black text-slate-900 dark:text-white mt-1"
-                                         x-text="'₹ ' + (executiveOverviewData?.financial_overview?.total_invoiced_inr ? executiveOverviewData.financial_overview.total_invoiced_inr.toLocaleString('en-IN') : '3,06,019')"></div>
-                                    <div class="text-[10px] text-slate-400 font-mono mt-0.5" x-text="(executiveOverviewData?.financial_overview?.total_invoiced_paise || 30601900) + ' Paise'"></div>
+                                         x-text="'₹ ' + (executiveOverviewData?.financial_overview?.total_invoiced_inr !== undefined ? executiveOverviewData.financial_overview.total_invoiced_inr.toLocaleString('en-IN') : '0')"></div>
+                                    <div class="text-[10px] text-slate-400 font-mono mt-0.5" x-text="(executiveOverviewData?.financial_overview?.total_invoiced_paise ?? 0) + ' Paise'"></div>
                                 </div>
 
                                 <div class="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60">
                                     <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">Total Collected</span>
                                     <div class="text-2xl font-black text-emerald-700 dark:text-emerald-400 mt-1"
-                                         x-text="'₹ ' + (executiveOverviewData?.financial_overview?.total_collected_inr ? executiveOverviewData.financial_overview.total_collected_inr.toLocaleString('en-IN') : '1,17,000')"></div>
-                                    <div class="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono mt-0.5" x-text="(executiveOverviewData?.financial_overview?.total_collected_paise || 11700000) + ' Paise'"></div>
+                                         x-text="'₹ ' + (executiveOverviewData?.financial_overview?.total_collected_inr !== undefined ? executiveOverviewData.financial_overview.total_collected_inr.toLocaleString('en-IN') : '0')"></div>
+                                    <div class="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono mt-0.5" x-text="(executiveOverviewData?.financial_overview?.total_collected_paise ?? 0) + ' Paise'"></div>
                                 </div>
 
                                 <div class="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60">
                                     <span class="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">Outstanding Dues</span>
                                     <div class="text-2xl font-black text-amber-700 dark:text-amber-400 mt-1"
-                                         x-text="'₹ ' + (executiveOverviewData?.financial_overview?.outstanding_dues_inr ? executiveOverviewData.financial_overview.outstanding_dues_inr.toLocaleString('en-IN') : '1,89,019')"></div>
-                                    <div class="text-[10px] text-amber-600 dark:text-amber-400 font-mono mt-0.5" x-text="(executiveOverviewData?.financial_overview?.outstanding_dues_paise || 18901900) + ' Paise'"></div>
+                                         x-text="'₹ ' + (executiveOverviewData?.financial_overview?.outstanding_dues_inr !== undefined ? executiveOverviewData.financial_overview.outstanding_dues_inr.toLocaleString('en-IN') : '0')"></div>
+                                    <div class="text-[10px] text-amber-600 dark:text-amber-400 font-mono mt-0.5" x-text="(executiveOverviewData?.financial_overview?.outstanding_dues_paise ?? 0) + ' Paise'"></div>
                                 </div>
 
                                 <div class="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60">
                                     <span class="text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">Collection Rate</span>
                                     <div class="text-2xl font-black text-blue-700 dark:text-blue-400 mt-1"
-                                         x-text="(executiveOverviewData?.financial_overview?.collection_efficiency_pct || 38.2) + '%'"></div>
+                                         x-text="(executiveOverviewData?.financial_overview?.collection_efficiency_pct ?? 0) + '%'"></div>
                                     <div class="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full mt-2 overflow-hidden">
-                                        <div class="bg-blue-600 h-full rounded-full" :style="'width: ' + (executiveOverviewData?.financial_overview?.collection_efficiency_pct || 38.2) + '%'"></div>
+                                        <div class="bg-blue-600 h-full rounded-full" :style="'width: ' + (executiveOverviewData?.financial_overview?.collection_efficiency_pct ?? 0) + '%'"></div>
                                     </div>
                                 </div>
                             </div>
@@ -2645,28 +2645,26 @@
                                     </div>
 
                                     <div class="h-44 w-full flex items-end justify-between px-4 pt-6 pb-2 border-b border-slate-200 dark:border-slate-700 space-x-4">
-                                        <template x-for="(bar, i) in (executiveOverviewData?.financial_overview?.monthly_trend || [
-                                            { month: '2026-06', collected_inr: 18000 },
-                                            { month: '2026-07', collected_inr: 22000 },
-                                            { month: '2026-08', collected_inr: 25000 },
-                                            { month: '2026-09', collected_inr: 28000 },
-                                            { month: '2026-10', collected_inr: 12000 },
-                                            { month: '2026-11', collected_inr: 12000 }
-                                        ])" :key="i">
+                                        <template x-if="!executiveOverviewData?.financial_overview?.monthly_trend || executiveOverviewData.financial_overview.monthly_trend.length === 0">
+                                            <div class="w-full h-full flex items-center justify-center text-xs text-slate-400">
+                                                <span>No fee collection records found for active filters</span>
+                                            </div>
+                                        </template>
+                                        <template x-for="(bar, i) in (executiveOverviewData?.financial_overview?.monthly_trend || [])" :key="i">
                                             <div class="flex-1 flex flex-col items-center h-full justify-end group relative">
                                                 <!-- Tooltip -->
                                                 <div class="absolute -top-7 opacity-0 group-hover:opacity-100 transition bg-slate-900 text-white text-[10px] font-mono px-2 py-0.5 rounded shadow pointer-events-none whitespace-nowrap z-10"
                                                      x-text="'₹ ' + bar.collected_inr.toLocaleString()"></div>
                                                 <!-- Bar -->
                                                 <div class="w-full max-w-[28px] bg-gradient-to-t from-emerald-600 to-teal-400 rounded-t-md transition-all group-hover:brightness-110"
-                                                     :style="'height: ' + Math.min(100, Math.max(15, (bar.collected_inr / 30000) * 100)) + '%'"></div>
+                                                     :style="'height: ' + Math.min(100, Math.max(8, (bar.collected_inr / (Math.max(1, ...((executiveOverviewData?.financial_overview?.monthly_trend || []).map(x => x.collected_inr)))) ) * 100)) + '%'"></div>
                                                 <!-- Month label -->
                                                 <span class="text-[10px] text-slate-400 font-mono mt-1" x-text="bar.month.slice(5)"></span>
                                             </div>
                                         </template>
                                     </div>
                                     <div class="flex items-center justify-between text-[11px] text-slate-500">
-                                        <span>Scale: ₹0 to ₹30,000 / month</span>
+                                        <span x-text="'Peak: ₹ ' + (Math.max(0, ...((executiveOverviewData?.financial_overview?.monthly_trend || []).map(x => x.collected_inr)))).toLocaleString('en-IN') + ' / mo'"></span>
                                         <span class="font-bold text-emerald-600">Reconciled Payments</span>
                                     </div>
                                 </div>
@@ -2688,11 +2686,12 @@
                                                 </tr>
                                             </thead>
                                             <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                                                <template x-for="hf in (executiveOverviewData?.financial_overview?.hostel_breakdown || [
-                                                    { hostel_name: 'Rabindranath Tagore Hostel', invoiced_inr: 102000, collected_inr: 45000, dues_inr: 57000 },
-                                                    { hostel_name: 'Sarojini Naidu Girls Hostel', invoiced_inr: 114000, collected_inr: 42000, dues_inr: 72000 },
-                                                    { hostel_name: 'Mother Teresa Girls Hostel', invoiced_inr: 90019, collected_inr: 30000, dues_inr: 60019 }
-                                                ])" :key="hf.hostel_name">
+                                                <template x-if="!executiveOverviewData?.financial_overview?.hostel_breakdown || executiveOverviewData.financial_overview.hostel_breakdown.length === 0">
+                                                    <tr>
+                                                        <td colspan="4" class="py-6 text-center text-xs text-slate-400">No hostel fee data available for active filters</td>
+                                                    </tr>
+                                                </template>
+                                                <template x-for="hf in (executiveOverviewData?.financial_overview?.hostel_breakdown || [])" :key="hf.hostel_name">
                                                     <tr class="hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition">
                                                         <td class="py-2.5 font-semibold text-slate-800 dark:text-slate-200" x-text="hf.hostel_name"></td>
                                                         <td class="py-2.5 font-mono text-slate-600 dark:text-slate-300" x-text="'₹ ' + hf.invoiced_inr.toLocaleString()"></td>
@@ -2739,11 +2738,12 @@
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                                        <template x-for="h in (executiveOverviewData?.infrastructure_table || [
-                                            { id: 1, name: 'Rabindranath Tagore Hostel', code: 'RTH-01', campus: 'North Campus', buildings_count: 1, rooms_count: 8, total_beds: 12, occupied_beds: 1, available_beds: 11, maintenance_beds: 0, occupancy_rate_pct: 8.3, is_active: 1 },
-                                            { id: 2, name: 'Sarojini Naidu Girls Hostel', code: 'SNH-01', campus: 'South Campus', buildings_count: 1, rooms_count: 8, total_beds: 12, occupied_beds: 1, available_beds: 11, maintenance_beds: 0, occupancy_rate_pct: 8.3, is_active: 1 },
-                                            { id: 3, name: 'Mother Teresa Girls Hostel', code: 'MTGH-01', campus: 'South Campus', buildings_count: 1, rooms_count: 9, total_beds: 15, occupied_beds: 0, available_beds: 14, maintenance_beds: 1, occupancy_rate_pct: 0.0, is_active: 1 }
-                                        ])" :key="h.id">
+                                        <template x-if="!executiveOverviewData?.infrastructure_table || executiveOverviewData.infrastructure_table.length === 0">
+                                            <tr>
+                                                <td colspan="10" class="p-6 text-center text-xs text-slate-400">No infrastructure facilities match active filters</td>
+                                            </tr>
+                                        </template>
+                                        <template x-for="h in (executiveOverviewData?.infrastructure_table || [])" :key="h.id">
                                             <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition">
                                                 <td class="p-3">
                                                     <div class="font-bold text-slate-900 dark:text-white" x-text="h.name"></div>
@@ -2791,9 +2791,9 @@
                                     <p class="text-xs text-slate-400">Comprehensive staff allocations across all 17 University Departments</p>
                                 </div>
                                 <div class="flex items-center space-x-3 text-xs font-mono">
-                                    <span class="text-purple-600 dark:text-purple-400 font-bold" x-text="(executiveOverviewData?.workforce_overview?.total_staff || 561) + ' Total Personnel'"></span>
+                                    <span class="text-purple-600 dark:text-purple-400 font-bold" x-text="(executiveOverviewData?.workforce_overview?.total_staff ?? 0) + ' Total Personnel'"></span>
                                     <span class="text-slate-400">|</span>
-                                    <span class="text-emerald-600 font-bold" x-text="(executiveOverviewData?.workforce_overview?.active_staff || 192) + ' Active'"></span>
+                                    <span class="text-emerald-600 font-bold" x-text="(executiveOverviewData?.workforce_overview?.active_staff ?? 0) + ' Active'"></span>
                                 </div>
                             </div>
 
@@ -2831,20 +2831,17 @@
                                 </div>
 
                                 <div class="space-y-3">
-                                    <template x-for="b in (executiveOverviewData?.admission_overview?.branch_distribution || [
-                                        { branch_name: 'Computer Science & Engineering', count: 180 },
-                                        { branch_name: 'Electronics & Communication', count: 120 },
-                                        { branch_name: 'Mechanical Engineering', count: 65 },
-                                        { branch_name: 'Civil Engineering', count: 35 },
-                                        { branch_name: 'Information Technology', count: 17 }
-                                    ])" :key="b.branch_name">
+                                    <template x-if="!executiveOverviewData?.admission_overview?.branch_distribution || executiveOverviewData.admission_overview.branch_distribution.length === 0">
+                                        <div class="py-6 text-center text-xs text-slate-400">No branch distribution records available</div>
+                                    </template>
+                                    <template x-for="b in (executiveOverviewData?.admission_overview?.branch_distribution || [])" :key="b.branch_name">
                                         <div class="space-y-1">
                                             <div class="flex items-center justify-between text-xs">
                                                 <span class="font-semibold text-slate-700 dark:text-slate-300" x-text="b.branch_name"></span>
                                                 <span class="font-mono font-bold text-slate-900 dark:text-white" x-text="b.count + ' Students'"></span>
                                             </div>
                                             <div class="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                                                <div class="bg-cyan-500 h-full rounded-full transition-all" :style="'width: ' + Math.min(100, (b.count / 200) * 100) + '%'"></div>
+                                                <div class="bg-cyan-500 h-full rounded-full transition-all" :style="'width: ' + Math.min(100, Math.max(6, (b.count / (Math.max(1, ...((executiveOverviewData?.admission_overview?.branch_distribution || []).map(x => x.count))))) * 100)) + '%'"></div>
                                             </div>
                                         </div>
                                     </template>
@@ -2868,11 +2865,11 @@
                                         <svg class="w-24 h-24 transform -rotate-90" viewBox="0 0 36 36">
                                             <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#e2e8f0" stroke-width="3.5" class="dark:stroke-slate-700"></circle>
                                             <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#6366f1" stroke-width="3.5"
-                                                    stroke-dasharray="5.1, 100" stroke-linecap="round"></circle>
+                                                    :stroke-dasharray="(executiveOverviewData?.kpi_grid?.hostels?.occupancy_rate_pct ?? 0) + ', 100'" stroke-linecap="round"></circle>
                                         </svg>
                                         <div class="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                            <span x-text="(executiveOverviewData?.kpi_grid?.hostels?.occupied_beds || 2) + ' Occupied'"></span>
-                                            <span class="text-slate-400 text-[10px]"> / 39</span>
+                                            <span x-text="(executiveOverviewData?.kpi_grid?.hostels?.occupied_beds ?? 0) + ' Occupied'"></span>
+                                            <span class="text-slate-400 text-[10px]" x-text="' / ' + (executiveOverviewData?.kpi_grid?.hostels?.total_capacity ?? 0)"></span>
                                         </div>
                                     </div>
 
@@ -2882,10 +2879,10 @@
                                         <svg class="w-24 h-24 transform -rotate-90" viewBox="0 0 36 36">
                                             <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#e2e8f0" stroke-width="3.5" class="dark:stroke-slate-700"></circle>
                                             <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#10b981" stroke-width="3.5"
-                                                    stroke-dasharray="50.2, 100" stroke-linecap="round"></circle>
+                                                    :stroke-dasharray="(executiveOverviewData?.operational_performance?.complaints?.resolution_rate_pct ?? 0) + ', 100'" stroke-linecap="round"></circle>
                                         </svg>
                                         <div class="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                            <span x-text="(executiveOverviewData?.operational_performance?.complaints?.resolution_rate_pct || 50.2) + '% Resolved'"></span>
+                                            <span x-text="(executiveOverviewData?.operational_performance?.complaints?.resolution_rate_pct ?? 0) + '% Resolved'"></span>
                                         </div>
                                     </div>
                                 </div>
@@ -3021,13 +3018,13 @@
 
                                 <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
                                     <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Integrity Check</span>
-                                    <div class="text-sm font-bold text-emerald-600 mt-1 uppercase" x-text="executiveOverviewData?.system_health?.integrity_check || 'OK'"></div>
+                                    <div class="text-sm font-bold text-emerald-600 mt-1 uppercase" x-text="executiveOverviewData?.system_health?.integrity_check ?? '—'"></div>
                                     <div class="text-[10px] text-slate-400 mt-0.5">PRAGMA Quick_Check</div>
                                 </div>
 
                                 <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
                                     <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Database Size</span>
-                                    <div class="text-sm font-bold text-slate-900 dark:text-white mt-1" x-text="(executiveOverviewData?.system_health?.db_size_mb || 2.1) + ' MB'"></div>
+                                    <div class="text-sm font-bold text-slate-900 dark:text-white mt-1" x-text="(executiveOverviewData?.system_health?.db_size_mb ?? 0) + ' MB'"></div>
                                     <div class="text-[10px] text-slate-400 mt-0.5">Persistent Storage</div>
                                 </div>
 
@@ -3039,8 +3036,8 @@
 
                                 <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
                                     <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cache Hit Ratio</span>
-                                    <div class="text-sm font-bold text-purple-600 mt-1" x-text="(executiveOverviewData?.system_health?.cache_stats?.hit_ratio_pct || 94.2) + '%'"></div>
-                                    <div class="text-[10px] text-slate-400 mt-0.5" x-text="(executiveOverviewData?.system_health?.cache_stats?.total_entries || 12) + ' Active Keys'"></div>
+                                    <div class="text-sm font-bold text-purple-600 mt-1" x-text="(executiveOverviewData?.system_health?.cache_stats?.hit_ratio_pct ?? 0) + '%'"></div>
+                                    <div class="text-[10px] text-slate-400 mt-0.5" x-text="(executiveOverviewData?.system_health?.cache_stats?.total_entries ?? 0) + ' Active Keys'"></div>
                                 </div>
 
                                 <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">

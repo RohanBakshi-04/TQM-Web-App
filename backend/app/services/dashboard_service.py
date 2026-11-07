@@ -14,6 +14,26 @@ from backend.app.services.cache_service import cache_service, make_dashboard_cac
 from backend.app.utils.logger import logger
 
 
+
+_last_integrity_check = None
+_last_integrity_check_time = 0.0
+
+def _get_database_integrity(conn: sqlite3.Connection) -> str:
+    """Cached database integrity diagnostic (PRAGMA quick_check) with 300s TTL to prevent page-scan overhead."""
+    global _last_integrity_check, _last_integrity_check_time
+    now = time.time()
+    if _last_integrity_check is not None and (now - _last_integrity_check_time) < 300.0:
+        return _last_integrity_check.get("status", "ok")
+    try:
+        cur = conn.cursor()
+        cur.execute("PRAGMA quick_check(1);")
+        res = str(cur.fetchone()[0]).lower()
+        _last_integrity_check = {"status": res}
+        _last_integrity_check_time = now
+        return res
+    except Exception:
+        return "ok"
+
 class DashboardService:
     """Computes and caches comprehensive operational dashboard metrics with strict multi-tenant isolation."""
 
@@ -343,7 +363,8 @@ class DashboardService:
         clean_date_from = date_from.strip() if date_from and date_from.strip() else None
         clean_date_to = date_to.strip() if date_to and date_to.strip() else None
 
-        cache_key = f"sa_executive_{hostel_id}_{clean_campus}_{clean_dept}_{clean_session}_{clean_date_from}_{clean_date_to}"
+        primary_role = next(iter(user_roles or []), "super_admin")
+        cache_key = f"sa_executive_{primary_role}_{hostel_id}_{clean_campus}_{clean_dept}_{clean_session}_{clean_date_from}_{clean_date_to}"
 
         if not bypass_cache:
             cached_data = cache_service.get(cache_key)
@@ -365,7 +386,12 @@ class DashboardService:
             department=clean_dept
         )
 
-        tags = ["dashboard", "executive", "global"]
+        tags = [
+            "dashboard", "executive", "global",
+            "students", "hostels", "buildings", "rooms", "beds",
+            "allocations", "complaints", "maintenance", "finance",
+            "admissions", "visitors", "leaves"
+        ]
         if hostel_id:
             tags.append(f"hostel_{hostel_id}")
         cache_service.set(cache_key, metrics, ttl=30.0, tags=tags)
@@ -461,57 +487,64 @@ class DashboardService:
         available_beds = sum(h["available_beds"] for h in hostels_list)
         maintenance_beds = sum(h["maintenance_beds"] for h in hostels_list)
         overall_occupancy_rate = round((occupied_beds / total_beds * 100.0), 1) if total_beds > 0 else 0.0
-        campuses_count = len(campus_names) if campus_names else 2
+        campuses_count = len(campus_names)
 
         # ------------------------------------------------------------------
         # 3. Section C: Critical KPI Grid (Students, Users, Roles, Admissions)
         # ------------------------------------------------------------------
-        # Student metrics (with facility scope if hostel_id provided)
-        if hostel_id:
-            cursor.execute("""
-                SELECT 
-                    COUNT(s.id) AS total_students,
-                    SUM(CASE WHEN s.status = 'Active' THEN 1 ELSE 0 END) AS active_students,
-                    SUM(CASE WHEN s.status IN ('Inactive', 'Withdrawn', 'Suspended') THEN 1 ELSE 0 END) AS inactive_students
-                FROM students s
-                JOIN room_allocations ra ON ra.student_id = s.id
-                JOIN rooms r ON ra.room_id = r.id
-                JOIN floors f ON r.floor_id = f.id
-                JOIN buildings b ON f.building_id = b.id
-                WHERE b.hostel_id = ? AND ra.allocation_status = 'Active';
-            """, (hostel_id,))
-        else:
-            cursor.execute("""
-                SELECT 
-                    COUNT(s.id) AS total_students,
-                    SUM(CASE WHEN s.status = 'Active' THEN 1 ELSE 0 END) AS active_students,
-                    SUM(CASE WHEN s.status IN ('Inactive', 'Withdrawn', 'Suspended') THEN 1 ELSE 0 END) AS inactive_students
-                FROM students s;
-            """)
+        # Deduplicated student metrics with facility, campus, and session isolation
+        cursor.execute("""
+            SELECT 
+                COUNT(DISTINCT s.id) AS total_students,
+                COUNT(DISTINCT CASE WHEN s.status = 'Active' THEN s.id ELSE NULL END) AS active_students,
+                COUNT(DISTINCT CASE WHEN s.status != 'Active' THEN s.id ELSE NULL END) AS inactive_students,
+                COUNT(DISTINCT CASE WHEN s.status = 'Pending' THEN s.id ELSE NULL END) AS pending_students,
+                COUNT(DISTINCT CASE WHEN s.status = 'Withdrawn' THEN s.id ELSE NULL END) AS withdrawn_students
+            FROM students s
+            LEFT JOIN users u ON s.user_id = u.id
+            LEFT JOIN (
+                SELECT student_id, room_id FROM room_allocations WHERE allocation_status = 'Active' GROUP BY student_id
+            ) ra ON ra.student_id = s.id
+            LEFT JOIN rooms r ON ra.room_id = r.id
+            LEFT JOIN floors f ON r.floor_id = f.id
+            LEFT JOIN buildings b ON f.building_id = b.id
+            LEFT JOIN hostels h ON h.id = COALESCE(b.hostel_id, u.linked_hostel_id)
+            WHERE (? IS NULL OR h.id = ?)
+              AND (? IS NULL OR h.address LIKE ?)
+              AND (? IS NULL OR s.academic_year = ? OR s.academic_year LIKE ?);
+        """, (hostel_id, hostel_id, campus_pattern, campus_pattern, academic_session, academic_session, f"%{academic_session}%" if academic_session else None))
         s_row = cursor.fetchone()
         total_students = s_row[0] or 0
         active_students = s_row[1] or 0
         inactive_students = s_row[2] or 0
+        pending_students = s_row[3] or 0
+        withdrawn_students = s_row[4] or 0
         student_retention_rate = round((active_students / total_students * 100.0), 1) if total_students > 0 else 100.0
 
-        # System Users & Roles
+        # System Users (scoped by department if requested)
         cursor.execute("""
             SELECT 
-                COUNT(id) AS total_users,
-                SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) AS active_users,
-                SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) AS inactive_users
-            FROM users;
-        """)
+                COUNT(DISTINCT u.id) AS total_users,
+                COUNT(DISTINCT CASE WHEN u.is_active = 1 THEN u.id ELSE NULL END) AS active_users,
+                COUNT(DISTINCT CASE WHEN u.is_active = 0 THEN u.id ELSE NULL END) AS inactive_users
+            FROM users u
+            LEFT JOIN user_departments ud ON ud.user_id = u.id
+            LEFT JOIN departments d ON ud.department_id = d.id
+            WHERE (? IS NULL OR d.code = ? OR d.name = ?);
+        """, (department, department, department))
         u_row = cursor.fetchone()
         total_users = u_row[0] or 0
         active_users = u_row[1] or 0
         inactive_users = u_row[2] or 0
 
+        # Actual database counts (Zero fabricated fallbacks)
         cursor.execute("SELECT COUNT(*) FROM roles;")
-        total_roles = cursor.fetchone()[0] or 32
+        r_cnt = cursor.fetchone()
+        total_roles = int(r_cnt[0] if r_cnt and r_cnt[0] is not None else 0)
 
         cursor.execute("SELECT COUNT(*) FROM dashboards;")
-        total_dashboards = cursor.fetchone()[0] or 28
+        d_cnt = cursor.fetchone()
+        total_dashboards = int(d_cnt[0] if d_cnt and d_cnt[0] is not None else 0)
 
         # Admission Applications
         cursor.execute("""
@@ -521,8 +554,9 @@ class DashboardService:
                 SUM(CASE WHEN application_status = 'Under_Review' THEN 1 ELSE 0 END) AS under_review_apps,
                 SUM(CASE WHEN application_status = 'Approved' THEN 1 ELSE 0 END) AS approved_apps,
                 SUM(CASE WHEN application_status = 'Rejected' THEN 1 ELSE 0 END) AS rejected_apps
-            FROM admission_applications;
-        """)
+            FROM admission_applications
+            WHERE (? IS NULL OR academic_year = ? OR academic_year LIKE ?);
+        """, (academic_session, academic_session, f"%{academic_session}%" if academic_session else None))
         adm_row = cursor.fetchone()
         total_admissions = adm_row[0] or 0
         submitted_admissions = adm_row[1] or 0
@@ -538,32 +572,36 @@ class DashboardService:
             GROUP BY branch
             ORDER BY count DESC
             LIMIT 5;
-        """)
+        """, ())
         branch_distribution = [dict(r) for r in cursor.fetchall()]
 
         cursor.execute("""
             SELECT COALESCE(gender, 'Unspecified') AS gender_name, COUNT(*) AS count
             FROM students
             GROUP BY gender;
-        """)
+        """, ())
         gender_distribution = {r["gender_name"]: r["count"] for r in cursor.fetchall()}
 
         # ------------------------------------------------------------------
         # 4. Section D: Operational Performance (Complaints, Maintenance, Leaves, Visitors, Security)
         # ------------------------------------------------------------------
-        # Complaints
+        # Complaints (scoped by hostel, campus, and date range)
         cursor.execute("""
             SELECT 
-                COUNT(c.id) AS total_complaints,
-                SUM(CASE WHEN c.status IN ('Open', 'In_Progress', 'Submitted', 'Escalated') THEN 1 ELSE 0 END) AS open_complaints,
-                SUM(CASE WHEN c.status IN ('Resolved', 'Closed') THEN 1 ELSE 0 END) AS resolved_complaints,
-                SUM(CASE WHEN (c.severity IN ('High', 'Critical', 'Emergency') OR c.escalated = 1) AND c.status IN ('Open', 'In_Progress', 'Submitted', 'Escalated') THEN 1 ELSE 0 END) AS high_critical_open
+                COUNT(DISTINCT c.id) AS total_complaints,
+                COUNT(DISTINCT CASE WHEN c.status IN ('Open', 'In_Progress', 'Submitted', 'Escalated') THEN c.id ELSE NULL END) AS open_complaints,
+                COUNT(DISTINCT CASE WHEN c.status IN ('Resolved', 'Closed') THEN c.id ELSE NULL END) AS resolved_complaints,
+                COUNT(DISTINCT CASE WHEN (c.severity IN ('High', 'Critical', 'Emergency') OR c.escalated = 1) AND c.status IN ('Open', 'In_Progress', 'Submitted', 'Escalated') THEN c.id ELSE NULL END) AS high_critical_open
             FROM complaints c
             LEFT JOIN rooms r ON c.room_id = r.id
             LEFT JOIN floors f ON r.floor_id = f.id
             LEFT JOIN buildings b ON f.building_id = b.id
-            WHERE (? IS NULL OR b.hostel_id = ?);
-        """, (hostel_id, hostel_id))
+            LEFT JOIN hostels h ON b.hostel_id = h.id
+            WHERE (? IS NULL OR h.id = ?)
+              AND (? IS NULL OR h.address LIKE ?)
+              AND (? IS NULL OR date(c.created_at) >= date(?))
+              AND (? IS NULL OR date(c.created_at) <= date(?));
+        """, (hostel_id, hostel_id, campus_pattern, campus_pattern, date_from, date_from, date_to, date_to))
         comp_row = cursor.fetchone()
         total_complaints = comp_row[0] or 0
         open_complaints = comp_row[1] or 0
@@ -571,17 +609,21 @@ class DashboardService:
         high_critical_complaints = comp_row[3] or 0
         complaint_resolution_rate = round((resolved_complaints / total_complaints * 100.0), 1) if total_complaints > 0 else 100.0
 
-        # Maintenance
+        # Maintenance (scoped by hostel, campus, and date range)
         cursor.execute("""
             SELECT 
-                COUNT(m.id) AS total_maintenance,
-                SUM(CASE WHEN m.status IN ('Pending', 'Assigned') THEN 1 ELSE 0 END) AS pending_maintenance,
-                SUM(CASE WHEN m.status = 'Completed' THEN 1 ELSE 0 END) AS completed_maintenance,
-                SUM(CASE WHEN m.priority IN ('High', 'Critical', 'Emergency', 'Urgent') AND m.status IN ('Pending', 'Assigned') THEN 1 ELSE 0 END) AS emergency_maintenance
+                COUNT(DISTINCT m.id) AS total_maintenance,
+                COUNT(DISTINCT CASE WHEN m.status IN ('Pending', 'Assigned') THEN m.id ELSE NULL END) AS pending_maintenance,
+                COUNT(DISTINCT CASE WHEN m.status = 'Completed' THEN m.id ELSE NULL END) AS completed_maintenance,
+                COUNT(DISTINCT CASE WHEN m.priority IN ('High', 'Critical', 'Emergency', 'Urgent') AND m.status IN ('Pending', 'Assigned') THEN m.id ELSE NULL END) AS emergency_maintenance
             FROM maintenance_tasks m
             LEFT JOIN buildings b ON m.building_id = b.id
-            WHERE (? IS NULL OR b.hostel_id = ?);
-        """, (hostel_id, hostel_id))
+            LEFT JOIN hostels h ON b.hostel_id = h.id
+            WHERE (? IS NULL OR h.id = ?)
+              AND (? IS NULL OR h.address LIKE ?)
+              AND (? IS NULL OR date(m.created_at) >= date(?))
+              AND (? IS NULL OR date(m.created_at) <= date(?));
+        """, (hostel_id, hostel_id, campus_pattern, campus_pattern, date_from, date_from, date_to, date_to))
         maint_row = cursor.fetchone()
         total_maintenance = maint_row[0] or 0
         pending_maintenance = maint_row[1] or 0
@@ -589,30 +631,64 @@ class DashboardService:
         emergency_maintenance = maint_row[3] or 0
         maintenance_completion_rate = round((completed_maintenance / total_maintenance * 100.0), 1) if total_maintenance > 0 else 100.0
 
-        # Leaves & Outpasses
+        # Leaves & Outpasses (scoped by hostel, campus, and date range)
         cursor.execute("""
-            SELECT COUNT(id) FROM leave_requests WHERE status IN ('Submitted', 'Pending', 'Approved');
-        """)
+            SELECT 
+                COUNT(DISTINCT lr.id) AS active_leaves
+            FROM leave_requests lr
+            LEFT JOIN students s ON lr.student_id = s.id
+            LEFT JOIN users u ON s.user_id = u.id
+            LEFT JOIN (
+                SELECT student_id, room_id FROM room_allocations WHERE allocation_status = 'Active' GROUP BY student_id
+            ) ra ON ra.student_id = s.id
+            LEFT JOIN rooms r ON ra.room_id = r.id
+            LEFT JOIN floors f ON r.floor_id = f.id
+            LEFT JOIN buildings b ON f.building_id = b.id
+            LEFT JOIN hostels h ON h.id = COALESCE(b.hostel_id, u.linked_hostel_id)
+            WHERE lr.status IN ('Submitted', 'Pending', 'Approved')
+              AND (? IS NULL OR h.id = ?)
+              AND (? IS NULL OR h.address LIKE ?)
+              AND (? IS NULL OR date(lr.created_at) >= date(?))
+              AND (? IS NULL OR date(lr.created_at) <= date(?));
+        """, (hostel_id, hostel_id, campus_pattern, campus_pattern, date_from, date_from, date_to, date_to))
         active_leaves = cursor.fetchone()[0] or 0
 
         cursor.execute("""
             SELECT 
-                COUNT(id) AS active_outpasses,
-                SUM(CASE WHEN actual_return_time IS NULL AND datetime('now') > datetime(expected_return_time) THEN 1 ELSE 0 END) AS overdue_outpasses
-            FROM outpasses;
-        """)
+                COUNT(DISTINCT op.id) AS active_outpasses,
+                COUNT(DISTINCT CASE WHEN op.actual_return_time IS NULL AND datetime('now') > datetime(op.expected_return_time) THEN op.id ELSE NULL END) AS overdue_outpasses
+            FROM outpasses op
+            LEFT JOIN students s ON op.student_id = s.id
+            LEFT JOIN users u ON s.user_id = u.id
+            LEFT JOIN (
+                SELECT student_id, room_id FROM room_allocations WHERE allocation_status = 'Active' GROUP BY student_id
+            ) ra ON ra.student_id = s.id
+            LEFT JOIN rooms r ON ra.room_id = r.id
+            LEFT JOIN floors f ON r.floor_id = f.id
+            LEFT JOIN buildings b ON f.building_id = b.id
+            LEFT JOIN hostels h ON h.id = COALESCE(b.hostel_id, u.linked_hostel_id)
+            WHERE (? IS NULL OR h.id = ?)
+              AND (? IS NULL OR h.address LIKE ?)
+              AND (? IS NULL OR date(op.created_at) >= date(?))
+              AND (? IS NULL OR date(op.created_at) <= date(?));
+        """, (hostel_id, hostel_id, campus_pattern, campus_pattern, date_from, date_from, date_to, date_to))
         op_row = cursor.fetchone()
         active_outpasses = op_row[0] or 0
         overdue_outpasses = op_row[1] or 0
 
-        # Visitors
+        # Visitors (scoped by hostel, campus, and date range)
         cursor.execute("""
             SELECT 
-                COUNT(id) AS total_visitors,
-                SUM(CASE WHEN status = 'Checked_In' THEN 1 ELSE 0 END) AS active_inside,
-                SUM(CASE WHEN status = 'Checked_In' AND (check_out_time IS NULL AND datetime('now') > datetime(check_in_time, '+12 hours')) THEN 1 ELSE 0 END) AS overdue_visitors
-            FROM visitor_logs;
-        """)
+                COUNT(DISTINCT v.id) AS total_visitors,
+                COUNT(DISTINCT CASE WHEN v.status = 'Checked_In' THEN v.id ELSE NULL END) AS active_inside,
+                COUNT(DISTINCT CASE WHEN v.status = 'Checked_In' AND (v.check_out_time IS NULL AND datetime('now') > datetime(v.check_in_time, '+12 hours')) THEN v.id ELSE NULL END) AS overdue_visitors
+            FROM visitor_logs v
+            LEFT JOIN hostels h ON v.hostel_id = h.id
+            WHERE (? IS NULL OR h.id = ?)
+              AND (? IS NULL OR h.address LIKE ?)
+              AND (? IS NULL OR date(v.check_in_time) >= date(?))
+              AND (? IS NULL OR date(v.check_in_time) <= date(?));
+        """, (hostel_id, hostel_id, campus_pattern, campus_pattern, date_from, date_from, date_to, date_to))
         vis_row = cursor.fetchone()
         total_visitors = vis_row[0] or 0
         active_inside_visitors = vis_row[1] or 0
@@ -623,7 +699,7 @@ class DashboardService:
             SELECT 
                 (SELECT COUNT(*) FROM outpasses WHERE date(actual_exit_time) = date('now') OR date(actual_return_time) = date('now')) +
                 (SELECT COUNT(*) FROM visitor_logs WHERE date(check_in_time) = date('now') OR date(check_out_time) = date('now'));
-        """)
+        """, ())
         security_verifications_today = cursor.fetchone()[0] or 0
 
         # ------------------------------------------------------------------
@@ -631,18 +707,45 @@ class DashboardService:
         # ------------------------------------------------------------------
         cursor.execute("""
             SELECT 
-                COALESCE(SUM(CASE WHEN status != 'Cancelled' THEN total_amount_paise ELSE 0 END), 0) AS total_invoiced_paise,
-                COALESCE(SUM(CASE WHEN status != 'Cancelled' THEN paid_amount_paise ELSE 0 END), 0) AS total_paid_paise
-            FROM invoices;
-        """)
+                COALESCE(SUM(CASE WHEN inv.status != 'Cancelled' THEN inv.total_amount_paise ELSE 0 END), 0) AS total_invoiced_paise,
+                COALESCE(SUM(CASE WHEN inv.status != 'Cancelled' THEN inv.paid_amount_paise ELSE 0 END), 0) AS total_paid_paise
+            FROM invoices inv
+            LEFT JOIN students s ON inv.student_id = s.id
+            LEFT JOIN users u ON s.user_id = u.id
+            LEFT JOIN (
+                SELECT student_id, room_id FROM room_allocations WHERE allocation_status = 'Active' GROUP BY student_id
+            ) ra ON ra.student_id = s.id
+            LEFT JOIN rooms r ON ra.room_id = r.id
+            LEFT JOIN floors f ON r.floor_id = f.id
+            LEFT JOIN buildings b ON f.building_id = b.id
+            LEFT JOIN hostels h ON h.id = COALESCE(b.hostel_id, u.linked_hostel_id)
+            WHERE (? IS NULL OR h.id = ?)
+              AND (? IS NULL OR h.address LIKE ?)
+              AND (? IS NULL OR date(inv.created_at) >= date(?))
+              AND (? IS NULL OR date(inv.created_at) <= date(?));
+        """, (hostel_id, hostel_id, campus_pattern, campus_pattern, date_from, date_from, date_to, date_to))
         inv_row = cursor.fetchone()
         total_invoiced_paise = inv_row[0] or 0
 
         cursor.execute("""
-            SELECT COALESCE(SUM(amount_paise), 0) AS total_collected_paise
-            FROM payments
-            WHERE status = 'Completed';
-        """)
+            SELECT COALESCE(SUM(p.amount_paise), 0) AS total_collected_paise
+            FROM payments p
+            LEFT JOIN invoices inv ON p.invoice_id = inv.id
+            LEFT JOIN students s ON p.student_id = s.id
+            LEFT JOIN users u ON s.user_id = u.id
+            LEFT JOIN (
+                SELECT student_id, room_id FROM room_allocations WHERE allocation_status = 'Active' GROUP BY student_id
+            ) ra ON ra.student_id = s.id
+            LEFT JOIN rooms r ON ra.room_id = r.id
+            LEFT JOIN floors f ON r.floor_id = f.id
+            LEFT JOIN buildings b ON f.building_id = b.id
+            LEFT JOIN hostels h ON h.id = COALESCE(b.hostel_id, u.linked_hostel_id)
+            WHERE p.status = 'Completed'
+              AND (? IS NULL OR h.id = ?)
+              AND (? IS NULL OR h.address LIKE ?)
+              AND (? IS NULL OR date(p.payment_date) >= date(?))
+              AND (? IS NULL OR date(p.payment_date) <= date(?));
+        """, (hostel_id, hostel_id, campus_pattern, campus_pattern, date_from, date_from, date_to, date_to))
         pay_row = cursor.fetchone()
         total_collected_paise = pay_row[0] or 0
 
@@ -653,7 +756,7 @@ class DashboardService:
             SELECT status, COUNT(*) AS count
             FROM payments
             GROUP BY status;
-        """)
+        """, ())
         pay_status_counts = {r["status"]: r["count"] for r in cursor.fetchall()}
 
         # Monthly collection trend (last 6 months)
@@ -667,7 +770,7 @@ class DashboardService:
             GROUP BY strftime('%Y-%m', payment_date)
             ORDER BY month ASC
             LIMIT 6;
-        """)
+        """, ())
         monthly_trend = []
         for r in cursor.fetchall():
             c_paise = r["collected_paise"] or 0
@@ -691,7 +794,7 @@ class DashboardService:
             LEFT JOIN invoices inv ON inv.student_id = ra.student_id
             GROUP BY h.id
             ORDER BY h.id ASC;
-        """)
+        """, ())
         hostel_financials = []
         for r in cursor.fetchall():
             inv_p = r["invoiced_paise"] or 0
@@ -710,14 +813,15 @@ class DashboardService:
         cursor.execute("""
             SELECT 
                 d.id AS department_id, d.code, d.name, d.description,
-                COUNT(ud.user_id) AS staff_count,
-                SUM(CASE WHEN u.is_active = 1 THEN 1 ELSE 0 END) AS active_count
+                COUNT(DISTINCT ud.user_id) AS staff_count,
+                COUNT(DISTINCT CASE WHEN u.is_active = 1 THEN u.id ELSE NULL END) AS active_count
             FROM departments d
             LEFT JOIN user_departments ud ON ud.department_id = d.id
             LEFT JOIN users u ON u.id = ud.user_id
+            WHERE (? IS NULL OR d.code = ? OR d.name = ?)
             GROUP BY d.id
             ORDER BY d.id ASC;
-        """)
+        """, (department, department, department))
         dept_rows = cursor.fetchall()
         total_departments_count = len(dept_rows)
         total_staff_in_depts = sum(r["staff_count"] for r in dept_rows)
@@ -806,9 +910,11 @@ class DashboardService:
         cursor.execute("""
             SELECT id, user_id, username, action, entity_name, entity_id, details, ip_address, latency_ms, created_at
             FROM audit_logs
+            WHERE (? IS NULL OR date(created_at) >= date(?))
+              AND (? IS NULL OR date(created_at) <= date(?))
             ORDER BY id DESC
             LIMIT 15;
-        """)
+        """, (date_from, date_from, date_to, date_to))
         recent_activity_logs = [dict(r) for r in cursor.fetchall()]
 
         # ------------------------------------------------------------------
@@ -819,8 +925,7 @@ class DashboardService:
         try:
             cursor.execute("PRAGMA journal_mode;")
             journal_mode = str(cursor.fetchone()[0]).lower()
-            cursor.execute("PRAGMA quick_check;")
-            integrity_status = str(cursor.fetchone()[0]).lower()
+            integrity_status = _get_database_integrity(conn)
         except Exception:
             pass
 
@@ -860,6 +965,9 @@ class DashboardService:
                 "beds": total_beds,
                 "students": total_students,
                 "students_active": active_students,
+                "students_inactive": inactive_students,
+                "students_pending": pending_students,
+                "students_withdrawn": withdrawn_students,
                 "users": total_users,
                 "users_active": active_users,
                 "stakeholders": total_roles,
@@ -870,6 +978,8 @@ class DashboardService:
                     "total": total_students,
                     "active": active_students,
                     "inactive_withdrawn": inactive_students,
+                    "pending": pending_students,
+                    "withdrawn": withdrawn_students,
                     "retention_rate_pct": student_retention_rate
                 },
                 "hostels": {

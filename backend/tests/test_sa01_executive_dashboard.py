@@ -1,17 +1,13 @@
-"""Comprehensive Test Suite for SA-01: Super Admin Executive Overview.
-
-Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
-Quality Goal: Q05 - Reduce Response Time (<10ms SLA)
-Standard: Poka-Yoke Zero Defects & RBAC Strict Isolation
-"""
-
-import os
+﻿import os
 import shutil
+import statistics
 import tempfile
+import time
 import unittest
 from fastapi.testclient import TestClient
 
 from backend.app.config import settings
+from backend.app.database.connection import get_db_connection
 from backend.app.database.init_db import initialize_database
 from backend.app.main import app
 from backend.app.services.cache_service import cache_service
@@ -154,7 +150,7 @@ class TestSA01ExecutiveDashboard(unittest.TestCase):
         """Test executive overview queries with campus, hostel, and department filters."""
         # Filter by North Campus
         res_campus = self.client.get(
-            "/api/v1/dashboard/executive-overview?campus=North%20Campus",
+            "/api/v1/dashboard/executive-overview?campus=North%20Campus&bypass_cache=true",
             headers=self.superadmin_headers
         )
         self.assertEqual(res_campus.status_code, 200)
@@ -163,7 +159,7 @@ class TestSA01ExecutiveDashboard(unittest.TestCase):
 
         # Filter by specific hostel_id=1
         res_hostel = self.client.get(
-            "/api/v1/dashboard/executive-overview?hostel_id=1",
+            "/api/v1/dashboard/executive-overview?hostel_id=1&bypass_cache=true",
             headers=self.superadmin_headers
         )
         self.assertEqual(res_hostel.status_code, 200)
@@ -218,6 +214,182 @@ class TestSA01ExecutiveDashboard(unittest.TestCase):
         res = self.client.post("/api/v1/metrics/cache/clear", headers=self.superadmin_headers)
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()["status"], "success")
+
+    def test_07_no_fabricated_fallback_metrics(self):
+        """Verify that all metrics are genuinely derived from the database and not hardcoded defaults."""
+        res = self.client.get("/api/v1/dashboard/executive-overview?bypass_cache=true", headers=self.superadmin_headers)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+
+        conn = get_db_connection()
+        try:
+            # Roles count
+            actual_roles = conn.execute("SELECT COUNT(*) FROM roles").fetchone()[0]
+            self.assertEqual(data["institution_overview"]["stakeholders"], actual_roles)
+
+            # Dashboards count
+            actual_dashboards = conn.execute("SELECT COUNT(*) FROM dashboards").fetchone()[0]
+            self.assertEqual(data["institution_overview"]["dashboards"], actual_dashboards)
+
+            # Departments count
+            actual_departments = conn.execute("SELECT COUNT(*) FROM departments").fetchone()[0]
+            self.assertEqual(data["institution_overview"]["departments"], actual_departments)
+
+            # Hostels count
+            actual_hostels = conn.execute("SELECT COUNT(*) FROM hostels").fetchone()[0]
+            self.assertEqual(data["institution_overview"]["hostels"], actual_hostels)
+
+            # Buildings count
+            actual_buildings = conn.execute("SELECT COUNT(*) FROM buildings").fetchone()[0]
+            self.assertEqual(data["institution_overview"]["buildings"], actual_buildings)
+
+            # Rooms count
+            actual_rooms = conn.execute("SELECT COUNT(*) FROM rooms").fetchone()[0]
+            self.assertEqual(data["institution_overview"]["rooms"], actual_rooms)
+
+            # Beds count
+            actual_beds = conn.execute("SELECT COUNT(*) FROM beds").fetchone()[0]
+            self.assertEqual(data["institution_overview"]["beds"], actual_beds)
+        finally:
+            conn.close()
+
+    def test_08_student_deduplication_and_reconciliation(self):
+        """Verify student counting is strictly deduplicated and active + inactive reconciles."""
+        res = self.client.get("/api/v1/dashboard/executive-overview?bypass_cache=true", headers=self.superadmin_headers)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+
+        inst = data["institution_overview"]
+        kpi = data["kpi_grid"]["students"]
+
+        # Exact reconciliation: active + inactive = total
+        self.assertEqual(inst["students_active"] + inst["students_inactive"], inst["students"])
+        self.assertEqual(kpi["active"] + kpi["inactive_withdrawn"], kpi["total"])
+
+        # Insert multiple historical allocations for student 1 to ensure distinct deduplication
+        conn = get_db_connection()
+        try:
+            s_row = conn.execute("SELECT id FROM students LIMIT 1").fetchone()
+            b_row = conn.execute("SELECT id, room_id FROM beds LIMIT 1").fetchone()
+            if s_row and b_row:
+                s_id = s_row[0]
+                b_id = b_row["id"]
+                r_id = b_row["room_id"]
+                # Insert two historical cancelled/transferred allocations for this same student
+                conn.execute(
+                    "INSERT INTO room_allocations (student_id, room_id, bed_id, start_date, allocation_status) VALUES (?, ?, ?, '2026-01-01', 'Cancelled')",
+                    (s_id, r_id, b_id)
+                )
+                conn.execute(
+                    "INSERT INTO room_allocations (student_id, room_id, bed_id, start_date, allocation_status) VALUES (?, ?, ?, '2026-02-01', 'Transferred')",
+                    (s_id, r_id, b_id)
+                )
+                conn.commit()
+        finally:
+            conn.close()
+
+        # Query again with bypass_cache
+        res2 = self.client.get("/api/v1/dashboard/executive-overview?bypass_cache=true", headers=self.superadmin_headers)
+        self.assertEqual(res2.status_code, 200)
+        data2 = res2.json()
+
+        # Student count must NOT have increased due to multiple room allocations
+        self.assertEqual(data2["institution_overview"]["students"], inst["students"])
+
+    def test_09_cache_isolation_and_role_boundaries(self):
+        """Verify cache keys incorporate facility and role scopes to prevent cross-boundary data leakage."""
+        cache_service.clear()
+
+        # Request for Hostel 1
+        res_h1 = self.client.get("/api/v1/dashboard/executive-overview?hostel_id=1", headers=self.superadmin_headers)
+        self.assertEqual(res_h1.status_code, 200)
+        d_h1 = res_h1.json()
+        self.assertEqual(d_h1["metadata"]["cache_status"], "MISS")
+        self.assertEqual(d_h1["institution_overview"]["hostels"], 1)
+
+        # Request for Hostel 2 (must be a cache MISS, not leaking Hostel 1 data)
+        res_h2 = self.client.get("/api/v1/dashboard/executive-overview?hostel_id=2", headers=self.superadmin_headers)
+        self.assertEqual(res_h2.status_code, 200)
+        d_h2 = res_h2.json()
+        self.assertEqual(d_h2["metadata"]["cache_status"], "MISS")
+        self.assertEqual(d_h2["institution_overview"]["hostels"], 1)
+
+        # Global Request (must also be a cache MISS, returning all hostels)
+        res_global = self.client.get("/api/v1/dashboard/executive-overview", headers=self.superadmin_headers)
+        self.assertEqual(res_global.status_code, 200)
+        d_global = res_global.json()
+        self.assertEqual(d_global["metadata"]["cache_status"], "MISS")
+        self.assertGreater(d_global["institution_overview"]["hostels"], 1)
+
+    def test_10_cache_invalidation_on_mutation(self):
+        """Verify domain tag cache invalidation purges executive overview cache upon data mutations."""
+        cache_service.clear()
+
+        # Prime cache
+        res1 = self.client.get("/api/v1/dashboard/executive-overview", headers=self.superadmin_headers)
+        self.assertEqual(res1.status_code, 200)
+        self.assertEqual(res1.json()["metadata"]["cache_status"], "MISS")
+
+        # Verify warm hit
+        res2 = self.client.get("/api/v1/dashboard/executive-overview", headers=self.superadmin_headers)
+        self.assertEqual(res2.status_code, 200)
+        self.assertEqual(res2.json()["metadata"]["cache_status"], "HIT")
+
+        # Invalidate via domain tag 'students'
+        cache_service.invalidate_by_tag("students")
+
+        # Next query must be a cache MISS due to domain invalidation
+        res3 = self.client.get("/api/v1/dashboard/executive-overview", headers=self.superadmin_headers)
+        self.assertEqual(res3.status_code, 200)
+        self.assertEqual(res3.json()["metadata"]["cache_status"], "MISS")
+
+    def test_11_q05_benchmarking_telemetry(self):
+        """Honest benchmark telemetry for Q05 (< 10ms SLA) across cold and warm request iterations."""
+        cache_service.clear()
+
+        cold_client_latencies = []
+        cold_server_latencies = []
+        # Run 30 cold requests
+        for _ in range(30):
+            t0 = time.perf_counter()
+            res = self.client.get("/api/v1/dashboard/executive-overview?bypass_cache=true", headers=self.superadmin_headers)
+            dt = (time.perf_counter() - t0) * 1000.0
+            self.assertEqual(res.status_code, 200)
+            cold_client_latencies.append(dt)
+            cold_server_latencies.append(res.json()["metadata"]["execution_time_ms"])
+
+        warm_client_latencies = []
+        warm_server_latencies = []
+        # Run 30 warm requests
+        for _ in range(30):
+            t0 = time.perf_counter()
+            res = self.client.get("/api/v1/dashboard/executive-overview", headers=self.superadmin_headers)
+            dt = (time.perf_counter() - t0) * 1000.0
+            self.assertEqual(res.status_code, 200)
+            warm_client_latencies.append(dt)
+            warm_server_latencies.append(res.json()["metadata"]["execution_time_ms"])
+
+        cold_client_latencies.sort()
+        warm_client_latencies.sort()
+
+        cold_median = statistics.median(cold_client_latencies)
+        cold_p95 = cold_client_latencies[int(len(cold_client_latencies) * 0.95)]
+        cold_max = max(cold_client_latencies)
+
+        warm_median = statistics.median(warm_client_latencies)
+        warm_p95 = warm_client_latencies[int(len(warm_client_latencies) * 0.95)]
+        warm_max = max(warm_client_latencies)
+
+        server_warm_median = statistics.median(warm_server_latencies)
+        server_warm_p95 = warm_server_latencies[int(len(warm_server_latencies) * 0.95)]
+
+        print(f"\n[Q05 BENCHMARK REPORT]")
+        print(f"Cold Client Roundtrip (N=30): Median={cold_median:.2f}ms, P95={cold_p95:.2f}ms, Max={cold_max:.2f}ms")
+        print(f"Warm Client Roundtrip (N=30): Median={warm_median:.2f}ms, P95={warm_p95:.2f}ms, Max={warm_max:.2f}ms")
+        print(f"Warm Server Query Execution (N=30): Median={server_warm_median:.3f}ms, P95={server_warm_p95:.3f}ms")
+
+        # Assert internal server execution time strictly satisfies Q05 (< 10ms SLA)
+        self.assertLess(server_warm_median, 10.0, f"Warm server execution time {server_warm_median:.3f}ms must satisfy Q05 < 10ms SLA")
 
 
 if __name__ == "__main__":
