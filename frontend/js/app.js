@@ -771,6 +771,21 @@ document.addEventListener("alpine:init", () => {
         financialReportData: null,
         financialReportLoading: false,
 
+                // SA-01 Super Admin Executive Overview State
+        executiveOverviewData: null,
+        executiveOverviewLoading: false,
+        executiveOverviewError: null,
+        executiveOverviewStale: false,
+        executiveLastSynced: null,
+        executiveFilters: {
+            academic_session: "2026-27",
+            campus: "all",
+            hostel_id: "all",
+            department: "all",
+            date_from: "",
+            date_to: ""
+        },
+
         dashboardStats: {
             hostels: { total: 1, rooms: 3, beds: 6, occupied_beds: 2, available_beds: 4, occupancy_rate: 33.3 },
             students: { total: 3, active: 3 },
@@ -1198,10 +1213,61 @@ selectPreset(preset) {
             }
         },
 
+                async loadExecutiveOverview(bypassCache = false) {
+            this.executiveOverviewLoading = true;
+            this.executiveOverviewError = null;
+            try {
+                const data = await window.API.getExecutiveOverview(this.executiveFilters, bypassCache);
+                if (data) {
+                    this.executiveOverviewData = data;
+                    this.executiveLastSynced = new Date().toLocaleTimeString();
+                    this.executiveOverviewStale = false;
+                    if (data.institution_overview) {
+                        this.dashboardStats.hostels.total = data.institution_overview.hostels;
+                        this.dashboardStats.hostels.rooms = data.institution_overview.rooms;
+                        this.dashboardStats.hostels.beds = data.institution_overview.beds;
+                        this.dashboardStats.hostels.occupied_beds = data.kpi_grid ? data.kpi_grid.hostels.occupied_beds : 0;
+                        this.dashboardStats.hostels.available_beds = data.kpi_grid ? data.kpi_grid.hostels.available_beds : 0;
+                        this.dashboardStats.hostels.occupancy_rate = data.kpi_grid ? data.kpi_grid.hostels.occupancy_rate_pct : 0;
+                        this.dashboardStats.students.total = data.institution_overview.students;
+                        this.dashboardStats.students.active = data.institution_overview.students_active;
+                        this.dashboardStats.users.total = data.institution_overview.users;
+                    }
+                }
+            } catch (err) {
+                console.error("Error loading executive overview:", err);
+                this.executiveOverviewError = err.message || "Failed to load executive overview.";
+                this.executiveOverviewStale = true;
+            } finally {
+                this.executiveOverviewLoading = false;
+            }
+        },
+
+        applyExecutiveFilter(key, value) {
+            this.executiveFilters[key] = value;
+            this.loadExecutiveOverview(true);
+        },
+
+        resetExecutiveFilters() {
+            this.executiveFilters = {
+                academic_session: "2026-27",
+                campus: "all",
+                hostel_id: "all",
+                department: "all",
+                date_from: "",
+                date_to: ""
+            };
+            this.loadExecutiveOverview(true);
+        },
+
         async loadDashboardStats() {
             // Update active dashboard group
             const dashInfo = this.resolveDashboardGroup(this.activeRoleView);
             this.activeDashboardGroup = dashInfo.id;
+
+            if (this.activeRoleView === 'super_admin') {
+                this.loadExecutiveOverview();
+            }
 
             // Auto-configure trade filter for maintenance technicians
             if (this.activeRoleView === "electrician") {

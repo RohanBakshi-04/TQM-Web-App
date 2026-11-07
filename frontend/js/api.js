@@ -281,6 +281,32 @@ const API = {
     },
 
     /**
+     * Fetch SA-01 Super Admin Executive Overview with Q05 sub-10ms response guarantee.
+     */
+    async getExecutiveOverview(filters = {}, bypassCache = false) {
+        const params = new URLSearchParams();
+        if (filters.academic_session && filters.academic_session !== 'all') params.append("academic_session", filters.academic_session);
+        if (filters.campus && filters.campus !== 'all') params.append("campus", filters.campus);
+        if (filters.hostel_id && filters.hostel_id !== 'all') params.append("hostel_id", filters.hostel_id);
+        if (filters.department && filters.department !== 'all') params.append("department", filters.department);
+        if (filters.date_from) params.append("date_from", filters.date_from);
+        if (filters.date_to) params.append("date_to", filters.date_to);
+        if (bypassCache) params.append("bypass_cache", "true");
+
+        const qs = params.toString();
+        const url = `${this.baseUrl}/api/v1/dashboard/executive-overview${qs ? '?' + qs : ''}`;
+
+        const response = await this.request(url, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.detail || `HTTP ${response.status}`);
+        }
+        return await response.json();
+    },
+
+    /**
      * Fetch live or cached dashboard aggregation metrics with Q05 sub-10ms acceleration.
      */
     async getDashboardStats(hostelId = null, bypassCache = false) {
