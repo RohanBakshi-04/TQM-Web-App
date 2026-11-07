@@ -268,3 +268,49 @@ def restore_database_backup(
     """Safely restore database from a verified backup with pre-restore safety snapshot."""
     return BackupService.restore_backup(backup_filename=backup_filename)
 
+
+# ==================== 6. DEPARTMENTS & 28 DASHBOARD GROUPS ====================
+
+@admin_router.get("/departments")
+def list_departments(
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "it_admin", "auditor"))
+) -> List[Dict[str, Any]]:
+    """Return all 17 enterprise departments with staff membership and statuses."""
+    return AdminService.get_departments()
+
+
+@admin_router.get("/dashboards")
+def list_dashboards(
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "it_admin", "auditor"))
+) -> List[Dict[str, Any]]:
+    """Return all 28 consolidated dashboard groups with department info and role mappings."""
+    return AdminService.get_dashboards()
+
+
+@admin_router.get("/dashboards/{dashboard_id}")
+def get_dashboard_details(
+    dashboard_id: str,
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "it_admin", "auditor"))
+) -> Dict[str, Any]:
+    """Return detailed metadata and mapped roles for a specific consolidated dashboard group."""
+    return AdminService.get_dashboard_by_id(dashboard_id=dashboard_id)
+
+
+@admin_router.get("/role-history")
+def list_role_history(
+    limit: int = Query(100, ge=1, le=1000),
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "it_admin", "auditor"))
+) -> List[Dict[str, Any]]:
+    """Return audit history of role assignments and revocations."""
+    return AdminService.get_role_history(limit=limit)
+
+
+@admin_router.get("/permission-history")
+def list_permission_history(
+    limit: int = Query(100, ge=1, le=1000),
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "it_admin", "auditor"))
+) -> List[Dict[str, Any]]:
+    """Return audit history of permission changes."""
+    return AdminService.get_permission_history(limit=limit)
+
+

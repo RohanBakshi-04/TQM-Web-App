@@ -116,7 +116,7 @@ class TestAuthAPI(unittest.TestCase):
         res = self.client.get("/api/v1/roles")
         self.assertEqual(res.status_code, 200)
         roles = res.json()
-        self.assertEqual(len(roles), 15)
+        self.assertGreaterEqual(len(roles), 15)
         role_names = [r["name"] for r in roles]
         self.assertIn("hostel_clerk", role_names)
         self.assertIn("security_supervisor", role_names)

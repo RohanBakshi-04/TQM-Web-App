@@ -7,7 +7,14 @@ Quality Goal: Q05 - Reduce Response Time
 import sqlite3
 from typing import Optional
 from backend.app.database.connection import get_db_connection
-from backend.app.services.rbac_data import ROLES_LIST, ROLE_METADATA, PERMISSIONS_LIST, ROLE_PERMISSIONS_MAP
+from backend.app.services.rbac_data import (
+    ROLES_LIST,
+    ROLE_METADATA,
+    PERMISSIONS_LIST,
+    ROLE_PERMISSIONS_MAP,
+    DEPARTMENTS_LIST,
+    DASHBOARDS_LIST
+)
 from backend.app.services.security import hash_password
 from backend.app.utils.logger import logger
 
@@ -30,7 +37,34 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
 
         logger.info("Beginning database demonstration data seeding...")
 
-        # 1. Seed 15 User Roles
+        # 0. Seed Departments and Dashboards
+        for d_code, d_name, d_desc in DEPARTMENTS_LIST:
+            cursor.execute("""
+                INSERT INTO departments (code, name, description, is_active)
+                VALUES (?, ?, ?, 1)
+                ON CONFLICT(code) DO UPDATE SET
+                    name = excluded.name,
+                    description = excluded.description;
+            """, (d_code, d_name, d_desc))
+
+        cursor.execute("SELECT id, code FROM departments;")
+        dept_id_map = {row[1]: row[0] for row in cursor.fetchall()}
+
+        for dash in DASHBOARDS_LIST:
+            dept_id = dept_id_map.get(dash["department_code"])
+            if dept_id:
+                cursor.execute("""
+                    INSERT INTO dashboards (dashboard_id, title, department_id, description, route, icon, is_active)
+                    VALUES (?, ?, ?, ?, ?, ?, 1)
+                    ON CONFLICT(dashboard_id) DO UPDATE SET
+                        title = excluded.title,
+                        department_id = excluded.department_id,
+                        description = excluded.description,
+                        route = excluded.route,
+                        icon = excluded.icon;
+                """, (dash["dashboard_id"], dash["title"], dept_id, dash["description"], dash["route"], dash["icon"]))
+
+        # 1. Seed Roles
         cursor.execute("PRAGMA table_info(roles);")
         role_cols = {col[1] for col in cursor.fetchall()}
         if "code" not in role_cols:
@@ -39,21 +73,25 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
             cursor.execute("ALTER TABLE roles ADD COLUMN stakeholder_category TEXT DEFAULT 'Operational / Student Life';")
         if "is_system_role" not in role_cols:
             cursor.execute("ALTER TABLE roles ADD COLUMN is_system_role INTEGER DEFAULT 1;")
+        if "department_code" not in role_cols:
+            cursor.execute("ALTER TABLE roles ADD COLUMN department_code TEXT;")
 
         for name, desc in ROLES_LIST:
             meta = ROLE_METADATA.get(name, {})
             r_code = meta.get("code", name.upper())
             r_cat = meta.get("category", "Operational / Student Life")
+            r_dept = meta.get("department_code", "EXEC_ADMIN")
             cursor.execute("""
-                INSERT INTO roles (name, code, description, stakeholder_category, is_system, is_system_role)
-                VALUES (?, ?, ?, ?, 1, 1)
+                INSERT INTO roles (name, code, description, stakeholder_category, department_code, is_system, is_system_role)
+                VALUES (?, ?, ?, ?, ?, 1, 1)
                 ON CONFLICT(name) DO UPDATE SET
                     code = excluded.code,
                     description = excluded.description,
                     stakeholder_category = excluded.stakeholder_category,
+                    department_code = excluded.department_code,
                     is_system = 1,
                     is_system_role = 1;
-            """, (name, r_code, desc, r_cat))
+            """, (name, r_code, desc, r_cat, r_dept))
 
         cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_roles_code ON roles(code);")
 
@@ -91,6 +129,21 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
             role_perm_rows
         )
         logger.info(f"Seeded {len(ROLES_LIST)} roles and {len(role_perm_rows)} role-permission mappings.")
+
+        # Seed dashboard_roles mappings
+        for dash in DASHBOARDS_LIST:
+            d_id = dash["dashboard_id"]
+            default_role = dash.get("default_role")
+            for r_name in dash.get("roles", []):
+                r_id = role_id_map.get(r_name)
+                if r_id:
+                    is_def = 1 if r_name == default_role else 0
+                    cursor.execute("""
+                        INSERT INTO dashboard_roles (dashboard_id, role_id, is_default)
+                        VALUES (?, ?, ?)
+                        ON CONFLICT(dashboard_id, role_id) DO UPDATE SET
+                            is_default = excluded.is_default;
+                    """, (d_id, r_id, is_def))
 
         # 3. Seed Demo Users for Primary Roles (bcrypt hashed)
         default_pw = "Password123!" # Consistent safe demo password for all demo accounts
@@ -134,6 +187,15 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
             if role_name in staff_roles:
                 s_id = f"STF-{u_id:04d}"
                 cursor.execute("UPDATE users SET staff_id = ? WHERE id = ?;", (s_id, u_id))
+
+            # Department assignment based on role
+            meta = ROLE_METADATA.get(role_name, {})
+            dept_code = meta.get("department_code")
+            if dept_code and dept_code in dept_id_map:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO user_departments (user_id, department_id, is_primary)
+                    VALUES (?, ?, 1);
+                """, (u_id, dept_id_map[dept_code]))
 
         # 4. Seed Hostel, Buildings, Floors, Rooms & Beds
         cursor.execute("SELECT id FROM hostels WHERE code = 'RTH-01';")

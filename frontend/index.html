@@ -1935,10 +1935,14 @@
                                 <i :class="'fa-solid ' + (rolePresets.find(p => p.role === activeRoleView)?.icon || 'fa-user-shield')"></i>
                             </div>
                             <div>
-                                <div class="flex items-center space-x-2">
+                                <div class="flex items-center space-x-2 flex-wrap gap-y-1">
                                     <h2 class="text-xl font-extrabold text-slate-900 dark:text-white"
                                         x-text="(rolePresets.find(p => p.role === activeRoleView)?.label || activeRoleView) + ' Dashboard'"></h2>
                                     <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">Operational</span>
+                                    <span class="px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+                                          x-text="resolveDashboardGroup(activeRoleView).id"></span>
+                                    <span class="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                                          x-text="resolveDashboardGroup(activeRoleView).dept"></span>
                                 </div>
                                 <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5"
                                    x-text="rolePresets.find(p => p.role === activeRoleView)?.desc || 'Stakeholder module overview'"></p>
@@ -2908,7 +2912,7 @@
                     <!-- ========================================== -->
                     <!-- 8. MAINTENANCE STAFF DASHBOARD             -->
                     <!-- ========================================== -->
-                    <div x-show="activeRoleView === 'maintenance_staff'" class="space-y-6">
+                    <div x-show="activeRoleView === 'maintenance_staff' || activeRoleView === 'electrician' || activeRoleView === 'plumber' || activeRoleView === 'carpenter' || resolveDashboardGroup(activeRoleView).id === 'DASHBOARD_17'" class="space-y-6">
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
                                 <div class="text-xs font-bold text-slate-400 uppercase">Assigned Tasks</div>
@@ -3584,6 +3588,57 @@
                                     <button type="button" @click="activeSection = 'admin'; adminTab = 'roles'; loadAdminRolesAndPermissions();" class="mt-2 text-indigo-600 dark:text-indigo-400 font-bold hover:underline inline-flex items-center space-x-1">
                                         <span>View RBAC Matrix</span>
                                         <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========================================== -->
+                    <!-- 17. SPECIALIZED DEPARTMENTAL OPERATIONS   -->
+                    <!-- ========================================== -->
+                    <div x-show="['medical_officer', 'inventory_manager', 'procurement_manager', 'transport_supervisor', 'sports_coordinator', 'grievance_officer', 'housekeeping_staff', 'laundry_staff'].includes(activeRoleView)" class="space-y-6">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Operational Status</div>
+                                <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">Active</div>
+                                <div class="text-[11px] text-slate-500 mt-0.5" x-text="resolveDashboardGroup(activeRoleView).dept"></div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Assigned Work Queue</div>
+                                <div class="text-2xl font-black text-brand-600 dark:text-brand-400 mt-1">Synchronized</div>
+                                <div class="text-[11px] text-brand-600 font-semibold mt-0.5">SLA Target &lt; 10ms</div>
+                            </div>
+                            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Department Scope</div>
+                                <div class="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1" x-text="resolveDashboardGroup(activeRoleView).id"></div>
+                                <div class="text-[11px] text-indigo-600 font-semibold mt-0.5">Verified Authorization</div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                                <div>
+                                    <h3 class="font-extrabold text-slate-900 dark:text-white text-lg flex items-center space-x-2">
+                                        <i :class="'fa-solid ' + (rolePresets.find(p => p.role === activeRoleView)?.icon || 'fa-briefcase') + ' text-brand-600'"></i>
+                                        <span x-text="resolveDashboardGroup(activeRoleView).title"></span>
+                                    </h3>
+                                    <p class="text-xs text-slate-500 mt-1">Enterprise departmental operation console with role-specific access control</p>
+                                </div>
+                            </div>
+                            <div class="p-6 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 text-center space-y-3">
+                                <p class="text-xs text-slate-600 dark:text-slate-300 font-medium">
+                                    You are currently authenticated as <span class="font-bold text-brand-600 dark:text-brand-400" x-text="rolePresets.find(p => p.role === activeRoleView)?.label"></span> within the <span class="font-bold" x-text="resolveDashboardGroup(activeRoleView).dept"></span>.
+                                </p>
+                                <div class="flex flex-wrap items-center justify-center gap-2 pt-2">
+                                    <button type="button" @click="navigateTo('inventory')" class="px-4 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold hover:bg-slate-100 text-slate-800 dark:text-slate-200 shadow-xs">
+                                        <i class="fa-solid fa-boxes-stacked mr-1 text-amber-500"></i> Inventory Ledger
+                                    </button>
+                                    <button type="button" @click="navigateTo('complaints')" class="px-4 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold hover:bg-slate-100 text-slate-800 dark:text-slate-200 shadow-xs">
+                                        <i class="fa-solid fa-clipboard-question mr-1 text-rose-500"></i> Grievances & Tasks
+                                    </button>
+                                    <button type="button" @click="navigateTo('attendance')" class="px-4 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold hover:bg-slate-100 text-slate-800 dark:text-slate-200 shadow-xs">
+                                        <i class="fa-solid fa-clipboard-user mr-1 text-emerald-500"></i> Attendance Roster
                                     </button>
                                 </div>
                             </div>
@@ -7635,6 +7690,18 @@
                                 <i class="fa-solid fa-shield-halved"></i>
                                 <span>Roles & RBAC</span>
                             </button>
+                            <button type="button" @click="adminTab = 'departments'; loadAdminDepartments();"
+                                    :class="adminTab === 'departments' ? 'bg-brand-900 text-white font-bold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                                    class="px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-2 whitespace-nowrap">
+                                <i class="fa-solid fa-sitemap"></i>
+                                <span>Departments (17)</span>
+                            </button>
+                            <button type="button" @click="adminTab = 'dashboards'; loadAdminDashboards();"
+                                    :class="adminTab === 'dashboards' ? 'bg-brand-900 text-white font-bold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                                    class="px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-2 whitespace-nowrap">
+                                <i class="fa-solid fa-table-cells-large"></i>
+                                <span>28 Dashboards</span>
+                            </button>
                             <button type="button" @click="adminTab = 'audit'; loadAdminAuditLogs();"
                                     :class="adminTab === 'audit' ? 'bg-brand-900 text-white font-bold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'"
                                     class="px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-2 whitespace-nowrap">
@@ -8023,6 +8090,101 @@
                                                 <button type="button" @click="restoreBackupAction(b.filename)" class="px-3 py-1 rounded-lg bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300 font-bold hover:bg-rose-100 transition">
                                                     Restore
                                                 </button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- SUBTAB 6: ENTERPRISE DEPARTMENTS (17) -->
+                    <div x-show="adminTab === 'departments'" class="space-y-6">
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div>
+                                <h3 class="font-extrabold text-base text-slate-900 dark:text-white flex items-center space-x-2">
+                                    <i class="fa-solid fa-sitemap text-brand-600 dark:text-brand-400"></i>
+                                    <span>Enterprise Department Hierarchy (17 Departments)</span>
+                                </h3>
+                                <p class="text-xs text-slate-500 mt-1">Canonical institutional organizational divisions with automated member scoping and RBAC authorization boundaries</p>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button type="button" @click="loadAdminDepartments()" class="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-200 transition">
+                                    <i class="fa-solid fa-rotate mr-1"></i> Refresh
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Department Cards Grid -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <template x-for="dept in departmentsList" :key="dept.code">
+                                <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover-card-elevation flex flex-col justify-between space-y-4">
+                                    <div>
+                                        <div class="flex items-center justify-between">
+                                            <span class="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800" x-text="dept.code"></span>
+                                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">Active</span>
+                                        </div>
+                                        <h4 class="font-extrabold text-slate-900 dark:text-white text-sm mt-3" x-text="dept.name"></h4>
+                                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2" x-text="dept.description"></p>
+                                    </div>
+                                    <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                                        <span class="text-slate-400">Department Head:</span>
+                                        <span class="font-semibold text-slate-700 dark:text-slate-300" x-text="dept.head_role || 'Executive Admin'"></span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- SUBTAB 7: CONSOLIDATED 28 DASHBOARDS -->
+                    <div x-show="adminTab === 'dashboards'" class="space-y-6">
+                        <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div>
+                                <h3 class="font-extrabold text-base text-slate-900 dark:text-white flex items-center space-x-2">
+                                    <i class="fa-solid fa-table-cells-large text-brand-600 dark:text-brand-400"></i>
+                                    <span>28 Consolidated Operational Dashboards</span>
+                                </h3>
+                                <p class="text-xs text-slate-500 mt-1">Multi-stakeholder consolidated user interfaces with trade-specialized view filtering and role access matrix</p>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button type="button" @click="loadAdminDashboards()" class="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-200 transition">
+                                    <i class="fa-solid fa-rotate mr-1"></i> Refresh
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Dashboards Table -->
+                        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead>
+                                    <tr class="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                                        <th class="p-4">Dashboard ID</th>
+                                        <th class="p-4">Title</th>
+                                        <th class="p-4">Department</th>
+                                        <th class="p-4">Default Role</th>
+                                        <th class="p-4">Authorized Roles</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="d in dashboardsList" :key="d.dashboard_id">
+                                        <tr class="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition">
+                                            <td class="p-4 font-mono font-bold text-brand-600 dark:text-brand-400" x-text="d.dashboard_id"></td>
+                                            <td class="p-4">
+                                                <div class="flex items-center space-x-2">
+                                                    <i :class="'fa-solid ' + (d.icon || 'fa-chart-pie') + ' text-slate-400'"></i>
+                                                    <span class="font-bold text-slate-900 dark:text-white" x-text="d.title"></span>
+                                                </div>
+                                            </td>
+                                            <td class="p-4">
+                                                <span class="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800" x-text="d.department_code"></span>
+                                            </td>
+                                            <td class="p-4 font-medium text-slate-700 dark:text-slate-300" x-text="d.default_role"></td>
+                                            <td class="p-4">
+                                                <div class="flex flex-wrap gap-1">
+                                                    <template x-for="r in (d.authorized_roles || [])" :key="r">
+                                                        <span class="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300" x-text="r"></span>
+                                                    </template>
+                                                </div>
                                             </td>
                                         </tr>
                                     </template>

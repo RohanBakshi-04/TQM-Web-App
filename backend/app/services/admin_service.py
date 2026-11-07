@@ -804,3 +804,150 @@ class AdminService:
             ])
 
         return buffer.getvalue()
+
+    @classmethod
+    def get_departments(cls) -> List[Dict[str, Any]]:
+        """Return all enterprise departments with member counts and active status."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT d.id, d.code, d.name, d.description, d.is_active,
+                       COUNT(ud.user_id) as member_count
+                FROM departments d
+                LEFT JOIN user_departments ud ON d.id = ud.department_id
+                GROUP BY d.id
+                ORDER BY d.id ASC;
+            """)
+            rows = cursor.fetchall()
+            return [
+                {
+                    "id": r["id"],
+                    "code": r["code"],
+                    "name": r["name"],
+                    "description": r["description"] or "",
+                    "is_active": bool(r["is_active"]),
+                    "member_count": r["member_count"]
+                }
+                for r in rows
+            ]
+
+    @classmethod
+    def get_dashboards(cls) -> List[Dict[str, Any]]:
+        """Return all 28 consolidated dashboard groups with department info and mapped roles."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT d.id, d.dashboard_id, d.title, d.description, d.route, d.icon, d.is_active,
+                       dept.code as department_code, dept.name as department_name
+                FROM dashboards d
+                JOIN departments dept ON d.department_id = dept.id
+                ORDER BY d.id ASC;
+            """)
+            dash_rows = cursor.fetchall()
+
+            cursor.execute("""
+                SELECT dr.dashboard_id, r.name as role_name, dr.is_default
+                FROM dashboard_roles dr
+                JOIN roles r ON dr.role_id = r.id;
+            """)
+            mapping_rows = cursor.fetchall()
+
+            dash_roles_map: Dict[str, List[str]] = {}
+            default_roles_map: Dict[str, str] = {}
+            for row in mapping_rows:
+                d_id = row["dashboard_id"]
+                r_name = row["role_name"]
+                if d_id not in dash_roles_map:
+                    dash_roles_map[d_id] = []
+                dash_roles_map[d_id].append(r_name)
+                if row["is_default"]:
+                    default_roles_map[d_id] = r_name
+
+            return [
+                {
+                    "id": r["id"],
+                    "dashboard_id": r["dashboard_id"],
+                    "title": r["title"],
+                    "description": r["description"] or "",
+                    "route": r["route"],
+                    "icon": r["icon"],
+                    "is_active": bool(r["is_active"]),
+                    "department_code": r["department_code"],
+                    "department_name": r["department_name"],
+                    "roles": dash_roles_map.get(r["dashboard_id"], []),
+                    "default_role": default_roles_map.get(r["dashboard_id"], "")
+                }
+                for r in dash_rows
+            ]
+
+    @classmethod
+    def get_dashboard_by_id(cls, dashboard_id: str) -> Dict[str, Any]:
+        """Return detailed configuration and metrics for a single dashboard group."""
+        dashboards = cls.get_dashboards()
+        for d in dashboards:
+            if d["dashboard_id"].upper() == dashboard_id.upper():
+                return d
+        raise HTTPException(status_code=404, detail=f"Dashboard group '{dashboard_id}' not found.")
+
+    @classmethod
+    def get_role_history(cls, limit: int = 100) -> List[Dict[str, Any]]:
+        """Return role modification audit history."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT rh.id, rh.user_id, u.username, rh.changed_by_user_id,
+                       cu.username as changed_by_username, rh.old_role, rh.new_role,
+                       rh.reason, rh.created_at
+                FROM role_change_history rh
+                LEFT JOIN users u ON rh.user_id = u.id
+                LEFT JOIN users cu ON rh.changed_by_user_id = cu.id
+                ORDER BY rh.id DESC
+                LIMIT ?;
+            """, (limit,))
+            rows = cursor.fetchall()
+            return [
+                {
+                    "id": r["id"],
+                    "user_id": r["user_id"],
+                    "username": r["username"] or "Unknown",
+                    "changed_by_user_id": r["changed_by_user_id"],
+                    "changed_by_username": r["changed_by_username"] or "System",
+                    "old_role": r["old_role"],
+                    "new_role": r["new_role"],
+                    "reason": r["reason"] or "",
+                    "created_at": r["created_at"]
+                }
+                for r in rows
+            ]
+
+    @classmethod
+    def get_permission_history(cls, limit: int = 100) -> List[Dict[str, Any]]:
+        """Return permission modification audit history."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT ph.id, ph.role_id, r.name as role_name, ph.permission_id,
+                       p.name as permission_name, ph.action, ph.changed_by_user_id,
+                       cu.username as changed_by_username, ph.created_at
+                FROM permission_change_history ph
+                LEFT JOIN roles r ON ph.role_id = r.id
+                LEFT JOIN permissions p ON ph.permission_id = p.id
+                LEFT JOIN users cu ON ph.changed_by_user_id = cu.id
+                ORDER BY ph.id DESC
+                LIMIT ?;
+            """, (limit,))
+            rows = cursor.fetchall()
+            return [
+                {
+                    "id": r["id"],
+                    "role_id": r["role_id"],
+                    "role_name": r["role_name"] or "Unknown",
+                    "permission_id": r["permission_id"],
+                    "permission_name": r["permission_name"] or "Unknown",
+                    "action": r["action"],
+                    "changed_by_user_id": r["changed_by_user_id"],
+                    "changed_by_username": r["changed_by_username"] or "System",
+                    "created_at": r["created_at"]
+                }
+                for r in rows
+            ]

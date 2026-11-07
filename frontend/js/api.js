@@ -1886,6 +1886,46 @@ const API = {
         return await response.json();
     },
 
+    async getDepartments() {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/departments`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load departments.");
+        return await response.json();
+    },
+
+    async getDashboards() {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/dashboards`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load dashboards.");
+        return await response.json();
+    },
+
+    async getDashboardById(dashboardId) {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/dashboards/${dashboardId}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || `Failed to load dashboard ${dashboardId}.`);
+        return await response.json();
+    },
+
+    async getRoleHistory(limit = 100) {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/role-history?limit=${limit}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load role history.");
+        return await response.json();
+    },
+
+    async getPermissionHistory(limit = 100) {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/permission-history?limit=${limit}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load permission history.");
+        return await response.json();
+    },
+
     async updateRolePermissions(roleId, payload) {
         const response = await this.request(`${this.baseUrl}/api/v1/admin/roles/${roleId}/permissions`, {
             method: "PUT",

@@ -6,10 +6,12 @@ Exhaustively covers every facet of the project:
 - Executive Summary & TQM Q05 Framework
 - System Architecture & Multi-Tier Topology
 - All 59 Database Tables with ALL Columns and Types
-- All 20 Database Migrations
+- All 21 Database Migrations
+- 17 Canonical Enterprise Departments & 28 Consolidated Dashboards
+- All 32 Stakeholder System Roles & 644 Grants Matrix
 - All 48 B-Tree Indexes
 - Security Architecture & Cryptographic Safeguards
-- All 15 Stakeholder Roles & Portals Matrix (10 Core Admin + 5 Functional)
+- All 32 Stakeholder System Roles & 644 Grants Matrix across 17 Departments
 - Dedicated 3-Category Registration Workflows
 - All 169 API Paths / 201 HTTP Operations across 18 Routers
 - All 25 Business Services & 240+ Methods
@@ -540,7 +542,8 @@ def build_pdf():
         ("017_second_pass_remediation_and_profile_tables", "Rebuilt students table with status='Pending' check constraint and institutional profile fields; created staff_profiles table with country default; safely reconciled historical synthetic visitor 101 into historical_orphan_archives with zero referential integrity violations."),
         ("018_multi_ward_parent_relationship_and_approvals", "Created registration_request_wards and parent_student_links relational tables with composite indexes supporting multi-child families, independent per-hostel facility approvals, and verified ward relationships."),
         ("019_notification_deliveries_and_leases", "Created notification_deliveries table for honest delivery tracking (Sent, Failed, Disabled, Unconfigured_Channel) and background_job_leases table for distributed single-worker scheduler safety."),
-        ("020_enterprise_rbac_and_10_stakeholders", "Upgraded RBAC system to enterprise-grade centralized access control; added code, stakeholder_category, and is_system_role columns to roles; created user_scope_assignments table; established 121 permissions and 406 role-permission mappings; onboarded 10 core administrative & operational stakeholders and 5 functional stakeholders.")
+        ("020_enterprise_rbac_and_10_stakeholders", "Upgraded RBAC system to enterprise-grade centralized access control; added code, stakeholder_category, and is_system_role columns to roles; created user_scope_assignments table; established 121 permissions and 406 role-permission mappings; onboarded 10 core administrative & operational stakeholders and 5 functional stakeholders."),
+        ("021_enterprise_28_dashboards_and_departments", "Established complete Enterprise Organizational Hierarchy featuring 17 canonical departments, 28 consolidated dashboard groups, 32 specialized system roles, 161 fine-grained permissions, and 644 role-permission mappings. Created departments, dashboards, dashboard_roles, user_departments, role_change_history, and permission_change_history tables; expanded roles table with department_code.")
     ]
     for m_ver, m_desc in migrations_details:
         story.append(Paragraph(f"&bull; <b><code>{m_ver}</code></b>: {m_desc}", bullet_style))
@@ -574,17 +577,110 @@ def build_pdf():
     story.append(Spacer(1, 6))
 
     # =========================================================================
-    # SECTION 6: ALL 15 STAKEHOLDER ROLES & PORTALS MATRIX
+    # SECTION 6: ENTERPRISE DEPARTMENTS, 28 DASHBOARDS & 32 ROLES RBAC MATRIX
     # =========================================================================
-    story.append(Paragraph("6. Stakeholder Portals, Roles &amp; RBAC Matrix (All 15 Roles &amp; 406 Grants, Enterprise RBAC &amp; Data Scoping)", h1_style))
+    story.append(Paragraph("6. Enterprise Departments, 28 Consolidated Dashboards &amp; 32 Roles RBAC Matrix (644 System Grants)", h1_style))
     story.append(HRFlowable(width="100%", thickness=0.8, color=BORDER_COLOR, spaceBefore=0, spaceAfter=5))
 
     story.append(Paragraph(
-        "The system incorporates 15 distinct stakeholder roles (10 Core Administrative &amp; Operational Stakeholders + 5 Functional Stakeholders) "
-        "backed by 121 granular permissions and 406 system grants in the database. Every role operates inside a specialized dashboard tailored to institutional "
-        "responsibilities, complete with canonical role codes, stakeholder categories, and data-level scoping rules:",
+        "The system incorporates an institutional architecture organized across <b>17 canonical departments</b>, "
+        "<b>28 consolidated operational dashboard groups</b>, and <b>32 specialized system roles</b>, backed by "
+        "<b>161 fine-grained permissions</b> (<code>module.resource.action</code>) and <b>644 authoritative role-permission grants</b>. "
+        "Every role operates inside a tailored interface with strict data scoping boundaries (Institution, Campus, Hostel, Block, Floor, Department, Individual):",
         body_style
     ))
+
+    # Subsection 6.1: 17 Canonical Enterprise Departments
+    story.append(Paragraph("<b>6.1 Enterprise Department Hierarchy (17 Canonical Divisions)</b>", h2_style))
+    dept_table_data = [
+        [Paragraph("<b>Dept Code</b>", table_header_style), Paragraph("<b>Department Name</b>", table_header_style), Paragraph("<b>Mandate &amp; Operational Responsibilities</b>", table_header_style), Paragraph("<b>Head Role</b>", table_header_style)],
+        [Paragraph("<code>EXEC_ADMIN</code>", table_cell_code), Paragraph("Executive Administration", table_cell_bold), Paragraph("Governance, strategic planning, policies, institutional compliance.", table_cell_style), Paragraph("<code>super_admin</code>", table_cell_code)],
+        [Paragraph("<code>HOSTEL_ADMIN</code>", table_cell_code), Paragraph("Hostel Directorate", table_cell_bold), Paragraph("Residential infrastructure, capacity planning, warden coordination.", table_cell_style), Paragraph("<code>hostel_admin</code>", table_cell_code)],
+        [Paragraph("<code>ADMISSIONS</code>", table_cell_code), Paragraph("Hostel Admissions &amp; Intake", table_cell_bold), Paragraph("Resident enrollment, quota scrutiny, initial room allocation intake.", table_cell_style), Paragraph("<code>admission_officer</code>", table_cell_code)],
+        [Paragraph("<code>FINANCE</code>", table_cell_code), Paragraph("Finance &amp; Accounts", table_cell_bold), Paragraph("Fee schedules, invoices, payments, caution deposit refunds, ledgers.", table_cell_style), Paragraph("<code>accountant</code>", table_cell_code)],
+        [Paragraph("<code>AUDIT_COMPLIANCE</code>", table_cell_code), Paragraph("Audit &amp; Quality Compliance", table_cell_bold), Paragraph("TQM Q05 SLA latency auditing, immutable logs, quality metrics.", table_cell_style), Paragraph("<code>auditor</code>", table_cell_code)],
+        [Paragraph("<code>SECURITY_SAFETY</code>", table_cell_code), Paragraph("Campus Security &amp; Safety", table_cell_bold), Paragraph("Perimeter access control, outpass verification, visitor passes.", table_cell_style), Paragraph("<code>security_supervisor</code>", table_cell_code)],
+        [Paragraph("<code>MESS_FOOD</code>", table_cell_code), Paragraph("Mess &amp; Dining Services", table_cell_bold), Paragraph("Weekly meal planning, nutrition, kitchen prep, mess attendance.", table_cell_style), Paragraph("<code>mess_manager</code>", table_cell_code)],
+        [Paragraph("<code>MAINTENANCE</code>", table_cell_code), Paragraph("Facility Maintenance", table_cell_bold), Paragraph("Civil, electrical, plumbing, carpentry repairs, work orders.", table_cell_style), Paragraph("<code>maintenance_manager</code>", table_cell_code)],
+        [Paragraph("<code>HOUSEKEEPING</code>", table_cell_code), Paragraph("Housekeeping &amp; Sanitation", table_cell_bold), Paragraph("Hygiene, waste disposal, corridor cleaning, pest control.", table_cell_style), Paragraph("<code>housekeeping_staff</code>", table_cell_code)],
+        [Paragraph("<code>LAUNDRY</code>", table_cell_code), Paragraph("Laundry Services", table_cell_bold), Paragraph("Student linen tracking, batch collection, washing cycles.", table_cell_style), Paragraph("<code>laundry_staff</code>", table_cell_code)],
+        [Paragraph("<code>MEDICAL_WELFARE</code>", table_cell_code), Paragraph("Health &amp; Medical Welfare", table_cell_bold), Paragraph("Hostel infirmary, first aid, emergency medical leave clearance.", table_cell_style), Paragraph("<code>medical_officer</code>", table_cell_code)],
+        [Paragraph("<code>IT_SYSTEMS</code>", table_cell_code), Paragraph("IT Systems &amp; Infrastructure", table_cell_bold), Paragraph("Application health, database backups, distributed worker leases.", table_cell_style), Paragraph("<code>it_admin</code>", table_cell_code)],
+        [Paragraph("<code>INVENTORY_ASSET</code>", table_cell_code), Paragraph("Inventory &amp; Asset Management", table_cell_bold), Paragraph("Institutional stores, assets, stock ledger, reorder levels.", table_cell_style), Paragraph("<code>inventory_manager</code>", table_cell_code)],
+        [Paragraph("<code>PROCUREMENT_VENDOR</code>", table_cell_code), Paragraph("Procurement &amp; Vendor Management", table_cell_bold), Paragraph("Vendor contracts, purchase orders, material receipt auditing.", table_cell_style), Paragraph("<code>procurement_manager</code>", table_cell_code)],
+        [Paragraph("<code>STUDENT_SERVICES</code>", table_cell_code), Paragraph("Student Welfare &amp; Residence", table_cell_bold), Paragraph("Resident welfare, ward communications, parent-student linkage.", table_cell_style), Paragraph("<code>warden</code>", table_cell_code)],
+        [Paragraph("<code>TRANSPORT_RECREATION</code>", table_cell_code), Paragraph("Transport &amp; Campus Logistics", table_cell_bold), Paragraph("Hostel shuttle buses, sports facilities, gymnasium rosters.", table_cell_style), Paragraph("<code>transport_supervisor</code>", table_cell_code)],
+        [Paragraph("<code>GRIEVANCE_PROTECTION</code>", table_cell_code), Paragraph("Grievance Redressal &amp; Protection", table_cell_bold), Paragraph("Anonymous grievances, anti-ragging helpline, priority alerts.", table_cell_style), Paragraph("<code>grievance_officer</code>", table_cell_code)],
+    ]
+    t_depts = Table(dept_table_data, colWidths=[90, 130, 225, 95])
+    t_depts.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), PRIMARY),
+        ('BOX', (0,0), (-1,-1), 0.5, BORDER_COLOR),
+        ('INNERGRID', (0,0), (-1,-1), 0.5, BORDER_COLOR),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, BG_LIGHT]),
+        ('TOPPADDING', (0,0), (-1,-1), 1.5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 1.5),
+        ('LEFTPADDING', (0,0), (-1,-1), 3),
+        ('RIGHTPADDING', (0,0), (-1,-1), 3),
+    ]))
+    story.append(t_depts)
+    story.append(Spacer(1, 6))
+
+    # Subsection 6.2: 28 Consolidated Operational Dashboards
+    story.append(Paragraph("<b>6.2 Consolidated Multi-Stakeholder Dashboards (28 Unified Groups)</b>", h2_style))
+    story.append(Paragraph(
+        "To streamline system navigation without screen sprawl, 28 consolidated dashboard groups unify related stakeholder workflows. "
+        "Dashboards serving multiple roles automatically adapt their presentation based on active role view and trade specialization "
+        "(e.g., Dashboard 17 filters by trade specialization: Electrical, Plumbing, Carpentry, Kitchen):",
+        body_style
+    ))
+    dash_table_data = [
+        [Paragraph("<b>ID</b>", table_header_style), Paragraph("<b>Dashboard Title</b>", table_header_style), Paragraph("<b>Department</b>", table_header_style), Paragraph("<b>Default Role</b>", table_header_style), Paragraph("<b>Authorized User Roles</b>", table_header_style)],
+        [Paragraph("<code>DASHBOARD_01</code>", table_cell_code), Paragraph("Executive Governance &amp; Administration", table_cell_bold), Paragraph("EXEC_ADMIN", table_cell_style), Paragraph("super_admin", table_cell_code), Paragraph("super_admin, institutional_admin", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_02</code>", table_cell_code), Paragraph("Hostel Directorate &amp; Facilities", table_cell_bold), Paragraph("HOSTEL_ADMIN", table_cell_style), Paragraph("hostel_admin", table_cell_code), Paragraph("hostel_admin, super_admin", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_03</code>", table_cell_code), Paragraph("Chief Warden Residence Welfare", table_cell_bold), Paragraph("STUDENT_SERVICES", table_cell_style), Paragraph("warden", table_cell_code), Paragraph("warden, assistant_warden", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_04</code>", table_cell_code), Paragraph("Assistant Warden Floor Operations", table_cell_bold), Paragraph("STUDENT_SERVICES", table_cell_style), Paragraph("assistant_warden", table_cell_code), Paragraph("assistant_warden, warden", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_05</code>", table_cell_code), Paragraph("Hostel Front Desk &amp; Clerk Desk", table_cell_bold), Paragraph("HOSTEL_ADMIN", table_cell_style), Paragraph("hostel_clerk", table_cell_code), Paragraph("hostel_clerk, warden", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_06</code>", table_cell_code), Paragraph("Admissions &amp; Candidate Enrollment", table_cell_bold), Paragraph("ADMISSIONS", table_cell_style), Paragraph("admission_officer", table_cell_code), Paragraph("admission_officer, super_admin", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_07</code>", table_cell_code), Paragraph("Room Allocation &amp; Intake Desk", table_cell_bold), Paragraph("ADMISSIONS", table_cell_style), Paragraph("hostel_allotment_officer", table_cell_code), Paragraph("hostel_allotment_officer, warden", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_08</code>", table_cell_code), Paragraph("Bed Allocation Verification", table_cell_bold), Paragraph("ADMISSIONS", table_cell_style), Paragraph("admission_officer", table_cell_code), Paragraph("admission_officer, hostel_admin", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_09</code>", table_cell_code), Paragraph("Finance &amp; Accounts Management", table_cell_bold), Paragraph("FINANCE", table_cell_style), Paragraph("accountant", table_cell_code), Paragraph("accountant, cashier", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_10</code>", table_cell_code), Paragraph("Cashier Counter &amp; Daily Collections", table_cell_bold), Paragraph("FINANCE", table_cell_style), Paragraph("cashier", table_cell_code), Paragraph("cashier, accountant", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_11</code>", table_cell_code), Paragraph("TQM Compliance &amp; Audit Oversight", table_cell_bold), Paragraph("AUDIT_COMPLIANCE", table_cell_style), Paragraph("auditor", table_cell_code), Paragraph("auditor, super_admin", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_12</code>", table_cell_code), Paragraph("Security Supervisor Command", table_cell_bold), Paragraph("SECURITY_SAFETY", table_cell_style), Paragraph("security_supervisor", table_cell_code), Paragraph("security_supervisor", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_13</code>", table_cell_code), Paragraph("Gate Access &amp; Perimeter Guard", table_cell_bold), Paragraph("SECURITY_SAFETY", table_cell_style), Paragraph("security_guard", table_cell_code), Paragraph("security_guard, security_supervisor", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_14</code>", table_cell_code), Paragraph("CCTV &amp; Surveillance Operations", table_cell_bold), Paragraph("SECURITY_SAFETY", table_cell_style), Paragraph("cctv_operator", table_cell_code), Paragraph("cctv_operator, security_supervisor", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_15</code>", table_cell_code), Paragraph("Mess Operations &amp; Meal Subscriptions", table_cell_bold), Paragraph("MESS_FOOD", table_cell_style), Paragraph("mess_manager", table_cell_code), Paragraph("mess_manager, head_chef", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_16</code>", table_cell_code), Paragraph("Kitchen &amp; Food Preparation", table_cell_bold), Paragraph("MESS_FOOD", table_cell_style), Paragraph("head_chef", table_cell_code), Paragraph("head_chef, mess_manager", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_17</code>", table_cell_code), Paragraph("Maintenance Technician Console (Shared)", table_cell_bold), Paragraph("MAINTENANCE", table_cell_style), Paragraph("maintenance_staff", table_cell_code), Paragraph("maintenance_staff, electrician, plumber, carpenter", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_18</code>", table_cell_code), Paragraph("Maintenance Oversight &amp; Work Orders", table_cell_bold), Paragraph("MAINTENANCE", table_cell_style), Paragraph("maintenance_manager", table_cell_code), Paragraph("maintenance_manager, hostel_admin", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_19</code>", table_cell_code), Paragraph("Infirmary &amp; Health Welfare", table_cell_bold), Paragraph("MEDICAL_WELFARE", table_cell_style), Paragraph("medical_officer", table_cell_code), Paragraph("medical_officer, warden", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_20</code>", table_cell_code), Paragraph("IT Systems Infrastructure &amp; Health", table_cell_bold), Paragraph("IT_SYSTEMS", table_cell_style), Paragraph("it_admin", table_cell_code), Paragraph("it_admin, super_admin", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_21</code>", table_cell_code), Paragraph("Inventory &amp; Stores Management", table_cell_bold), Paragraph("INVENTORY_ASSET", table_cell_style), Paragraph("inventory_manager", table_cell_code), Paragraph("inventory_manager, procurement_manager", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_22</code>", table_cell_code), Paragraph("Procurement &amp; Vendor Contracts", table_cell_bold), Paragraph("PROCUREMENT_VENDOR", table_cell_style), Paragraph("procurement_manager", table_cell_code), Paragraph("procurement_manager, accountant", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_23</code>", table_cell_code), Paragraph("Campus Transport &amp; Shuttle Logistics", table_cell_bold), Paragraph("TRANSPORT_RECREATION", table_cell_style), Paragraph("transport_supervisor", table_cell_code), Paragraph("transport_supervisor", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_24</code>", table_cell_code), Paragraph("Sports &amp; Gymnasium Recreation", table_cell_bold), Paragraph("TRANSPORT_RECREATION", table_cell_style), Paragraph("sports_coordinator", table_cell_code), Paragraph("sports_coordinator", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_25</code>", table_cell_code), Paragraph("Student Resident Portal", table_cell_bold), Paragraph("STUDENT_SERVICES", table_cell_style), Paragraph("student", table_cell_code), Paragraph("student", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_26</code>", table_cell_code), Paragraph("Parent &amp; Guardian Oversight", table_cell_bold), Paragraph("STUDENT_SERVICES", table_cell_style), Paragraph("parent_guardian", table_cell_code), Paragraph("parent_guardian", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_27</code>", table_cell_code), Paragraph("Housekeeping &amp; Sanitation Roster", table_cell_bold), Paragraph("HOUSEKEEPING", table_cell_style), Paragraph("housekeeping_staff", table_cell_code), Paragraph("housekeeping_staff", table_cell_style)],
+        [Paragraph("<code>DASHBOARD_28</code>", table_cell_code), Paragraph("Hostel Laundry Service &amp; Linen", table_cell_bold), Paragraph("LAUNDRY", table_cell_style), Paragraph("laundry_staff", table_cell_code), Paragraph("laundry_staff", table_cell_style)],
+    ]
+    t_dash = Table(dash_table_data, colWidths=[75, 140, 95, 95, 135])
+    t_dash.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), PRIMARY),
+        ('BOX', (0,0), (-1,-1), 0.5, BORDER_COLOR),
+        ('INNERGRID', (0,0), (-1,-1), 0.5, BORDER_COLOR),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, BG_LIGHT]),
+        ('TOPPADDING', (0,0), (-1,-1), 1.2),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 1.2),
+        ('LEFTPADDING', (0,0), (-1,-1), 2.5),
+        ('RIGHTPADDING', (0,0), (-1,-1), 2.5),
+    ]))
+    story.append(t_dash)
+    story.append(Spacer(1, 6))
+
+    # Subsection 6.3: All 32 Roles RBAC Matrix
+    story.append(Paragraph("<b>6.3 Complete 32 System Roles &amp; Access Scope Matrix</b>", h2_style))
 
     roles_data = [
         [Paragraph("<b>Role Key &amp; Code</b>", table_header_style), Paragraph("<b>Display Title &amp; Category</b>", table_header_style), Paragraph("<b>Core Responsibilities, Scope &amp; Access Boundaries</b>", table_header_style)],

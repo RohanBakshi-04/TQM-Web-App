@@ -86,7 +86,7 @@ class TestBrowserAcceptance(unittest.TestCase):
 
     def login_role(self, page, username, password="Password123!"):
         """Helper to navigate to Sign In, fill credentials, and submit."""
-        page.goto(self.base_url, wait_until="networkidle")
+        page.goto(self.base_url, wait_until="domcontentloaded")
         # Direct Alpine view transition to Sign In
         page.evaluate("""() => {
             const el = document.querySelector('[x-data]');
@@ -133,7 +133,7 @@ class TestBrowserAcceptance(unittest.TestCase):
         page = context.new_page()
 
         # 1. Load application
-        page.goto(self.base_url, wait_until="networkidle")
+        page.goto(self.base_url, wait_until="domcontentloaded")
         self.assertIn("Hostel Management System", page.title())
 
         # 2. Verify invalid credentials rejection
@@ -194,7 +194,7 @@ class TestBrowserAcceptance(unittest.TestCase):
         context = self.browser.new_context(viewport={"width": 768, "height": 1024})
         page = context.new_page()
 
-        page.goto(self.base_url, wait_until="networkidle")
+        page.goto(self.base_url, wait_until="domcontentloaded")
         self.assertTrue(page.locator("body").is_visible())
 
         # Sign in as warden on tablet
@@ -216,7 +216,7 @@ class TestBrowserAcceptance(unittest.TestCase):
         )
         page = context.new_page()
 
-        page.goto(self.base_url, wait_until="networkidle")
+        page.goto(self.base_url, wait_until="domcontentloaded")
 
         # Sign in as student (rohan) on mobile
         self.login_role(page, "rohan", "Password123!")
@@ -235,7 +235,7 @@ class TestBrowserAcceptance(unittest.TestCase):
         context = self.browser.new_context(viewport={"width": 1440, "height": 900})
         page = context.new_page()
 
-        page.goto(self.base_url, wait_until="networkidle")
+        page.goto(self.base_url, wait_until="domcontentloaded")
 
         # Open search modal via search button
         search_btn = page.locator("button:visible:has-text('Search')").first
@@ -262,7 +262,7 @@ class TestBrowserAcceptance(unittest.TestCase):
         context = self.browser.new_context(viewport={"width": 1440, "height": 900})
         page = context.new_page()
 
-        page.goto(self.base_url, wait_until="networkidle")
+        page.goto(self.base_url, wait_until="domcontentloaded")
 
         # Initial class check
         has_dark_before = "dark" in page.evaluate("() => document.documentElement.className")

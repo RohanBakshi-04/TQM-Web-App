@@ -25,7 +25,14 @@ from backend.app.database.schema import initialize_all_tables
 
 from backend.app.database.schema_auth import AUTH_TABLES_SQL
 
-from backend.app.services.rbac_data import ROLES_LIST, ROLE_METADATA, PERMISSIONS_LIST, ROLE_PERMISSIONS_MAP
+from backend.app.services.rbac_data import (
+    ROLES_LIST,
+    ROLE_METADATA,
+    PERMISSIONS_LIST,
+    ROLE_PERMISSIONS_MAP,
+    DEPARTMENTS_LIST,
+    DASHBOARDS_LIST
+)
 
 from backend.app.utils.logger import logger
 
@@ -3650,6 +3657,231 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
             conn.commit()
             applied_now.append("020_enterprise_rbac_and_10_stakeholders")
             logger.info("Migration 020_enterprise_rbac_and_10_stakeholders applied successfully.")
+
+        # Migration 021: Enterprise 28 Dashboard Groups, 17 Departments, Extended Stakeholder Role Templates & Audit History
+        if "021_enterprise_28_dashboards_and_departments" not in applied:
+            logger.info("Applying Migration 021_enterprise_28_dashboards_and_departments...")
+            begin_migration_transaction(conn)
+            cursor = conn.cursor()
+
+            # 1. Create departments table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS departments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    code TEXT UNIQUE NOT NULL,
+                    name TEXT NOT NULL,
+                    description TEXT,
+                    head_user_id INTEGER NULL,
+                    is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (head_user_id) REFERENCES users(id) ON DELETE SET NULL
+                );
+            """)
+            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_departments_code ON departments(code);")
+
+            # 2. Create dashboards table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS dashboards (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    dashboard_id TEXT UNIQUE NOT NULL,
+                    title TEXT NOT NULL,
+                    department_id INTEGER NOT NULL,
+                    description TEXT,
+                    route TEXT NOT NULL DEFAULT 'dashboard',
+                    icon TEXT NOT NULL DEFAULT 'fa-chart-pie',
+                    layout_type TEXT NOT NULL DEFAULT 'standard',
+                    is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE
+                );
+            """)
+            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_dashboards_id ON dashboards(dashboard_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_dashboards_dept ON dashboards(department_id);")
+
+            # 3. Create dashboard_roles table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS dashboard_roles (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    dashboard_id TEXT NOT NULL,
+                    role_id INTEGER NOT NULL,
+                    is_default INTEGER NOT NULL DEFAULT 0 CHECK(is_default IN (0, 1)),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+                    UNIQUE(dashboard_id, role_id)
+                );
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_dash_roles_lookup ON dashboard_roles(dashboard_id, role_id);")
+
+            # 4. Create user_departments table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS user_departments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    department_id INTEGER NOT NULL,
+                    role_in_department TEXT,
+                    is_primary INTEGER NOT NULL DEFAULT 1 CHECK(is_primary IN (0, 1)),
+                    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE,
+                    UNIQUE(user_id, department_id)
+                );
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_depts_user ON user_departments(user_id);")
+
+            # 5. Create role_change_history & permission_change_history tables
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS role_change_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    changed_by_user_id INTEGER,
+                    old_role TEXT,
+                    new_role TEXT,
+                    reason TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS permission_change_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    role_id INTEGER NOT NULL,
+                    permission_id INTEGER NOT NULL,
+                    action TEXT NOT NULL CHECK(action IN ('assigned', 'revoked')),
+                    changed_by_user_id INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+                    FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
+                );
+            """)
+
+            # 6. Ensure department_code column on roles table
+            cursor.execute("PRAGMA table_info(roles);")
+            role_cols = {col[1] for col in cursor.fetchall()}
+            if "department_code" not in role_cols:
+                cursor.execute("ALTER TABLE roles ADD COLUMN department_code TEXT;")
+
+            # 7. Seed all 17 departments
+            for d_code, d_name, d_desc in DEPARTMENTS_LIST:
+                cursor.execute("""
+                    INSERT INTO departments (code, name, description, is_active)
+                    VALUES (?, ?, ?, 1)
+                    ON CONFLICT(code) DO UPDATE SET
+                        name = excluded.name,
+                        description = excluded.description;
+                """, (d_code, d_name, d_desc))
+
+            cursor.execute("SELECT id, code FROM departments;")
+            dept_id_map = {row[1]: row[0] for row in cursor.fetchall()}
+
+            # 8. Seed all 28 dashboards
+            for dash in DASHBOARDS_LIST:
+                dept_id = dept_id_map.get(dash["department_code"])
+                if dept_id:
+                    cursor.execute("""
+                        INSERT INTO dashboards (dashboard_id, title, department_id, description, route, icon, is_active)
+                        VALUES (?, ?, ?, ?, ?, ?, 1)
+                        ON CONFLICT(dashboard_id) DO UPDATE SET
+                            title = excluded.title,
+                            department_id = excluded.department_id,
+                            description = excluded.description,
+                            route = excluded.route,
+                            icon = excluded.icon;
+                    """, (dash["dashboard_id"], dash["title"], dept_id, dash["description"], dash["route"], dash["icon"]))
+
+            # 9. Insert/update all roles (32 roles total)
+            for r_name, r_desc in ROLES_LIST:
+                meta = ROLE_METADATA.get(r_name, {})
+                r_code = meta.get("code", r_name.upper())
+                r_cat = meta.get("category", "Operational / Student Life")
+                r_dept = meta.get("department_code", "EXEC_ADMIN")
+                cursor.execute("""
+                    INSERT INTO roles (name, code, description, stakeholder_category, department_code, is_system, is_system_role)
+                    VALUES (?, ?, ?, ?, ?, 1, 1)
+                    ON CONFLICT(name) DO UPDATE SET
+                        code = excluded.code,
+                        description = excluded.description,
+                        stakeholder_category = excluded.stakeholder_category,
+                        department_code = excluded.department_code,
+                        is_system = 1,
+                        is_system_role = 1,
+                        updated_at = CURRENT_TIMESTAMP;
+                """, (r_name, r_code, r_desc, r_cat, r_dept))
+
+            cursor.execute("SELECT id, name FROM roles;")
+            role_id_map = {r[1]: r[0] for r in cursor.fetchall()}
+
+            # 10. Seed/update all permissions
+            for p_name, p_mod, p_desc in PERMISSIONS_LIST:
+                cursor.execute("""
+                    INSERT INTO permissions (name, module, description)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(name) DO UPDATE SET
+                        module = excluded.module,
+                        description = excluded.description;
+                """, (p_name, p_mod, p_desc))
+
+            cursor.execute("SELECT id, name FROM permissions;")
+            perm_id_map = {p[1]: p[0] for p in cursor.fetchall()}
+
+            # 11. Populate role_permissions for all roles
+            for r_name, p_names in ROLE_PERMISSIONS_MAP.items():
+                r_id = role_id_map.get(r_name)
+                if not r_id:
+                    continue
+                for p_name in p_names:
+                    p_id = perm_id_map.get(p_name)
+                    if p_id:
+                        cursor.execute("""
+                            INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
+                            VALUES (?, ?);
+                        """, (r_id, p_id))
+
+            # 12. Populate dashboard_roles mappings
+            for dash in DASHBOARDS_LIST:
+                d_id = dash["dashboard_id"]
+                default_role = dash.get("default_role")
+                for r_name in dash.get("roles", []):
+                    r_id = role_id_map.get(r_name)
+                    if r_id:
+                        is_def = 1 if r_name == default_role else 0
+                        cursor.execute("""
+                            INSERT INTO dashboard_roles (dashboard_id, role_id, is_default)
+                            VALUES (?, ?, ?)
+                            ON CONFLICT(dashboard_id, role_id) DO UPDATE SET
+                                is_default = excluded.is_default;
+                        """, (d_id, r_id, is_def))
+
+            # 13. Map existing users into user_departments based on primary role
+            cursor.execute("""
+                SELECT u.id, r.department_code
+                FROM users u
+                JOIN user_roles ur ON u.id = ur.user_id
+                JOIN roles r ON ur.role_id = r.id
+                WHERE r.department_code IS NOT NULL;
+            """)
+            user_role_rows = cursor.fetchall()
+            for u_id, d_code in user_role_rows:
+                d_id = dept_id_map.get(d_code)
+                if d_id:
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO user_departments (user_id, department_id, is_primary)
+                        VALUES (?, ?, 1);
+                    """, (u_id, d_id))
+
+            # 14. Validate foreign key integrity
+            violations = cursor.execute("PRAGMA foreign_key_check;").fetchall()
+            if violations:
+                violation_summary = [f"table={v[0]}, rowid={v[1]}, target={v[2]}, fkid={v[3]}" for v in violations]
+                err_msg = f"Migration 021 foreign key validation failed: {violation_summary}"
+                logger.error(err_msg)
+                raise RuntimeError(err_msg)
+
+            record_migration(conn, "021_enterprise_28_dashboards_and_departments", "Enterprise 28 Dashboard Groups, 17 Departments, Extended Stakeholders & Audit", commit=False)
+            conn.commit()
+            applied_now.append("021_enterprise_28_dashboards_and_departments")
+            logger.info("Migration 021_enterprise_28_dashboards_and_departments applied successfully.")
 
         return applied_now
 
