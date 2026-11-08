@@ -19,20 +19,34 @@ class BackupService:
     """Safe SQLite WAL online backup, integrity verification, and recovery engine."""
 
     @classmethod
-    def _ensure_backup_dir(cls) -> str:
-        os.makedirs(BACKUP_DIR, exist_ok=True)
-        return BACKUP_DIR
+    def _ensure_backup_dir(cls, custom_dir: Optional[str] = None) -> str:
+        bdir = custom_dir or BACKUP_DIR
+        os.makedirs(bdir, exist_ok=True)
+        return bdir
 
     @classmethod
-    def create_backup(cls, note: Optional[str] = None) -> Dict[str, Any]:
+    def create_backup(
+        cls,
+        note: Optional[str] = None,
+        custom_db_path: Optional[str] = None,
+        custom_backup_dir: Optional[str] = None,
+        user_id: Optional[int] = None,
+        username: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Create a timestamped SQLite-safe online backup utilizing SQLite backup API."""
-        backup_dir = cls._ensure_backup_dir()
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_dir = cls._ensure_backup_dir(custom_backup_dir)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         backup_filename = f"hms_backup_{timestamp}.db"
         backup_path = os.path.join(backup_dir, backup_filename)
 
-        src_conn = get_db_connection()
+        src_conn = get_db_connection(custom_db_path) if custom_db_path else get_db_connection()
         try:
+            # Checkpoint WAL passively to ensure consistent frame sync without blocking
+            try:
+                src_conn.execute("PRAGMA wal_checkpoint(PASSIVE);")
+            except sqlite3.OperationalError:
+                pass
+
             # Destination backup connection
             dest_conn = sqlite3.connect(backup_path)
             try:
@@ -51,6 +65,20 @@ class BackupService:
             file_size = os.path.getsize(backup_path)
             logger.info(f"Database backup created successfully: {backup_filename} ({file_size} bytes)")
 
+            # Record audit trail
+            try:
+                cursor = src_conn.cursor()
+                cursor.execute(
+                    """
+                    INSERT INTO audit_logs (user_id, username, action, entity_name, entity_id, details)
+                    VALUES (?, ?, 'CREATE_BACKUP', 'database', ?, ?);
+                    """,
+                    (user_id or 1, username or "system", backup_filename, f"Size: {file_size} bytes. Note: {note or 'Automated backup'}")
+                )
+                src_conn.commit()
+            except Exception as audit_err:
+                logger.debug(f"Audit log skipped during backup creation: {audit_err}")
+
             return {
                 "status": "success",
                 "filename": backup_filename,
@@ -65,7 +93,7 @@ class BackupService:
 
     @classmethod
     def verify_backup_integrity(cls, backup_path: str) -> Dict[str, Any]:
-        """Verify the integrity of a backup SQLite file using PRAGMA integrity_check."""
+        """Verify the integrity and foreign-key consistency of a backup SQLite file."""
         if not os.path.exists(backup_path):
             return {"is_valid": False, "error": "File does not exist", "table_count": 0}
 
@@ -78,6 +106,12 @@ class BackupService:
                 conn.close()
                 return {"is_valid": False, "error": f"Integrity check failed: {res[0] if res else 'None'}", "table_count": 0}
 
+            cursor.execute("PRAGMA foreign_key_check;")
+            fk_violations = cursor.fetchall()
+            if fk_violations:
+                conn.close()
+                return {"is_valid": False, "error": f"Foreign key check failed: {len(fk_violations)} violations", "table_count": 0}
+
             cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%';")
             table_count = cursor.fetchone()[0]
             conn.close()
@@ -86,9 +120,9 @@ class BackupService:
             return {"is_valid": False, "error": str(e), "table_count": 0}
 
     @classmethod
-    def list_backups(cls) -> List[Dict[str, Any]]:
+    def list_backups(cls, custom_backup_dir: Optional[str] = None) -> List[Dict[str, Any]]:
         """List all available backup files with size and verification status."""
-        backup_dir = cls._ensure_backup_dir()
+        backup_dir = cls._ensure_backup_dir(custom_backup_dir)
         backups = []
 
         if not os.path.exists(backup_dir):
@@ -107,9 +141,16 @@ class BackupService:
         return backups
 
     @classmethod
-    def restore_backup(cls, backup_filename: str) -> Dict[str, Any]:
+    def restore_backup(
+        cls,
+        backup_filename: str,
+        custom_db_path: Optional[str] = None,
+        custom_backup_dir: Optional[str] = None,
+        user_id: Optional[int] = None,
+        username: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Safely restore database from a verified backup with pre-restore safety snapshot."""
-        backup_dir = cls._ensure_backup_dir()
+        backup_dir = cls._ensure_backup_dir(custom_backup_dir)
 
         # Security: Prevent path traversal and invalid file extensions
         clean_filename = os.path.basename(backup_filename)
@@ -131,10 +172,16 @@ class BackupService:
             raise ValueError(f"Cannot restore: Backup file is corrupt ({integrity['error']}).")
 
         # 2. Create pre-restore safety snapshot of current database
-        safety_snapshot = cls.create_backup(note="Pre-restore safety snapshot")
+        safety_snapshot = cls.create_backup(
+            note="Pre-restore safety snapshot",
+            custom_db_path=custom_db_path,
+            custom_backup_dir=custom_backup_dir,
+            user_id=user_id,
+            username=username
+        )
 
-        # 3. Restore backup into active database safely using SQLite backup API
-        live_db_path = get_db_path()
+        # 3. Restore backup into target database safely using SQLite backup API
+        live_db_path = get_db_path(custom_db_path) if custom_db_path else get_db_path()
         backup_conn = sqlite3.connect(backup_path)
         live_conn = sqlite3.connect(live_db_path)
         try:
@@ -147,8 +194,30 @@ class BackupService:
         live_integrity = cls.verify_backup_integrity(live_db_path)
         if not live_integrity["is_valid"]:
             logger.critical("Restore produced invalid database state! Restoring from pre-restore safety snapshot...")
-            cls.restore_backup(safety_snapshot["filename"])
+            cls.restore_backup(
+                safety_snapshot["filename"],
+                custom_db_path=custom_db_path,
+                custom_backup_dir=custom_backup_dir,
+                user_id=user_id,
+                username=username
+            )
             raise RuntimeError("Database restore failed integrity check. Reverted to pre-restore snapshot.")
+
+        # Record audit trail
+        try:
+            audit_conn = get_db_connection(custom_db_path) if custom_db_path else get_db_connection()
+            cursor = audit_conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO audit_logs (user_id, username, action, entity_name, entity_id, details)
+                VALUES (?, ?, 'RESTORE_BACKUP', 'database', ?, ?);
+                """,
+                (user_id or 1, username or "system", backup_filename, f"Restored from {backup_filename}. Safety snapshot: {safety_snapshot['filename']}")
+            )
+            audit_conn.commit()
+            audit_conn.close()
+        except Exception as audit_err:
+            logger.debug(f"Audit log skipped during restore: {audit_err}")
 
         logger.info(f"Database successfully restored from {backup_filename}")
         return {

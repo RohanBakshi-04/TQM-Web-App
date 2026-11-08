@@ -429,3 +429,72 @@ def verify_student_isolation(student_id: Union[str, int], current_user: Dict[str
         return
 
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
+
+
+def verify_infrastructure_scope(
+    current_user: Dict[str, Any],
+    institution_id: Optional[int] = None,
+    campus_id: Optional[int] = None,
+    hostel_id: Optional[int] = None,
+    conn: Optional[sqlite3.Connection] = None,
+) -> None:
+    """Enforce strict cross-scope infrastructure isolation across Institutions, Campuses, and Hostels.
+
+    - super_admin has global administrative access across all institutions, campuses, and hostels.
+    - institutional_admin has access strictly within their institution.
+    - hostel_admin / warden / staff are isolated to their assigned campus or linked hostel.
+    - Cross-institution or cross-campus mutations without scope authorization raise 403 Forbidden.
+    """
+    active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+    norm_active = normalize_role_name(active_role)
+    role_code = current_user.get("role_code") or norm_active.upper()
+
+    # 1. Super Admin has unrestricted global access
+    if norm_active == "super_admin" or role_code == "SUPER_ADMIN":
+        return
+
+    user_scopes = current_user.get("user_scopes", [])
+    scoped_campus_ids = {int(s["id"]) for s in user_scopes if s.get("type") == "campus" and s.get("id")}
+    scoped_hostel_ids = {int(s["id"]) for s in user_scopes if s.get("type") == "hostel" and s.get("id")}
+    linked_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+    if linked_hid:
+        try:
+            scoped_hostel_ids.add(int(linked_hid))
+        except (ValueError, TypeError):
+            pass
+
+    # 2. Institutional Governance Check
+    if institution_id is not None:
+        if norm_active not in ("super_admin", "institutional_admin"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Security Violation: You do not possess institutional governance authority."
+            )
+
+    # 3. Campus Scope Check
+    if campus_id is not None:
+        if norm_active == "institutional_admin":
+            pass  # Institutional admin has authority across all campuses within institution
+        elif scoped_campus_ids and int(campus_id) not in scoped_campus_ids:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Security Violation: Campus ID {campus_id} is outside your assigned administrative scope."
+            )
+
+    # 4. Hostel Scope Check
+    if hostel_id is not None:
+        hid_int = int(hostel_id)
+        if norm_active in ("hostel_admin", "warden", "assistant_warden", "hostel_clerk"):
+            # Check direct hostel scope
+            if scoped_hostel_ids and hid_int not in scoped_hostel_ids:
+                # Also check if user has a campus scope that covers this hostel
+                if scoped_campus_ids and conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT campus_id FROM hostels WHERE id = ?;", (hid_int,))
+                    h_row = cursor.fetchone()
+                    if h_row and h_row[0] in scoped_campus_ids:
+                        return  # Covered by campus scope
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Security Violation: Hostel ID {hostel_id} is outside your assigned administrative scope."
+                )

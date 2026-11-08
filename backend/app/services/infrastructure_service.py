@@ -279,6 +279,12 @@ class InfrastructureService:
         if cursor.fetchone():
             raise HTTPException(status_code=400, detail=f"Campus name '{data.name}' already exists")
 
+        # Verify institution exists
+        target_inst_id = data.institution_id or 1
+        cursor.execute("SELECT id FROM institutions WHERE id = ?;", (target_inst_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=400, detail=f"Institution with ID {target_inst_id} does not exist")
+
         cursor.execute(
             """
             INSERT INTO campuses (
@@ -579,6 +585,12 @@ class InfrastructureService:
         cursor.execute("SELECT id FROM campuses WHERE id = ?;", (data.campus_id,))
         if not cursor.fetchone():
             raise HTTPException(status_code=400, detail=f"Campus with ID {data.campus_id} does not exist")
+
+        # Verify institution exists
+        target_inst_id = data.institution_id or 1
+        cursor.execute("SELECT id FROM institutions WHERE id = ?;", (target_inst_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=400, detail=f"Institution with ID {target_inst_id} does not exist")
 
         cursor.execute(
             """
@@ -1273,6 +1285,11 @@ class InfrastructureService:
                 detail=f"Floor number {data.floor_number} already exists in this building",
             )
 
+        # Verify building exists
+        cursor.execute("SELECT id FROM buildings WHERE id = ?;", (data.building_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=400, detail=f"Building with ID {data.building_id} does not exist")
+
         # Resolve block if missing
         block_id = data.block_id
         if not block_id:
@@ -1564,6 +1581,11 @@ class InfrastructureService:
     ) -> Dict[str, Any]:
         t0 = time.perf_counter()
         cursor = conn.cursor()
+
+        # Verify floor exists
+        cursor.execute("SELECT id FROM floors WHERE id = ?;", (data.floor_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=400, detail=f"Floor with ID {data.floor_id} does not exist")
 
         # Check unique room_number on floor
         cursor.execute(

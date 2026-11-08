@@ -35,7 +35,7 @@ from backend.app.models.infrastructure_dto import (
     RoomMaintenanceUpdate,
     RoomUpdate,
 )
-from backend.app.services.auth_dependencies import get_current_user, require_permissions
+from backend.app.services.auth_dependencies import get_current_user, require_permissions, verify_infrastructure_scope
 from backend.app.services.infrastructure_service import InfrastructureService
 
 router = APIRouter(prefix="/api/v1", tags=["Infrastructure & Campus Management"])
@@ -63,6 +63,7 @@ def update_institution(
     current_user: Dict[str, Any] = Depends(require_permissions("institution:update", "infrastructure:manage")),
 ):
     try:
+        verify_infrastructure_scope(current_user, institution_id=1)
         user_id = current_user.get("id")
         username = current_user.get("username")
         return InfrastructureService.update_institution(conn, payload, user_id=user_id, username=username)
@@ -77,6 +78,7 @@ def update_institution_config(
     current_user: Dict[str, Any] = Depends(require_permissions("institutions.config.update", "infrastructure:manage")),
 ):
     try:
+        verify_infrastructure_scope(current_user, institution_id=1)
         user_id = current_user.get("id")
         username = current_user.get("username")
         return InfrastructureService.update_institution_config(conn, payload, user_id=user_id, username=username)
@@ -138,6 +140,7 @@ def update_campus(
     current_user: Dict[str, Any] = Depends(require_permissions("campuses:update", "campuses:manage")),
 ):
     try:
+        verify_infrastructure_scope(current_user, campus_id=campus_id)
         user_id = current_user.get("id")
         username = current_user.get("username")
         return InfrastructureService.update_campus(conn, campus_id, payload, user_id=user_id, username=username)
@@ -152,6 +155,7 @@ def set_campus_status(
     conn=Depends(get_db_connection),
     current_user: Dict[str, Any] = Depends(require_permissions("campuses:manage")),
 ):
+    verify_infrastructure_scope(current_user, campus_id=campus_id)
     try:
         user_id = current_user.get("id")
         username = current_user.get("username")
@@ -169,6 +173,7 @@ def assign_campus_admin(
     conn=Depends(get_db_connection),
     current_user: Dict[str, Any] = Depends(require_permissions("campuses:manage")),
 ):
+    verify_infrastructure_scope(current_user, campus_id=campus_id)
     try:
         user_id = current_user.get("id")
         username = current_user.get("username")
@@ -183,6 +188,7 @@ def delete_campus(
     conn=Depends(get_db_connection),
     current_user: Dict[str, Any] = Depends(require_permissions("campuses:delete", "campuses:manage")),
 ):
+    verify_infrastructure_scope(current_user, campus_id=campus_id)
     try:
         user_id = current_user.get("id")
         username = current_user.get("username")
@@ -230,7 +236,7 @@ def get_hostel_detail(
 def create_hostel_extended(
     payload: HostelCreateExt,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("hostels:create", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("hostels:create")),
 ):
     try:
         user_id = current_user.get("id")
@@ -245,9 +251,10 @@ def update_hostel_extended(
     hostel_id: int,
     payload: HostelUpdateExt,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("hostels:update", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("hostels:update")),
 ):
     try:
+        verify_infrastructure_scope(current_user, hostel_id=hostel_id, conn=conn)
         user_id = current_user.get("id")
         username = current_user.get("username")
         return InfrastructureService.update_hostel_extended(conn, hostel_id, payload, user_id=user_id, username=username)
@@ -260,8 +267,9 @@ def assign_hostel_leadership(
     hostel_id: int,
     payload: HostelLeadershipAssign,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("hostels:manage", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("hostels:manage")),
 ):
+    verify_infrastructure_scope(current_user, hostel_id=hostel_id, conn=conn)
     try:
         user_id = current_user.get("id")
         username = current_user.get("username")
@@ -275,8 +283,9 @@ def update_hostel_category(
     hostel_id: int,
     payload: HostelCategoryUpdate,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("hostels:update", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("hostels:update")),
 ):
+    verify_infrastructure_scope(current_user, hostel_id=hostel_id, conn=conn)
     try:
         user_id = current_user.get("id")
         username = current_user.get("username")
@@ -289,8 +298,9 @@ def update_hostel_category(
 def delete_hostel(
     hostel_id: int,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("hostels:delete", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("hostels:delete")),
 ):
+    verify_infrastructure_scope(current_user, hostel_id=hostel_id, conn=conn)
     try:
         user_id = current_user.get("id")
         username = current_user.get("username")
@@ -335,7 +345,7 @@ def get_building(
 def create_building_extended(
     payload: BuildingCreateExt,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("buildings:create", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("buildings:create")),
 ):
     try:
         user_id = current_user.get("id")
@@ -350,7 +360,7 @@ def update_building_extended(
     building_id: int,
     payload: BuildingUpdateExt,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("buildings:update", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("buildings:update")),
 ):
     try:
         user_id = current_user.get("id")
@@ -364,7 +374,7 @@ def update_building_extended(
 def delete_building(
     building_id: int,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("buildings:delete", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("buildings:delete")),
 ):
     try:
         user_id = current_user.get("id")
@@ -408,7 +418,7 @@ def get_block(
 def create_block(
     payload: BlockCreate,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("blocks:manage", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("blocks:manage")),
 ):
     try:
         user_id = current_user.get("id")
@@ -423,7 +433,7 @@ def update_block(
     block_id: int,
     payload: BlockUpdate,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("blocks:manage", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("blocks:manage")),
 ):
     try:
         user_id = current_user.get("id")
@@ -437,7 +447,7 @@ def update_block(
 def delete_block(
     block_id: int,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("blocks:manage", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("blocks:manage")),
 ):
     try:
         user_id = current_user.get("id")
@@ -480,7 +490,7 @@ def get_floor(
 def create_floor(
     payload: FloorCreate,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("floors:manage", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("floors:manage")),
 ):
     try:
         user_id = current_user.get("id")
@@ -495,7 +505,7 @@ def update_floor(
     floor_id: int,
     payload: FloorUpdate,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("floors:manage", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("floors:manage")),
 ):
     try:
         user_id = current_user.get("id")
@@ -509,7 +519,7 @@ def update_floor(
 def delete_floor(
     floor_id: int,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("floors:manage", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("floors:manage")),
 ):
     try:
         user_id = current_user.get("id")
@@ -565,7 +575,7 @@ def create_room(
     payload: RoomCreate,
     auto_create_beds: bool = Query(True, description="Automatically generate beds matching room capacity"),
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("rooms:manage", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("rooms:manage")),
 ):
     try:
         user_id = current_user.get("id")
@@ -582,7 +592,7 @@ def update_room(
     room_id: int,
     payload: RoomUpdate,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("rooms:manage", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("rooms:manage")),
 ):
     try:
         user_id = current_user.get("id")
@@ -597,7 +607,7 @@ def update_room_capacity(
     room_id: int,
     payload: RoomCapacityUpdate,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("rooms:manage", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("rooms:manage")),
 ):
     try:
         user_id = current_user.get("id")
@@ -614,7 +624,7 @@ def update_room_maintenance(
     room_id: int,
     payload: RoomMaintenanceUpdate,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("rooms:manage", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("rooms:manage")),
 ):
     try:
         user_id = current_user.get("id")
@@ -630,7 +640,7 @@ def update_room_maintenance(
 def delete_room(
     room_id: int,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("rooms:manage", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("rooms:manage")),
 ):
     try:
         user_id = current_user.get("id")
@@ -683,7 +693,7 @@ def get_bed(
 def create_bed(
     payload: BedCreate,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("beds:manage", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("beds:manage")),
 ):
     try:
         user_id = current_user.get("id")
@@ -698,7 +708,7 @@ def update_bed(
     bed_id: int,
     payload: BedUpdate,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("beds:manage", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("beds:manage")),
 ):
     try:
         user_id = current_user.get("id")
@@ -713,7 +723,7 @@ def update_bed_maintenance(
     bed_id: int,
     payload: BedMaintenanceUpdate,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("beds:manage", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("beds:manage")),
 ):
     try:
         user_id = current_user.get("id")
@@ -730,7 +740,7 @@ def update_bed_maintenance(
 def delete_bed(
     bed_id: int,
     conn=Depends(get_db_connection),
-    current_user: Dict[str, Any] = Depends(require_permissions("beds:manage", "infrastructure:manage")),
+    current_user: Dict[str, Any] = Depends(require_permissions("beds:manage")),
 ):
     try:
         user_id = current_user.get("id")

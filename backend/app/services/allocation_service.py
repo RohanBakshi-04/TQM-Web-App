@@ -84,8 +84,11 @@ class AllocationService:
         bed_info = cursor.execute("""
             SELECT 
                 bd.id AS bed_id, bd.bed_number, bd.status AS bed_status,
+                COALESCE(bd.maintenance_status, 'Operational') AS bed_maintenance_status,
+                COALESCE(bd.is_active, 1) AS bed_is_active,
                 r.id AS room_id, r.room_number, r.room_type, r.capacity, r.base_fee, 
-                r.status AS room_status, r.is_active AS room_active,
+                r.status AS room_status, COALESCE(r.maintenance_status, 'Operational') AS room_maintenance_status,
+                r.is_active AS room_active,
                 f.id AS floor_id, f.floor_number, f.floor_name,
                 b.id AS building_id, b.name AS building_name, b.is_active AS building_active,
                 h.id AS hostel_id, h.name AS hostel_name, h.code AS hostel_code, 
@@ -123,17 +126,17 @@ class AllocationService:
             )
 
         # Poka-Yoke Check 4: Allocating students to rooms under maintenance
-        if bed_info["room_status"] == "Maintenance":
+        if bed_info["room_status"] == "Maintenance" or bed_info["room_maintenance_status"] in ("Under_Repair", "Decommissioned"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Poka-Yoke Violation: Room {bed_info['room_number']} is currently under Maintenance."
             )
 
         # Poka-Yoke Check 3: Allocating students to inactive or maintenance beds
-        if bed_info["bed_status"] == "Maintenance":
+        if bed_info["bed_status"] == "Maintenance" or bed_info["bed_maintenance_status"] in ("Under_Repair", "Out_Of_Service") or not bed_info["bed_is_active"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Poka-Yoke Violation: Bed {bed_info['bed_number']} is under Maintenance."
+                detail=f"Poka-Yoke Violation: Bed {bed_info['bed_number']} is under Maintenance or Inactive."
             )
 
         if bed_info["bed_status"] != "Available":
@@ -174,7 +177,48 @@ class AllocationService:
 
         # ATOMIC EXECUTION (BEGIN IMMEDIATE in SQLite)
         try:
-            cursor.execute("BEGIN IMMEDIATE;")
+            try:
+                cursor.execute("BEGIN IMMEDIATE;")
+            except sqlite3.OperationalError as op_err:
+                if "cannot start a transaction within a transaction" not in str(op_err):
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail=f"Database concurrency lock contention: {op_err}"
+                    )
+
+            # Re-verify constraints under exclusive write transaction lock to eliminate TOCTOU race conditions
+            # 1. Check if bed was concurrently allocated
+            c_bed_alloc = cursor.execute(
+                "SELECT id FROM room_allocations WHERE bed_id = ? AND allocation_status = 'Active';",
+                (data.bed_id,)
+            ).fetchone()
+            if c_bed_alloc:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Poka-Yoke Violation: Bed {bed_info['bed_number']} was concurrently allocated (Allocation ID: {c_bed_alloc[0]})."
+                )
+
+            # 2. Check if bed is still Available and Operational
+            c_bed_state = cursor.execute(
+                "SELECT status, COALESCE(maintenance_status, 'Operational'), COALESCE(is_active, 1) FROM beds WHERE id = ?;",
+                (data.bed_id,)
+            ).fetchone()
+            if not c_bed_state or c_bed_state[0] != 'Available' or c_bed_state[1] != 'Operational' or not c_bed_state[2]:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Poka-Yoke Violation: Bed {bed_info['bed_number']} is no longer available for allocation."
+                )
+
+            # 3. Check if room reached maximum capacity concurrently
+            fresh_occ = cursor.execute(
+                "SELECT COUNT(*) FROM room_allocations WHERE room_id = ? AND allocation_status = 'Active';",
+                (bed_info["room_id"],)
+            ).fetchone()[0]
+            if fresh_occ >= bed_info["capacity"]:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Poka-Yoke Violation: Room {bed_info['room_number']} reached maximum capacity concurrently ({fresh_occ}/{bed_info['capacity']})."
+                )
 
             # 1. Insert allocation record
             cursor.execute("""
