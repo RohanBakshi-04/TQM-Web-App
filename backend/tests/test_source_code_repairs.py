@@ -155,12 +155,26 @@ class TestSourceCodeRepairs(unittest.TestCase):
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
-            # Ensure student 1 exists
+            # Ensure student 1 and user 99999 exist
             cursor.execute("SELECT id FROM students WHERE id = 1;")
             if not cursor.fetchone():
-                self.skipTest("Student 1 not found for parent ward test.")
+                cursor.execute(
+                    "INSERT INTO students (id, student_id, first_name, last_name, gender, status) "
+                    "VALUES (1, 'STU001', 'Test', 'Student', 'Male', 'Active');"
+                )
+            cursor.execute("""
+                INSERT OR REPLACE INTO users (id, username, email, password_hash, salt, first_name, last_name, phone, is_active)
+                VALUES (99999, 'parent_test_99999', 'parent99999@univ.edu', 'hash', 'salt', 'Test', 'Parent', '9999999999', 1);
+            """)
+            cursor.execute("DELETE FROM parent_student_links WHERE parent_user_id = 99999;")
+            cursor.execute(
+                "INSERT INTO parent_student_links (parent_user_id, student_id, relationship, status) "
+                "VALUES (99999, 1, 'Father', 'Active');"
+            )
+            conn.commit()
 
             fake_parent = {
+                "id": 99999,
                 "user_id": 99999,
                 "email": "parent_unknown@test.com",
                 "phone": "9999999999",
@@ -171,6 +185,7 @@ class TestSourceCodeRepairs(unittest.TestCase):
 
             # Unlinked parent gets empty set
             unlinked_parent = {
+                "id": 88888,
                 "user_id": 88888,
                 "email": "unlinked@test.com",
                 "phone": "8888888888",
@@ -183,6 +198,28 @@ class TestSourceCodeRepairs(unittest.TestCase):
 
     def test_verify_student_isolation_parent(self):
         """Parent cannot inspect unrelated student record."""
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM students WHERE id = 1;")
+            if not cursor.fetchone():
+                cursor.execute(
+                    "INSERT INTO students (id, student_id, first_name, last_name, gender, status) "
+                    "VALUES (1, 'STU001', 'Test', 'Student', 'Male', 'Active');"
+                )
+            cursor.execute("""
+                INSERT OR REPLACE INTO users (id, username, email, password_hash, salt, first_name, last_name, phone, is_active)
+                VALUES (99999, 'parent_test_99999', 'parent99999@univ.edu', 'hash', 'salt', 'Test', 'Parent', '9999999999', 1);
+            """)
+            cursor.execute("DELETE FROM parent_student_links WHERE parent_user_id = 99999;")
+            cursor.execute(
+                "INSERT INTO parent_student_links (parent_user_id, student_id, relationship, status) "
+                "VALUES (99999, 1, 'Father', 'Active');"
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
         current_user = {
             "id": 99999,
             "user_id": 99999,
@@ -575,12 +612,12 @@ class TestSourceCodeRepairs(unittest.TestCase):
         finally:
             conn.close()
 
-        warden_user = {"id": 3, "username": "warden", "roles": ["warden"]}
+        admin_user = {"id": 1, "username": "admin", "roles": ["super_admin"]}
         approval_res = AuthService.process_registration_action(
             req_id=req_id,
             action="approve",
             reason="Verified enrollment records",
-            current_user=warden_user
+            current_user=admin_user
         )
         self.assertTrue(approval_res["success"])
         self.assertEqual(approval_res["status"], "Approved")
@@ -631,12 +668,12 @@ class TestSourceCodeRepairs(unittest.TestCase):
         finally:
             conn.close()
 
-        warden_user = {"id": 3, "username": "warden", "roles": ["warden"]}
+        admin_user = {"id": 1, "username": "admin", "roles": ["super_admin"]}
         reject_res = AuthService.process_registration_action(
             req_id=req_id,
             action="reject",
             reason="Invalid departmental enrollment",
-            current_user=warden_user
+            current_user=admin_user
         )
         self.assertTrue(reject_res["success"])
         self.assertEqual(reject_res["status"], "Rejected")

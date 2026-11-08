@@ -43,7 +43,8 @@ def list_maintenance_tasks(
             status_filter=status_filter,
             priority_filter=priority_filter,
             assigned_to=assigned_to,
-            hostel_id=hostel_id
+            hostel_id=hostel_id,
+            current_user=current_user
         )
     finally:
         conn.close()
@@ -57,7 +58,7 @@ def get_maintenance_task(
     """Retrieve complete maintenance task details with progress update history."""
     conn = get_db_connection()
     try:
-        return MaintenanceService.get_task_by_id(conn=conn, task_id=task_id)
+        return MaintenanceService.get_task_by_id(conn=conn, task_id=task_id, current_user=current_user)
     finally:
         conn.close()
 
@@ -82,7 +83,7 @@ def create_maintenance_task(
 @router.post("/tasks/{task_id}/accept")
 def accept_maintenance_task(
     task_id: int,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(require_roles("maintenance_staff", "super_admin", "hostel_admin"))
 ) -> Dict[str, Any]:
     """Technician accepts an assigned maintenance work-order."""
     conn = get_db_connection()
@@ -99,7 +100,7 @@ def accept_maintenance_task(
 @router.post("/tasks/{task_id}/start")
 def start_maintenance_task(
     task_id: int,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(require_roles("maintenance_staff", "super_admin", "hostel_admin"))
 ) -> Dict[str, Any]:
     """Technician starts repair work on-site."""
     conn = get_db_connection()
@@ -117,7 +118,7 @@ def start_maintenance_task(
 def update_task_progress(
     task_id: int,
     data: MaintenanceTaskProgress,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(require_roles("maintenance_staff", "super_admin", "hostel_admin"))
 ) -> Dict[str, Any]:
     """Technician logs progress or spare parts updates."""
     conn = get_db_connection()
@@ -136,7 +137,7 @@ def update_task_progress(
 def hold_maintenance_task(
     task_id: int,
     data: MaintenanceTaskHold,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(require_roles("maintenance_staff", "super_admin", "hostel_admin"))
 ) -> Dict[str, Any]:
     """Put task on hold with stated reason (e.g. awaiting spare parts)."""
     conn = get_db_connection()
@@ -155,7 +156,7 @@ def hold_maintenance_task(
 def complete_maintenance_task(
     task_id: int,
     data: MaintenanceTaskComplete,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(require_roles("maintenance_staff", "super_admin", "hostel_admin"))
 ) -> Dict[str, Any]:
     """Technician submits work completion with resolution notes, actual cost, and photo."""
     conn = get_db_connection()
@@ -191,7 +192,7 @@ def verify_maintenance_task(
 
 @router.get("/staff-availability", response_model=List[Dict[str, Any]])
 def get_staff_availability(
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden", "assistant_warden"))
 ) -> List[Dict[str, Any]]:
     """Retrieve maintenance staff workload and availability matrix."""
     conn = get_db_connection()

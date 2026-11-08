@@ -5,7 +5,7 @@ Quality Goal: Q05 - Reduce Response Time (<10ms SLA)
 """
 
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from backend.app.database.connection import get_db_connection
 from backend.app.models.complaint_dto import (
@@ -18,7 +18,7 @@ from backend.app.models.complaint_dto import (
     ComplaintReject,
     ComplaintReopen,
 )
-from backend.app.services.auth_dependencies import get_current_user, require_roles
+from backend.app.services.auth_dependencies import get_current_user, require_roles, verify_student_isolation
 from backend.app.services.complaint_service import ComplaintService
 
 router = APIRouter(prefix="/api/v1/complaints", tags=["Complaint Management"])
@@ -73,18 +73,14 @@ def get_complaint_details(
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """Retrieve complete complaint record with update history and linked task."""
-    roles = set(current_user.get("roles", []))
-    is_student_only = "student" in roles and not roles.intersection({"super_admin", "hostel_admin", "warden", "assistant_warden", "maintenance_staff", "auditor"})
-
-    student_restriction = current_user.get("linked_student_id") if is_student_only else None
-
     conn = get_db_connection()
     try:
-        return ComplaintService.get_complaint_by_id(
+        complaint = ComplaintService.get_complaint_by_id(
             conn=conn,
-            complaint_id=complaint_id,
-            student_id_restriction=student_restriction
+            complaint_id=complaint_id
         )
+        verify_student_isolation(complaint["student_id"], current_user)
+        return complaint
     finally:
         conn.close()
 
@@ -96,18 +92,18 @@ def add_complaint_comment(
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """Add a query or update comment to an existing complaint."""
-    roles = set(current_user.get("roles", []))
-    is_student_only = "student" in roles and not roles.intersection({"super_admin", "hostel_admin", "warden", "assistant_warden", "maintenance_staff"})
-    student_restriction = current_user.get("linked_student_id") if is_student_only else None
-
     conn = get_db_connection()
     try:
+        complaint = ComplaintService.get_complaint_by_id(
+            conn=conn,
+            complaint_id=complaint_id
+        )
+        verify_student_isolation(complaint["student_id"], current_user)
         return ComplaintService.add_comment(
             conn=conn,
             complaint_id=complaint_id,
             user_id=current_user.get("user_id", 1),
-            comment=data.comment,
-            student_id_restriction=student_restriction
+            comment=data.comment
         )
     finally:
         conn.close()
@@ -166,6 +162,21 @@ def list_all_complaints(
     current_user: Dict[str, Any] = Depends(require_roles(["super_admin", "hostel_admin", "warden", "assistant_warden", "maintenance_staff", "auditor"]))
 ) -> Dict[str, Any]:
     """Warden and Admin overview of student grievances with filtering and search."""
+    active_role = current_user.get("active_role")
+    user_hid = current_user.get("linked_hostel_id")
+    if active_role in ("warden", "assistant_warden"):
+        if not user_hid:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Warden has no assigned hostel facility."
+            )
+        if hostel_id and int(hostel_id) != int(user_hid):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Cannot query grievances for a different hostel facility."
+            )
+        hostel_id = user_hid
+
     conn = get_db_connection()
     try:
         return ComplaintService.get_complaints_list(
@@ -227,7 +238,8 @@ def escalate_complaint(
             conn=conn,
             complaint_id=complaint_id,
             user_id=current_user.get("user_id", 1),
-            reason=data.reason
+            reason=data.reason,
+            current_user=current_user
         )
     finally:
         conn.close()

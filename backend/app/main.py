@@ -4,9 +4,11 @@ Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
 Quality Goal: Q05 - Reduce Response Time
 """
 
+import asyncio
 import os
 import time
 import uuid
+from typing import Optional
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -31,6 +33,7 @@ from backend.app.routers.inventory import inventory_router
 from backend.app.routers.notifications import router as notifications_router
 from backend.app.routers.announcements import router as announcements_router
 from backend.app.routers.admin import admin_router
+from backend.app.routers.infrastructure import router as infrastructure_router
 from backend.app.routers.dashboard import metrics_router, router as dashboard_router
 from backend.app.routers.health import router as health_router
 from backend.app.routers.hostels import building_router, router as hostels_router
@@ -102,6 +105,7 @@ app.include_router(inventory_router)
 app.include_router(notifications_router)
 app.include_router(announcements_router)
 app.include_router(admin_router)
+app.include_router(infrastructure_router)
 
 
 # Mount static assets if directory exists
@@ -123,9 +127,35 @@ def serve_frontend():
     }
 
 
+_curfew_task: Optional[asyncio.Task] = None
+
+
+async def curfew_monitor_loop():
+    """Background lifecycle monitor: checks visitor curfews periodically with graceful error handling."""
+    logger.info("Visitor curfew monitor background task started.")
+    interval = getattr(settings, "curfew_check_interval_seconds", 300)
+    while True:
+        try:
+            from backend.app.services.visitor_service import VisitorService
+            res = VisitorService.check_visitor_curfew()
+            count = res.get("overdue_count", res.get("updated_count", 0))
+            if count > 0:
+                logger.info(f"Curfew monitor updated {count} overdue visitors.")
+        except asyncio.CancelledError:
+            logger.info("Curfew monitor background task cancelled.")
+            break
+        except Exception as e:
+            logger.error(f"Error in curfew monitor loop: {e}", exc_info=True)
+        try:
+            await asyncio.sleep(interval)
+        except asyncio.CancelledError:
+            logger.info("Curfew monitor background task cancelled during sleep.")
+            break
+
+
 @app.on_event("startup")
-def on_startup():
-    """Initialize database and verify configuration on application startup."""
+async def on_startup():
+    """Initialize database, verify configuration, and launch background tasks on startup."""
     logger.info(f"Starting {settings.app_name} in {settings.app_env} mode...")
     settings.validate_production_secrets()
     initialize_database()
@@ -133,9 +163,30 @@ def on_startup():
         from backend.app.database.connection import get_db_connection
         from backend.app.services.dashboard_service import DashboardService
         conn = get_db_connection()
+        from backend.app.services.database_integrity_service import integrity_monitor
+        integrity_monitor.check_integrity(conn)
         DashboardService.get_dashboard_metrics(conn, user_roles=["super_admin"])
+        DashboardService.get_super_admin_executive_metrics(conn, user_roles=["super_admin"])
         conn.close()
-        logger.info("Pre-warmed in-memory dashboard cache successfully.")
+        logger.info("Pre-warmed in-memory dashboard cache and integrity monitor successfully.")
     except Exception as e:
         logger.warning(f"Dashboard cache pre-warm skipped: {e}")
+
+    # Launch background curfew monitor loop
+    global _curfew_task
+    if settings.app_env != "testing":
+        _curfew_task = asyncio.create_task(curfew_monitor_loop())
     logger.info("Application startup sequence completed successfully.")
+
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    """Graceful shutdown sequence: cancels background tasks."""
+    global _curfew_task
+    if _curfew_task and not _curfew_task.done():
+        _curfew_task.cancel()
+        try:
+            await _curfew_task
+        except asyncio.CancelledError:
+            pass
+    logger.info("Application shutdown sequence completed successfully.")

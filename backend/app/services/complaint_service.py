@@ -541,13 +541,43 @@ class ComplaintService:
         conn: sqlite3.Connection,
         complaint_id: int,
         user_id: int,
-        reason: str
+        reason: str,
+        current_user: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Escalate complaint to senior management."""
+        """Escalate complaint to senior management with active-role isolation."""
         cursor = conn.cursor()
-        c = cursor.execute("SELECT id, complaint_id, title, status FROM complaints WHERE id = ?;", (complaint_id,)).fetchone()
+        c = cursor.execute("SELECT id, complaint_id, student_id, title, status FROM complaints WHERE id = ?;", (complaint_id,)).fetchone()
         if not c:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Complaint not found.")
+
+        if current_user:
+            active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+            if active_role == "student":
+                my_sid = current_user.get("linked_student_id")
+                if c["student_id"] != my_sid:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: You can only escalate your own complaints.")
+            elif active_role in ("parent_guardian", "parent"):
+                from backend.app.services.auth_dependencies import get_parent_authorized_ward_ids
+                wards = get_parent_authorized_ward_ids(conn, current_user)
+                if c["student_id"] not in wards:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: You can only escalate complaints for your linked ward.")
+            elif active_role in ("warden", "assistant_warden"):
+                linked_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+                if not linked_hid:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied: Staff member has no assigned hostel facility.")
+                cursor.execute("""
+                    SELECT bld.hostel_id
+                    FROM room_allocations ra
+                    JOIN rooms rm ON rm.id = ra.room_id
+                    JOIN floors fl ON fl.id = rm.floor_id
+                    JOIN buildings bld ON bld.id = fl.building_id
+                    WHERE ra.student_id = ?;
+                """, (c["student_id"],))
+                alloc = cursor.fetchone()
+                if not alloc or int(alloc[0]) != int(linked_hid):
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: Complaint belongs to a resident in another hostel facility.")
+            elif active_role not in ("super_admin", "hostel_admin"):
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: Not authorized to escalate complaints.")
 
         cursor.execute("""
             UPDATE complaints

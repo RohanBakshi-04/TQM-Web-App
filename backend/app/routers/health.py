@@ -1,4 +1,4 @@
-"""System Health and Q05 Telemetry Endpoint.
+"""System Health, Liveness, Readiness, and Q05 Telemetry Endpoints.
 
 Course: BBAT104 - Fundamentals of TQM
 Quality Goal: Q05 - Reduce Response Time
@@ -7,15 +7,38 @@ Quality Goal: Q05 - Reduce Response Time
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict
-from fastapi import APIRouter
+from fastapi import APIRouter, Response, status
 from backend.app.config import settings
 from backend.app.database.connection import get_db_connection
+from backend.app.utils.logger import logger
 
 router = APIRouter(prefix="/api", tags=["Health"])
 
 
+@router.get("/health/live")
+def liveness_check() -> Dict[str, str]:
+    """Kubernetes/Container liveness probe to confirm HTTP process is running."""
+    return {"status": "alive", "timestamp": datetime.now(timezone.utc).isoformat()}
+
+
+@router.get("/health/ready")
+def readiness_check(response: Response) -> Dict[str, Any]:
+    """Kubernetes/Container readiness probe to confirm database connectivity."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1;")
+        cursor.fetchone()
+        conn.close()
+        return {"status": "ready", "database": "connected"}
+    except Exception as e:
+        logger.error(f"Readiness probe failed: {e}")
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {"status": "unhealthy", "database": "disconnected", "detail": "Database connection failed."}
+
+
 @router.get("/health")
-def health_check() -> Dict[str, Any]:
+def health_check(response: Response) -> Dict[str, Any]:
     """Verify backend services, SQLite connection, and Q05 response time compliance."""
     db_status = "connected"
     sqlite_version = "unknown"
@@ -31,7 +54,9 @@ def health_check() -> Dict[str, Any]:
         journal_mode = cursor.fetchone()[0].upper()
         conn.close()
     except Exception as e:
-        db_status = f"error: {str(e)}"
+        logger.error(f"Health check database failure: {e}")
+        db_status = "disconnected"
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
     elapsed_ms = (time.perf_counter() - t0) * 1000.0
 

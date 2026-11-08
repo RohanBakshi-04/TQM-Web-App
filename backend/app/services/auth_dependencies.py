@@ -10,6 +10,12 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from backend.app.database.connection import get_db_connection
 from backend.app.services.auth_service import AuthService
+from backend.app.services.rbac_data import (
+    ROLE_METADATA,
+    ROLE_ALIASES,
+    normalize_role_name,
+    get_equivalent_permission
+)
 from backend.app.services.security import decode_access_token
 
 security = HTTPBearer(auto_error=False)
@@ -56,12 +62,39 @@ def get_current_user(
         if not user_row or not user_row["is_active"]:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User account inactive or not found.")
 
-        roles, permissions = AuthService.get_user_roles_and_permissions(conn, user_id)
+        roles, all_assigned_permissions = AuthService.get_user_roles_and_permissions(conn, user_id)
 
         # Resolve active_role from token payload or default to primary assigned role
         active_role = payload.get("active_role")
-        if not active_role or active_role not in roles:
+        if active_role:
+            norm_active = normalize_role_name(active_role)
+            assigned_norms = [normalize_role_name(r) for r in roles]
+            if active_role not in roles and norm_active not in assigned_norms:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Forbidden: Claimed active role '{active_role}' is not assigned to this user."
+                )
+            active_role = norm_active if norm_active in roles else active_role
+        else:
             active_role = roles[0] if roles else "student"
+
+        # Resolve role metadata (code, category)
+        cursor.execute("SELECT code, stakeholder_category FROM roles WHERE name = ?;", (active_role,))
+        role_meta_row = cursor.fetchone()
+        role_code = (role_meta_row["code"] if (role_meta_row and role_meta_row["code"])
+                     else ROLE_METADATA.get(active_role, {}).get("code", active_role.upper()))
+        role_cat = (role_meta_row["stakeholder_category"] if (role_meta_row and role_meta_row["stakeholder_category"])
+                    else ROLE_METADATA.get(active_role, {}).get("category", "Operational / Student Life"))
+
+        # Resolve permissions granted strictly by the ACTIVE role
+        cursor.execute("""
+            SELECT DISTINCT p.name
+            FROM permissions p
+            JOIN role_permissions rp ON p.id = rp.permission_id
+            JOIN roles r ON rp.role_id = r.id
+            WHERE r.name = ?;
+        """, (active_role,))
+        permissions = {row[0] for row in cursor.fetchall()}
 
         # Resolve student_id if linked to a student profile
         resolved_student_id = None
@@ -72,7 +105,12 @@ def get_current_user(
                 resolved_student_id = st_row["student_id"] if isinstance(st_row, dict) or hasattr(st_row, 'keys') else st_row[0]
 
         # Resolve staff_id for any staff role
-        staff_roles = {'super_admin', 'hostel_admin', 'warden', 'assistant_warden', 'accountant', 'mess_manager', 'maintenance_staff', 'security_guard', 'admission_officer', 'auditor'}
+        staff_roles = {
+            'super_admin', 'hostel_admin', 'warden', 'assistant_warden',
+            'hostel_clerk', 'accountant', 'mess_manager', 'maintenance_staff',
+            'security_supervisor', 'security_guard', 'admission_officer',
+            'it_admin', 'auditor'
+        }
         staff_id_val = user_row["staff_id"]
         if not staff_id_val and any(r in roles for r in staff_roles):
             staff_id_val = f"STF-{user_row['id']:04d}"
@@ -82,7 +120,7 @@ def get_current_user(
         hostel_code = None
         hostel_type = None
         linked_hid = user_row["linked_hostel_id"]
-        if not linked_hid and any(r in roles for r in ('warden', 'assistant_warden')):
+        if not linked_hid and any(r in roles for r in ('warden', 'assistant_warden', 'hostel_clerk', 'security_supervisor')):
             cursor.execute("SELECT id FROM hostels WHERE warden_id = ? LIMIT 1;", (user_row["id"],))
             hw = cursor.fetchone()
             if hw:
@@ -96,6 +134,14 @@ def get_current_user(
                 hostel_code = h_info["code"] if isinstance(h_info, dict) or hasattr(h_info, 'keys') else h_info[1]
                 hostel_type = h_info["hostel_type"] if isinstance(h_info, dict) or hasattr(h_info, 'keys') else h_info[2]
 
+        # Resolve explicit data scope assignments
+        user_scopes = []
+        try:
+            cursor.execute("SELECT scope_type, scope_id FROM user_scope_assignments WHERE user_id = ?;", (user_id,))
+            user_scopes = [{"type": r[0], "id": r[1]} for r in cursor.fetchall()]
+        except sqlite3.OperationalError:
+            pass
+
         return {
             "id": user_row["id"],
             "user_id": user_row["id"],
@@ -108,6 +154,9 @@ def get_current_user(
             "roles": roles,
             "role": active_role,
             "active_role": active_role,
+            "role_code": role_code,
+            "stakeholder_category": role_cat,
+            "can_switch_roles": len(roles) > 1,
             "permissions": list(permissions),
             "linked_student_id": user_row["linked_student_id"],
             "linked_hostel_id": linked_hid,
@@ -116,104 +165,115 @@ def get_current_user(
             "hostel_code": hostel_code,
             "hostel_type": hostel_type,
             "staff_id": staff_id_val,
-            "student_id": resolved_student_id
+            "student_id": resolved_student_id,
+            "user_scopes": user_scopes
         }
     finally:
         conn.close()
 
 
-
 def get_parent_authorized_ward_ids(conn: sqlite3.Connection, current_user: Dict[str, Any]) -> List[int]:
-    """Return all authorized student IDs linked to a parent/guardian user."""
-    ward_ids = set()
+    """Return all authorized student IDs linked to a parent/guardian user.
 
-    # 1. Check primary linked student ID on users record
-    linked_sid = current_user.get("linked_student_id")
-    if linked_sid:
-        ward_ids.add(int(linked_sid))
+    Authoritative source: parent_student_links table where parent_user_id = ? AND status = 'Active'.
+    Strictly eliminates implicit access through unverified email/phone matching or user-submitted fields.
+    """
+    ward_ids = set()
+    user_id = current_user.get("id") or current_user.get("user_id")
+    if not user_id:
+        return []
 
     cursor = conn.cursor()
-
-    # 2. Check student_guardians join via guardian email or phone
-    user_email = (current_user.get("email") or "").strip().lower()
-    user_phone = (current_user.get("phone") or "").strip()
-    user_id = current_user.get("id") or current_user.get("user_id")
-
-    if user_email or user_phone:
+    try:
         cursor.execute("""
-            SELECT DISTINCT sg.student_id
-            FROM student_guardians sg
-            JOIN guardians g ON g.id = sg.guardian_id
-            WHERE (LOWER(g.email) = ? AND ? != '') OR (g.phone = ? AND ? != '');
-        """, (user_email, user_email, user_phone, user_phone))
-        for r in cursor.fetchall():
-            ward_ids.add(r[0])
-
-    # 3. Check registration_requests where parent was approved
-    if user_id:
-        cursor.execute("""
-            SELECT DISTINCT linked_student_id
-            FROM registration_requests
-            WHERE user_id = ? AND status = 'Approved' AND linked_student_id IS NOT NULL;
+            SELECT student_id
+            FROM parent_student_links
+            WHERE parent_user_id = ? AND status = 'Active';
         """, (user_id,))
         for r in cursor.fetchall():
             if r[0]:
-                ward_ids.add(r[0])
+                ward_ids.add(int(r[0]))
+    except sqlite3.OperationalError:
+        pass
 
     return sorted(list(ward_ids))
 
 
 def require_roles(*allowed_roles):
-    """Enforce that authenticated user belongs to at least one of the specified roles."""
-    flat_roles = set()
+    """Enforce that authenticated user's ACTIVE ROLE matches at least one of the specified roles.
+
+    Accepts role names ('hostel_admin', 'warden'), canonical codes ('HOSTEL_DIRECTOR', 'CHIEF_WARDEN'),
+    or aliases ('hostel_director', 'sec_supervisor').
+    """
+    raw_allowed = set()
     for r in allowed_roles:
         if isinstance(r, (list, tuple, set)):
-            flat_roles.update(r)
+            raw_allowed.update(r)
         else:
-            flat_roles.add(r)
+            raw_allowed.add(r)
+
+    # Build comprehensive accepted role set
+    accepted_roles = set()
+    for r in raw_allowed:
+        cleaned = str(r).strip()
+        accepted_roles.add(cleaned)
+        accepted_roles.add(cleaned.lower())
+        norm = normalize_role_name(cleaned)
+        accepted_roles.add(norm)
+        meta = ROLE_METADATA.get(norm, {})
+        if meta.get("code"):
+            accepted_roles.add(meta["code"])
 
     def role_checker(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
-        active_role = current_user.get("active_role") or current_user.get("role")
-        user_roles = set(current_user.get("roles", []))
-        if active_role:
-            user_roles.add(active_role)
+        active_role = (current_user.get("active_role") or current_user.get("role") or "").strip()
+        norm_active = normalize_role_name(active_role)
+        role_code = current_user.get("role_code") or norm_active.upper()
 
-        # Super admin active role always has access
-        if active_role == "super_admin" or "super_admin" in user_roles:
+        # Super admin permission bypass applies ONLY when active_role is super_admin
+        if norm_active == "super_admin" or role_code == "SUPER_ADMIN":
             return current_user
 
-        if active_role in flat_roles or user_roles.intersection(flat_roles):
+        if active_role in accepted_roles or norm_active in accepted_roles or role_code in accepted_roles:
             return current_user
 
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Access denied. Required role(s): {', '.join(sorted(flat_roles))}. Your active role: '{active_role}'."
+            detail=f"Access denied. Required role(s): {', '.join(sorted(raw_allowed))}. Your active role: '{active_role}'."
         )
     return role_checker
 
 
 def require_permissions(*required_permissions):
-    """Enforce that authenticated user possesses all specified permissions."""
-    flat_perms = set()
+    """Enforce that authenticated user possesses all specified permissions via their ACTIVE ROLE.
+
+    Supports both standardized module.resource.action and legacy module:action formats.
+    """
+    raw_perms = set()
     for p in required_permissions:
         if isinstance(p, (list, tuple, set)):
-            flat_perms.update(p)
+            raw_perms.update(p)
         else:
-            flat_perms.add(p)
+            raw_perms.add(p)
 
     def permission_checker(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
-        user_roles = set(current_user.get("roles", []))
-        if current_user.get("role"):
-            user_roles.add(current_user["role"])
-        if "super_admin" in user_roles:
+        active_role = (current_user.get("active_role") or current_user.get("role") or "").strip()
+        norm_active = normalize_role_name(active_role)
+        role_code = current_user.get("role_code") or norm_active.upper()
+
+        if norm_active == "super_admin" or role_code == "SUPER_ADMIN":
             return current_user
 
         user_perms = set(current_user.get("permissions", []))
-        missing = flat_perms - user_perms
+        missing = set()
+        for p in raw_perms:
+            equiv = get_equivalent_permission(p)
+            if p not in user_perms and equiv not in user_perms:
+                missing.add(p)
+
         if missing:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access denied. Missing permission(s): {', '.join(sorted(missing))}"
+                detail=f"Access denied. Missing permission(s): {', '.join(sorted(missing))} for active role '{active_role}'."
             )
         return current_user
     return permission_checker
@@ -222,52 +282,49 @@ def require_permissions(*required_permissions):
 def verify_student_isolation(student_id: Union[str, int], current_user: Dict[str, Any]) -> None:
     """Enforce strict student-level and guardian-level data isolation and hostel-scoped staff oversight.
 
-    A student must NEVER access another student's private records by changing an ID in an API request.
-    Parents can only access their linked wards.
-    Wardens and Assistant Wardens can only access students residing within their assigned hostel facility.
+    - Active role takes absolute precedence.
+    - Super Admin and Hostel Director have campus-wide administrative oversight.
+    - Students are isolated to their own records.
+    - Parents/Guardians are isolated to their linked wards.
+    - Wardens, Assistant Wardens, and Clerks must have an assigned hostel facility, the student
+      must exist, and have an active room allocation in that facility.
+    - IT Administrator is strictly restricted from private student personal records.
+    - Accountants/Auditors must possess relevant read permissions.
     """
-    user_roles = set(current_user.get("roles", []))
-    active_role = current_user.get("active_role") or current_user.get("role")
     s_val = str(student_id).strip()
+    active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+    norm_active = normalize_role_name(active_role)
+    user_roles = {r.strip().lower() for r in current_user.get("roles", []) if r}
+    if active_role:
+        user_roles.add(active_role)
+    if norm_active:
+        user_roles.add(norm_active)
+    user_perms = {p.strip().lower() for p in current_user.get("permissions", []) if p}
 
-    # Super Admin and global administrators have campus-wide access
-    if "super_admin" in user_roles or active_role == "super_admin":
+    # 1. Super Admin, Hostel Director, and Admission Officer: Campus-wide / Administrative oversight
+    if norm_active in ("super_admin", "hostel_admin", "admission_officer"):
         return
 
-    # Accountant and Auditor have read/accounting oversight
-    if "accountant" in user_roles or "auditor" in user_roles:
-        return
+    # 2. IT Administrator: Restricted from private student records
+    if norm_active == "it_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Security Violation: IT Administrator accounts are restricted from accessing student personal records."
+        )
 
-    # Hostel Warden & Assistant Warden: Must verify student belongs to warden's assigned hostel
-    if "warden" in user_roles or "assistant_warden" in user_roles:
-        user_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
-        if user_hid:
+    # 3. Student Role (takes precedence if active_role is student)
+    if norm_active == "student":
+        linked_s_id = current_user.get("linked_student_id")
+        if linked_s_id is None and current_user.get("user_id"):
             conn = get_db_connection()
             try:
                 cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT bld.hostel_id
-                    FROM room_allocations ra
-                    JOIN rooms rm ON rm.id = ra.room_id
-                    JOIN floors fl ON fl.id = rm.floor_id
-                    JOIN buildings bld ON bld.id = fl.building_id
-                    WHERE (ra.student_id = ? OR ra.student_id = (SELECT id FROM students WHERE student_id = ?))
-                      AND ra.allocation_status = 'Active';
-                """, (s_val, s_val))
-                row = cursor.fetchone()
-                if row and row[0] != int(user_hid):
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail=f"Access Denied: Student is allocated to hostel facility #{row[0]}, outside your assigned facility (#{user_hid})."
-                    )
-                return
+                cursor.execute("SELECT id FROM students WHERE user_id = ?;", (current_user["user_id"],))
+                st_row = cursor.fetchone()
+                if st_row:
+                    linked_s_id = st_row[0]
             finally:
                 conn.close()
-        return
-
-    # Student resident isolation check
-    if "student" in user_roles or active_role == "student":
-        linked_s_id = current_user.get("linked_student_id")
         user_student_id = current_user.get("student_id")
         is_match = False
         if linked_s_id is not None and str(linked_s_id) == s_val:
@@ -282,8 +339,8 @@ def verify_student_isolation(student_id: Union[str, int], current_user: Dict[str
             )
         return
 
-    # Parent/Guardian ward isolation check
-    if "parent_guardian" in user_roles or "parent" in user_roles or active_role in ("parent_guardian", "parent"):
+    # 4. Parent / Guardian Role
+    if norm_active in ("parent_guardian", "parent"):
         conn = get_db_connection()
         try:
             wards = get_parent_authorized_ward_ids(conn, current_user)
@@ -301,4 +358,143 @@ def verify_student_isolation(student_id: Union[str, int], current_user: Dict[str
         finally:
             conn.close()
 
+    # 5. Warden / Assistant Warden / Hostel Clerk Role
+    if norm_active in ("warden", "assistant_warden", "hostel_clerk"):
+        user_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+        if not user_hid:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access Denied: Staff member has no assigned hostel facility."
+            )
+
+        try:
+            user_hid_int = int(user_hid)
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access Denied: Staff member has an invalid assigned hostel facility."
+            )
+
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM students WHERE id = ? OR student_id = ?;", (s_val, s_val))
+            st = cursor.fetchone()
+            if not st:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access Denied: Student record not found or inaccessible."
+                )
+            db_student_id = st[0]
+
+            cursor.execute("""
+                SELECT bld.hostel_id
+                FROM room_allocations ra
+                JOIN rooms rm ON rm.id = ra.room_id
+                JOIN floors fl ON fl.id = rm.floor_id
+                JOIN buildings bld ON bld.id = fl.building_id
+                WHERE ra.student_id = ? AND ra.allocation_status = 'Active';
+            """, (db_student_id,))
+            row = cursor.fetchone()
+            if not row:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access Denied: Student has no active room allocation in your assigned hostel."
+                )
+
+            if row[0] != user_hid_int:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Access Denied: Student is allocated to hostel facility #{row[0]}, outside your assigned facility (#{user_hid_int})."
+                )
+            return
+        finally:
+            conn.close()
+
+    # 6. Financial / Audit Roles
+    if norm_active in ("accountant", "auditor"):
+        has_perm = bool(user_perms.intersection({
+            "finance:read", "audit:read", "billing:read", "reports:read",
+            "finance.invoice.read", "audit.log.read"
+        }))
+        if not has_perm:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access Denied: Active role '{active_role}' lacks required read permissions."
+            )
+        return
+
+    # 7. Operational Staff Roles (Security, Maintenance, Mess)
+    if norm_active in ("security_guard", "guard", "security_supervisor", "maintenance_staff", "mess_manager"):
+        return
+
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
+
+
+def verify_infrastructure_scope(
+    current_user: Dict[str, Any],
+    institution_id: Optional[int] = None,
+    campus_id: Optional[int] = None,
+    hostel_id: Optional[int] = None,
+    conn: Optional[sqlite3.Connection] = None,
+) -> None:
+    """Enforce strict cross-scope infrastructure isolation across Institutions, Campuses, and Hostels.
+
+    - super_admin has global administrative access across all institutions, campuses, and hostels.
+    - institutional_admin has access strictly within their institution.
+    - hostel_admin / warden / staff are isolated to their assigned campus or linked hostel.
+    - Cross-institution or cross-campus mutations without scope authorization raise 403 Forbidden.
+    """
+    active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+    norm_active = normalize_role_name(active_role)
+    role_code = current_user.get("role_code") or norm_active.upper()
+
+    # 1. Super Admin has unrestricted global access
+    if norm_active == "super_admin" or role_code == "SUPER_ADMIN":
+        return
+
+    user_scopes = current_user.get("user_scopes", [])
+    scoped_campus_ids = {int(s["id"]) for s in user_scopes if s.get("type") == "campus" and s.get("id")}
+    scoped_hostel_ids = {int(s["id"]) for s in user_scopes if s.get("type") == "hostel" and s.get("id")}
+    linked_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+    if linked_hid:
+        try:
+            scoped_hostel_ids.add(int(linked_hid))
+        except (ValueError, TypeError):
+            pass
+
+    # 2. Institutional Governance Check
+    if institution_id is not None:
+        if norm_active not in ("super_admin", "institutional_admin"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Security Violation: You do not possess institutional governance authority."
+            )
+
+    # 3. Campus Scope Check
+    if campus_id is not None:
+        if norm_active == "institutional_admin":
+            pass  # Institutional admin has authority across all campuses within institution
+        elif scoped_campus_ids and int(campus_id) not in scoped_campus_ids:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Security Violation: Campus ID {campus_id} is outside your assigned administrative scope."
+            )
+
+    # 4. Hostel Scope Check
+    if hostel_id is not None:
+        hid_int = int(hostel_id)
+        if norm_active in ("hostel_admin", "warden", "assistant_warden", "hostel_clerk"):
+            # Check direct hostel scope
+            if scoped_hostel_ids and hid_int not in scoped_hostel_ids:
+                # Also check if user has a campus scope that covers this hostel
+                if scoped_campus_ids and conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT campus_id FROM hostels WHERE id = ?;", (hid_int,))
+                    h_row = cursor.fetchone()
+                    if h_row and h_row[0] in scoped_campus_ids:
+                        return  # Covered by campus scope
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Security Violation: Hostel ID {hostel_id} is outside your assigned administrative scope."
+                )

@@ -15,6 +15,42 @@ router = APIRouter(prefix="/api/v1/dashboard", tags=["Dashboard Telemetry"])
 metrics_router = APIRouter(prefix="/api/v1/metrics", tags=["Q05 Cached Metrics"])
 
 
+@router.get("/executive-overview")
+def get_executive_overview(
+    academic_session: Optional[str] = Query(None, description="Academic Session (e.g. 2026-27)"),
+    date_from: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    campus: Optional[str] = Query(None, description="Campus filter (e.g. North Campus, South Campus)"),
+    hostel_id: Optional[int] = Query(None, description="Facility ID filter"),
+    department: Optional[str] = Query(None, description="Department code or name filter"),
+    bypass_cache: bool = Query(False, description="Bypass in-memory Q05 cache and recompute"),
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "it_admin", "auditor"))
+) -> Dict[str, Any]:
+    """SA-01 Super Admin Executive Overview Telemetry with Q05 sub-10ms response guarantee."""
+    conn = get_db_connection()
+    try:
+        # Enforce hostel scoping for non-global administrative roles
+        user_roles = current_user.get("roles", [])
+        effective_hostel_id = hostel_id
+        if "super_admin" not in user_roles and "auditor" not in user_roles and "it_admin" not in user_roles:
+            effective_hostel_id = current_user.get("linked_hostel_id") or hostel_id
+
+        return DashboardService.get_super_admin_executive_metrics(
+            conn=conn,
+            user_roles=user_roles,
+            user_id=current_user.get("user_id"),
+            academic_session=academic_session,
+            date_from=date_from,
+            date_to=date_to,
+            campus=campus,
+            hostel_id=effective_hostel_id,
+            department=department,
+            bypass_cache=bypass_cache
+        )
+    finally:
+        conn.close()
+
+
 @router.get("/stats")
 def get_dashboard_stats(
     hostel_id: Optional[int] = Query(None, description="Optional facility filter"),
@@ -80,4 +116,28 @@ def clear_cache(
         "status": "success",
         "message": "In-memory cache flushed successfully.",
         "stats": cache_service.get_stats()
+    }
+
+
+@metrics_router.get("/integrity")
+def get_integrity_status(
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "it_admin", "auditor"))
+) -> Dict[str, Any]:
+    """Retrieve database integrity verification telemetry and freshness."""
+    from backend.app.services.database_integrity_service import integrity_monitor
+    return integrity_monitor.check_integrity(force=False)
+
+
+@metrics_router.post("/integrity/verify")
+def trigger_integrity_verification(
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "it_admin"))
+) -> Dict[str, Any]:
+    """Execute live physical SQLite PRAGMA quick_check integrity scan immediately."""
+    from backend.app.services.database_integrity_service import integrity_monitor
+    res = integrity_monitor.check_integrity(force=True)
+    cache_service.invalidate_by_tag("dashboard")
+    return {
+        "status": "success",
+        "message": f"Database integrity scan completed with status '{res['status']}'.",
+        "diagnostics": res
     }

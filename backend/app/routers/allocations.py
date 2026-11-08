@@ -7,7 +7,7 @@ Poka-Yoke: Defect-Proof Relational Integrity & Concurrency Protection
 """
 
 from typing import Any, Dict, List, Optional, Union
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from backend.app.database.connection import get_db_connection
 from backend.app.models.allocation_dto import (
     AllocationCreate,
@@ -31,30 +31,35 @@ router = APIRouter(prefix="/api/v1/allocations", tags=["Room Allocations & Poka-
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_room_allocation(
     data: AllocationCreate,
-    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden", "assistant_warden"))
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden", "assistant_warden", "admission_officer", "hostel_clerk"))
 ) -> Dict[str, Any]:
     """Allocate a student to a hostel room and bed with strict 10-layer Poka-Yoke error prevention."""
     conn = get_db_connection()
     try:
-        # Check hostel scope for warden and assistant warden
-        user_roles = set(current_user.get("roles", []))
+        # Check hostel scope for facility-scoped staff (fail-closed)
         active_role = current_user.get("active_role") or current_user.get("role")
         user_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
-        if (active_role in ("warden", "assistant_warden") or ("warden" in user_roles and "super_admin" not in user_roles)) and user_hid:
+        if active_role in ("warden", "assistant_warden", "hostel_clerk"):
+            if not user_hid:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access Denied: Staff member has no assigned hostel facility."
+                )
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT bld.hostel_id
                 FROM beds b
                 JOIN rooms r ON r.id = b.room_id
-                JOIN floors f ON f.id = f.id AND f.id = r.floor_id
+                JOIN floors f ON f.id = r.floor_id
                 JOIN buildings bld ON bld.id = f.building_id
                 WHERE b.id = ?;
             """, (data.bed_id,))
             row = cursor.fetchone()
-            if row and row[0] != int(user_hid):
+            if not row or row[0] != int(user_hid):
+                assigned_h = row[0] if row else "unknown"
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Access Denied: Bed #{data.bed_id} belongs to hostel facility #{row[0]}, which is outside your assigned facility (#{user_hid})."
+                    detail=f"Access Denied: Bed #{data.bed_id} belongs to hostel facility #{assigned_h}, which is outside your assigned facility (#{user_hid})."
                 )
         return AllocationService.create_allocation(conn, data, allocated_by_user_id=current_user["id"])
     finally:
@@ -81,27 +86,28 @@ def list_allocations(
         active_role = current_user.get("active_role") or current_user.get("role")
 
         # Student role isolation
-        if active_role == "student" or ("student" in user_roles and not user_roles.intersection({"super_admin", "hostel_admin", "warden", "assistant_warden", "accountant", "auditor"})):
+        if active_role == "student":
             student_id = current_user.get("linked_student_id")
 
         # Parent / Guardian role isolation
-        elif active_role in ("parent_guardian", "parent") or "parent_guardian" in user_roles or "parent" in user_roles:
+        elif active_role in ("parent_guardian", "parent"):
             wards = get_parent_authorized_ward_ids(conn, current_user)
             if not wards:
                 return []
             if student_id:
                 if int(student_id) not in wards:
                     raise HTTPException(status_code=403, detail="Access Denied: You are not authorized to view allocations for this student.")
-            else:
-                student_id = wards[0] if len(wards) == 1 else None
+            elif len(wards) == 1:
+                student_id = wards[0]
 
-        # Warden and Assistant Warden hostel scope enforcement
-        if active_role in ("warden", "assistant_warden") or ("warden" in user_roles and "super_admin" not in user_roles):
+        # Warden, Assistant Warden, and Hostel Clerk hostel scope enforcement (fail-closed)
+        if active_role in ("warden", "assistant_warden", "hostel_clerk"):
             user_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
-            if user_hid:
-                if hostel_id and int(hostel_id) != int(user_hid):
-                    raise HTTPException(status_code=403, detail=f"Access Denied: Unauthorized hostel #{hostel_id}. Your assigned facility is #{user_hid}.")
-                hostel_id = int(user_hid)
+            if not user_hid:
+                raise HTTPException(status_code=403, detail="Access Denied: Staff member has no assigned hostel facility.")
+            if hostel_id and int(hostel_id) != int(user_hid):
+                raise HTTPException(status_code=403, detail=f"Access Denied: Unauthorized hostel #{hostel_id}. Your assigned facility is #{user_hid}.")
+            hostel_id = int(user_hid)
 
         return AllocationService.get_allocations(
             conn=conn,
@@ -128,7 +134,15 @@ def list_available_beds(
     gender: Optional[str] = Query(None, description="Filter for Male or Female eligible hostels"),
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> List[Dict[str, Any]]:
-    """Explore all currently assignable beds in real-time."""
+    """Explore all currently assignable beds in real-time with strict hostel scoping."""
+    active_role = current_user.get("active_role") or current_user.get("role")
+    if active_role in ("warden", "assistant_warden", "hostel_clerk"):
+        user_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+        if not user_hid:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied: Staff member has no assigned hostel facility.")
+        if hostel_id and int(hostel_id) != int(user_hid):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Access Denied: Unauthorized hostel #{hostel_id}. Your assigned facility is #{user_hid}.")
+        hostel_id = int(user_hid)
     conn = get_db_connection()
     try:
         return AllocationService.get_available_beds(
@@ -185,11 +199,17 @@ def get_allocation_details(
 def checkin_student(
     allocation_id: int,
     checkin_data: Optional[Dict[str, Any]] = None,
-    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden", "assistant_warden"))
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden", "assistant_warden", "hostel_clerk"))
 ) -> Dict[str, Any]:
     """Verify and record student arrival and room check-in."""
     conn = get_db_connection()
     try:
+        active_role = current_user.get("active_role") or current_user.get("role")
+        if active_role in ("warden", "assistant_warden", "hostel_clerk"):
+            alloc = AllocationService.get_allocation_by_id(conn, allocation_id)
+            user_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+            if not user_hid or int(user_hid) != int(alloc["hostel_id"]):
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied: Allocation belongs to a hostel outside your assigned facility.")
         c_date = checkin_data.get("checkin_date") if checkin_data else None
         return AllocationService.checkin_allocation(conn, allocation_id, c_date, user_id=current_user["id"])
     finally:
@@ -200,11 +220,17 @@ def checkin_student(
 def checkout_student(
     allocation_id: int,
     data: CheckoutRequest,
-    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden", "assistant_warden"))
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden", "assistant_warden", "hostel_clerk"))
 ) -> Dict[str, Any]:
     """Release assigned bed and update occupancy upon student check-out (Poka-Yoke protected)."""
     conn = get_db_connection()
     try:
+        active_role = current_user.get("active_role") or current_user.get("role")
+        if active_role in ("warden", "assistant_warden", "hostel_clerk"):
+            alloc = AllocationService.get_allocation_by_id(conn, allocation_id)
+            user_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+            if not user_hid or int(user_hid) != int(alloc["hostel_id"]):
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied: Allocation belongs to a hostel outside your assigned facility.")
         return AllocationService.checkout_allocation(
             conn=conn,
             allocation_id=allocation_id,
@@ -242,11 +268,17 @@ def request_or_perform_transfer(
 @router.post("/{allocation_id}/approve")
 def approve_allocation(
     allocation_id: int,
-    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden"))
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "hostel_admin", "warden", "assistant_warden", "admission_officer"))
 ) -> Dict[str, Any]:
     """Administrative approval of an allocation record."""
     conn = get_db_connection()
     try:
+        active_role = current_user.get("active_role") or current_user.get("role")
+        if active_role in ("warden", "assistant_warden"):
+            alloc_full = AllocationService.get_allocation_by_id(conn, allocation_id)
+            user_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+            if not user_hid or int(user_hid) != int(alloc_full["hostel_id"]):
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied: Allocation belongs to a hostel outside your assigned facility.")
         cursor = conn.cursor()
         alloc = cursor.execute("SELECT id, approval_status FROM room_allocations WHERE id = ?;", (allocation_id,)).fetchone()
         if not alloc:
@@ -288,6 +320,24 @@ def review_transfer(
     """Approve or reject a student room transfer request."""
     conn = get_db_connection()
     try:
+        active_role = current_user.get("active_role") or current_user.get("role")
+        if active_role in ("warden", "assistant_warden"):
+            user_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+            if not user_hid:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied: Staff member has no assigned hostel facility.")
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT bld.hostel_id
+                FROM room_transfers rt
+                JOIN room_allocations ra ON ra.id = rt.allocation_id
+                JOIN rooms r ON r.id = ra.room_id
+                JOIN floors f ON f.id = r.floor_id
+                JOIN buildings bld ON bld.id = f.building_id
+                WHERE rt.id = ?;
+            """, (transfer_id,))
+            t_row = cursor.fetchone()
+            if not t_row or int(t_row[0]) != int(user_hid):
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied: Transfer request belongs to a hostel outside your assigned facility.")
         return AllocationService.review_transfer_request(conn, transfer_id, data, reviewer_id=current_user["id"])
     finally:
         conn.close()
@@ -301,9 +351,64 @@ def get_room_occupants(
     room_id: int,
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> List[Dict[str, Any]]:
-    """List active student residents occupying a given room."""
+    """List active student residents occupying a given room with resident & staff isolation."""
     conn = get_db_connection()
     try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT bld.hostel_id
+            FROM rooms r
+            JOIN floors f ON f.id = r.floor_id
+            JOIN buildings bld ON bld.id = f.building_id
+            WHERE r.id = ?;
+        """, (room_id,))
+        r_info = cursor.fetchone()
+        if not r_info:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found.")
+
+        room_hostel_id = r_info[0]
+        active_role = current_user.get("active_role") or current_user.get("role")
+
+        # Student: can only view occupants of their own allocated room
+        if active_role == "student":
+            student_id = current_user.get("linked_student_id")
+            cursor.execute("""
+                SELECT room_id FROM room_allocations
+                WHERE student_id = ? AND allocation_status = 'Active';
+            """, (student_id,))
+            st_alloc = cursor.fetchone()
+            if not st_alloc or st_alloc[0] != room_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access Denied: You can only view occupants of your own allocated room."
+                )
+
+        # Warden: must be assigned to this hostel
+        elif active_role in ("warden", "assistant_warden"):
+            user_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+            if not user_hid or int(user_hid) != room_hostel_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access Denied: Room belongs to a hostel outside your assigned facility."
+                )
+
+        # Parent: can only view if linked ward is in this room
+        elif active_role in ("parent", "parent_guardian"):
+            wards = get_parent_authorized_ward_ids(conn, current_user)
+            if not wards:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied.")
+            placeholders = ",".join("?" for _ in wards)
+            cursor.execute(f"""
+                SELECT room_id FROM room_allocations
+                WHERE student_id IN ({placeholders}) AND allocation_status = 'Active';
+            """, list(wards))
+            ward_rooms = {row[0] for row in cursor.fetchall()}
+            if room_id not in ward_rooms:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access Denied: None of your linked wards are allocated to this room."
+                )
+
         return AllocationService.get_room_occupants(conn, room_id)
     finally:
         conn.close()

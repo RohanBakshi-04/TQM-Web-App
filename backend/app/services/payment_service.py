@@ -298,11 +298,73 @@ class PaymentService:
                 raise HTTPException(status_code=404, detail="Payment transaction not found.")
 
             res = dict(record)
-            role = current_user.get("role")
-            if role == "student" and res.get("student_user_id") != current_user.get("user_id"):
-                raise HTTPException(status_code=403, detail="Forbidden: You cannot access payment records of other students.")
+            active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+            if active_role == "student":
+                my_sid = current_user.get("linked_student_id")
+                if res.get("student_id") != my_sid and res.get("student_user_id") != current_user.get("user_id"):
+                    raise HTTPException(status_code=403, detail="Forbidden: You cannot access payment records of other students.")
+            elif active_role in ("parent_guardian", "parent"):
+                wards = get_parent_authorized_ward_ids(conn, current_user)
+                if res.get("student_id") not in wards:
+                    raise HTTPException(status_code=403, detail="Forbidden: You cannot access payment records of unlinked students.")
+            elif active_role in ("warden", "assistant_warden"):
+                linked_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+                if not linked_hid:
+                    raise HTTPException(status_code=403, detail="Access Denied: Staff member has no assigned hostel facility.")
+                if not res.get("hostel_id") or int(res["hostel_id"]) != int(linked_hid):
+                    raise HTTPException(status_code=403, detail="Forbidden: Payment belongs to another hostel facility.")
+            elif active_role not in ("accountant", "super_admin", "hostel_admin", "auditor"):
+                raise HTTPException(status_code=403, detail="Forbidden: Unauthorized active role for payment access.")
 
             return res
+        finally:
+            conn.close()
+
+    @classmethod
+    def verify_payment(cls, payment_id: int, current_user: Dict[str, Any]) -> Dict[str, Any]:
+        """Verify and confirm payment record with audit logging."""
+        cls._enforce_accountant_or_admin(current_user)
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM payments WHERE id = ?;", (payment_id,))
+            pmt = cursor.fetchone()
+            if not pmt:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment record not found.")
+
+            if pmt["status"] == "Reversed":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid Workflow: Cannot verify a reversed payment transaction."
+                )
+
+            verifier_username = current_user.get("username", "staff")
+            verifier_id = current_user.get("id") or current_user.get("user_id")
+
+            # Transition to Completed if Pending, and annotate verification
+            new_status = 'Completed' if pmt["status"] in ('Pending', 'Completed') else pmt["status"]
+            cursor.execute("""
+                UPDATE payments
+                SET status = ?,
+                    notes = CASE 
+                        WHEN notes IS NULL OR notes = '' THEN 'Verified by ' || ?
+                        ELSE notes || ' [Verified by ' || ? || ']'
+                    END
+                WHERE id = ?;
+            """, (new_status, verifier_username, verifier_username, payment_id))
+
+            # Audit trail
+            cursor.execute("""
+                INSERT INTO audit_logs (user_id, username, action, entity_name, entity_id, details, latency_ms)
+                VALUES (?, ?, 'PAYMENT_VERIFIED', 'payment', ?, ?, 0.5);
+            """, (verifier_id, verifier_username, str(payment_id), f"Payment #{payment_id} verified by {verifier_username}"))
+
+            conn.commit()
+            cache_service.invalidate_by_tag("finance")
+            logger.info(f"Payment #{payment_id} verified by {verifier_username}")
+            rec = cls.get_payment(payment_id, current_user)
+            rec["verification_status"] = "Verified"
+            return rec
         finally:
             conn.close()
 
@@ -397,16 +459,17 @@ class PaymentService:
 
     @classmethod
     def request_refund(cls, payload: RefundRequestCreate, current_user: Dict[str, Any]) -> Dict[str, Any]:
-        """Initiate a student refund request with strict balance checks."""
+        """Initiate a student refund request with strict integer-paise balance checks and ownership validation."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
 
-            # 1. Fetch payment
+            # 1. Fetch payment and owning student
             cursor.execute("""
-                SELECT p.*, inv.student_id as inv_student_id, inv.id as inv_id
+                SELECT p.*, inv.student_id as inv_student_id, inv.id as inv_id, s.user_id as student_user_id
                 FROM payments p
                 JOIN invoices inv ON inv.id = p.invoice_id
+                JOIN students s ON s.id = p.student_id
                 WHERE p.id = ?;
             """, (payload.payment_id,))
             pay = cursor.fetchone()
@@ -416,21 +479,40 @@ class PaymentService:
             if pay["status"] != "Completed":
                 raise HTTPException(status_code=400, detail="Refunds can only be requested for 'Completed' payments.")
 
-            # 2. Check existing refunds for this payment
+            # Strict Ownership & Active Role Validation
+            active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+            if active_role == "student":
+                my_sid = current_user.get("linked_student_id")
+                if pay["student_id"] != my_sid and pay["student_user_id"] != current_user.get("user_id"):
+                    raise HTTPException(status_code=403, detail="Forbidden: You can only request refunds for your own payments.")
+            elif active_role in ("parent_guardian", "parent"):
+                wards = get_parent_authorized_ward_ids(conn, current_user)
+                if pay["student_id"] not in wards:
+                    raise HTTPException(status_code=403, detail="Forbidden: You can only request refunds for your linked ward's payments.")
+            elif active_role not in ("accountant", "super_admin", "hostel_admin"):
+                raise HTTPException(status_code=403, detail="Forbidden: Unauthorized active role for requesting refunds.")
+
+            # 2. Authoritative Integer-Paise Balance Check
             cursor.execute("""
-                SELECT COALESCE(SUM(amount), 0) FROM refunds
+                SELECT COALESCE(SUM(amount_paise), 0) FROM refunds
                 WHERE payment_id = ? AND status NOT IN ('Rejected', 'Cancelled');
             """, (payload.payment_id,))
-            already_refunded = cursor.fetchone()[0]
+            already_refunded_paise = cursor.fetchone()[0]
 
-            max_refundable = round(pay["amount"] - already_refunded, 2)
-            req_amount = round(payload.amount, 2)
+            pay_amount_paise = pay["amount_paise"] if ("amount_paise" in pay.keys() and pay["amount_paise"] is not None) else to_paise(pay["amount"])
+            max_refundable_paise = max(0, pay_amount_paise - already_refunded_paise)
+            req_amount_paise = to_paise(payload.amount)
 
-            if req_amount > max_refundable:
+            if req_amount_paise <= 0:
+                raise HTTPException(status_code=400, detail="Refund amount must be greater than zero.")
+
+            if req_amount_paise > max_refundable_paise:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Requested refund INR {req_amount:.2f} exceeds max refundable balance of INR {max_refundable:.2f}."
+                    detail=f"Requested refund INR {req_amount_paise / 100:.2f} exceeds max refundable balance of INR {max_refundable_paise / 100:.2f}."
                 )
+
+            req_amount = round(req_amount_paise / 100.0, 2)
 
             # 3. Generate unique refund reference: REF-YYYYMM-XXXX
             today_prefix = date.today().strftime("%Y%m")
@@ -444,7 +526,6 @@ class PaymentService:
                     break
                 seq += 1
 
-            req_amount_paise = to_paise(req_amount)
             cursor.execute("""
                 INSERT INTO refunds (
                     refund_reference, payment_id, invoice_id, student_id, amount, amount_paise,
@@ -587,22 +668,48 @@ class PaymentService:
 
     @classmethod
     def get_refunds(cls, filters: Dict[str, Any], current_user: Dict[str, Any]) -> Dict[str, Any]:
-        """Fetch filtered and paginated refunds list."""
+        """Fetch filtered and paginated refunds list with active-role data isolation."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
-            role = current_user.get("role")
+            active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
 
             where_clauses = ["1=1"]
             params: List[Any] = []
 
-            if role == "student":
-                cursor.execute("SELECT id FROM students WHERE user_id = ?;", (current_user.get("user_id"),))
-                st = cursor.fetchone()
-                if not st:
+            if active_role == "student":
+                my_sid = current_user.get("linked_student_id")
+                if not my_sid:
+                    cursor.execute("SELECT id FROM students WHERE user_id = ?;", (current_user.get("user_id"),))
+                    st = cursor.fetchone()
+                    my_sid = st["id"] if st else None
+                if not my_sid:
                     return {"total": 0, "records": []}
                 where_clauses.append("r.student_id = ?")
-                params.append(st["id"])
+                params.append(my_sid)
+            elif active_role in ("parent_guardian", "parent"):
+                wards = get_parent_authorized_ward_ids(conn, current_user)
+                if not wards:
+                    return {"total": 0, "records": []}
+                where_clauses.append(f"r.student_id IN ({','.join('?' for _ in wards)})")
+                params.extend(wards)
+            elif active_role in ("warden", "assistant_warden"):
+                linked_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+                if not linked_hid:
+                    return {"total": 0, "records": []}
+                where_clauses.append("""
+                    r.student_id IN (
+                        SELECT ra.student_id
+                        FROM room_allocations ra
+                        JOIN rooms rm ON rm.id = ra.room_id
+                        JOIN floors fl ON fl.id = rm.floor_id
+                        JOIN buildings bld ON bld.id = fl.building_id
+                        WHERE bld.hostel_id = ?
+                    )
+                """)
+                params.append(linked_hid)
+            elif active_role not in ("accountant", "super_admin", "hostel_admin", "auditor"):
+                return {"total": 0, "records": []}
 
             if filters.get("status"):
                 where_clauses.append("r.status = ?")
@@ -620,7 +727,7 @@ class PaymentService:
 
             query = f"""
                 SELECT r.*, s.first_name || ' ' || s.last_name as student_name, s.student_id as student_roll_no,
-                       p.payment_reference, p.amount as payment_amount
+                       p.payment_reference, p.amount as payment_amount, p.amount_paise as payment_amount_paise
                 FROM refunds r
                 JOIN students s ON s.id = r.student_id
                 JOIN payments p ON p.id = r.payment_id
@@ -637,17 +744,22 @@ class PaymentService:
 
     @classmethod
     def get_refund(cls, refund_id: int, current_user: Dict[str, Any]) -> Dict[str, Any]:
-        """Fetch details of a single refund request."""
+        """Fetch details of a single refund request with active-role isolation."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT r.*, s.first_name || ' ' || s.last_name as student_name, s.student_id as student_roll_no,
                        s.user_id as student_user_id, p.payment_reference, p.amount as payment_amount,
+                       p.amount_paise as payment_amount_paise, bld.hostel_id,
                        u1.username as approved_by_name, u2.username as processed_by_name
                 FROM refunds r
                 JOIN students s ON s.id = r.student_id
                 JOIN payments p ON p.id = r.payment_id
+                LEFT JOIN room_allocations ra ON ra.student_id = s.id AND ra.allocation_status = 'Active'
+                LEFT JOIN rooms rm ON rm.id = ra.room_id
+                LEFT JOIN floors fl ON fl.id = rm.floor_id
+                LEFT JOIN buildings bld ON bld.id = fl.building_id
                 LEFT JOIN users u1 ON u1.id = r.approved_by
                 LEFT JOIN users u2 ON u2.id = r.processed_by
                 WHERE r.id = ?;
@@ -657,19 +769,28 @@ class PaymentService:
                 raise HTTPException(status_code=404, detail="Refund record not found.")
 
             res = dict(record)
-            role = current_user.get("role")
-            if role == "student" and res.get("student_user_id") != current_user.get("user_id"):
-                raise HTTPException(status_code=403, detail="Forbidden: You cannot access refunds of other students.")
+            active_role = (current_user.get("active_role") or current_user.get("role") or "").strip().lower()
+            if active_role == "student":
+                my_sid = current_user.get("linked_student_id")
+                if res.get("student_id") != my_sid and res.get("student_user_id") != current_user.get("user_id"):
+                    raise HTTPException(status_code=403, detail="Forbidden: You cannot access refunds of other students.")
+            elif active_role in ("parent_guardian", "parent"):
+                wards = get_parent_authorized_ward_ids(conn, current_user)
+                if res.get("student_id") not in wards:
+                    raise HTTPException(status_code=403, detail="Forbidden: You cannot access refunds of unlinked students.")
+            elif active_role in ("warden", "assistant_warden"):
+                linked_hid = current_user.get("linked_hostel_id") or current_user.get("hostel_id")
+                if not linked_hid:
+                    raise HTTPException(status_code=403, detail="Access Denied: Staff member has no assigned hostel facility.")
+                if not res.get("hostel_id") or int(res["hostel_id"]) != int(linked_hid):
+                    raise HTTPException(status_code=403, detail="Forbidden: Refund belongs to another hostel facility.")
+            elif active_role not in ("accountant", "super_admin", "hostel_admin", "auditor"):
+                raise HTTPException(status_code=403, detail="Forbidden: Unauthorized active role for refund access.")
 
             return res
         finally:
             conn.close()
 
-    # ==========================================
-    # HELPER PERMISSION CHECKS
-    # ==========================================
-
-    @staticmethod
     def _enforce_accountant_or_admin(current_user: Dict[str, Any]):
         role = current_user.get("role")
         if role not in ["super_admin", "hostel_admin", "accountant"]:

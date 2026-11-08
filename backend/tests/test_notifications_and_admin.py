@@ -222,7 +222,7 @@ class TestNotificationsAndAdmin(unittest.TestCase):
         )
 
         # Fetch as student assigned to Hostel 1
-        visible_list = AnnouncementService.get_announcements(self.student_user)
+        visible_list = AnnouncementService.get_announcements(self.student_user, search=title)
         found = any(a.id == ann.id for a in visible_list)
         self.assertTrue(found, "Resident student should see notice targeted to their assigned hostel.")
 

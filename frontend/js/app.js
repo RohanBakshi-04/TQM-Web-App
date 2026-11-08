@@ -51,6 +51,18 @@ document.addEventListener("alpine:init", () => {
             this.modal.onConfirm = null;
         },
 
+        // Change Password Modal State
+        changePasswordModalOpen: false,
+        changePasswordLoading: false,
+        changePasswordForm: {
+            current_password: '',
+            new_password: '',
+            confirm_password: '',
+            show_current: false,
+            show_new: false,
+            show_confirm: false
+        },
+
         executeModalConfirm() {
             if (typeof this.modal.onConfirm === "function") {
                 this.modal.onConfirm();
@@ -129,12 +141,34 @@ document.addEventListener("alpine:init", () => {
             gender: 'Male', // Male, Female, Other
             enrollment_no: '',
             branch: 'CSE',
+            course: 'B.Tech',
+            academic_year: '2025-2026',
+            semester: 1,
+            date_of_birth: '',
+            address: '',
+            city: '',
+            state: '',
+            postal_code: '',
+            guardian_name: '',
+            guardian_relation: 'Parent',
+            guardian_phone: '',
+            guardian_email: '',
+            emergency_contact_name: '',
+            emergency_contact_phone: '',
             specialization: 'warden',
+            staff_category: 'Operations',
+            designation: '',
+            department: '',
+            employee_id: '',
+            work_location: '',
             child_identifier: '',
             relationship: 'Father',
             hostel_id: ''
         },
         authorizedHostelsList: [],
+        get hostels() {
+            return this.authorizedHostelsList || [];
+        },
         pendingRegistrations: [],
         pendingRegistrationsLoading: false,
 
@@ -155,11 +189,38 @@ document.addEventListener("alpine:init", () => {
 
         // Primary Core Stakeholders (Simplified for clear operational governance)
         rolePresets: [
-            { role: "super_admin", username: "superadmin", label: "Administrator", icon: "fa-shield-halved", badge: "Governance", desc: "Institutional oversight, room allocations, student admissions, finance & system settings" },
-            { role: "warden", username: "warden", label: "Hostel Warden", icon: "fa-user-tie", badge: "Welfare & Discipline", desc: "Student welfare, daily roll-calls, leaves, digital gate outpasses & discipline" },
-            { role: "maintenance_staff", username: "maintenance", label: "Staff Member", icon: "fa-user-gear", badge: "Operations", desc: "Maintenance tasks (electrician, plumber, carpentry), mess operations & gate check-ins" },
-            { role: "student", username: "rohan", label: "Student Resident", icon: "fa-graduation-cap", badge: "Resident Portal", desc: "Personal room details, daily attendance [Present/Absent], leave requests & grievances" },
-            { role: "parent_guardian", username: "parent", label: "Parent / Guardian", icon: "fa-people-roof", badge: "Family Portal", desc: "Ward daily attendance status, fee dues, payment receipts & warden communication" }
+            { role: "super_admin", username: "superadmin", label: "Super Admin", icon: "fa-shield-halved", badge: "Super Admin", desc: "Global administrative control, system settings, RBAC role management & full audit access" },
+            { role: "hostel_admin", username: "hosteladmin", label: "Hostel Director", icon: "fa-hotel", badge: "Director", desc: "Multi-hostel institutional leadership, facility policies, cross-hostel allocations & budgets" },
+            { role: "institutional_admin", username: "instadmin", label: "Institutional Admin", icon: "fa-building-columns", badge: "Institution", desc: "University coordination, academic calendar sync, and institutional policy governance" },
+            { role: "warden", username: "warden", label: "Chief Warden", icon: "fa-user-tie", badge: "Chief Warden", desc: "Hostel head: student welfare, room allocations, leave/outpass approvals & discipline" },
+            { role: "assistant_warden", username: "asstwarden", label: "Assistant Warden", icon: "fa-user-shield", badge: "Asst Warden", desc: "Block/floor roll-calls, night curfews, initial grievance review & gate verification" },
+            { role: "hostel_clerk", username: "clerk", label: "Hostel Clerk", icon: "fa-id-card-clip", badge: "Front Desk", desc: "Student document verification, physical register maintenance & certificate requests" },
+            { role: "admission_officer", username: "admission", label: "Admission Officer", icon: "fa-user-plus", badge: "Admissions", desc: "Application processing, eligibility screening, room quota management & onboarding" },
+            { role: "hostel_allotment_officer", username: "allotment", label: "Room Allotment Officer", icon: "fa-bed", badge: "Allotments", desc: "Poka-Yoke room and bed capacity management, checkouts, and student transfers" },
+            { role: "accountant", username: "accountant", label: "Accountant", icon: "fa-calculator", badge: "Finance", desc: "Fee structures, term invoicing, payment collection, refunds & financial ledgers" },
+            { role: "cashier", username: "cashier", label: "Financial Cashier", icon: "fa-cash-register", badge: "Cash Desk", desc: "Counter fee collections, cash receipt issuance, and instant payment reconciliation" },
+            { role: "auditor", username: "evaluator", label: "TQM Auditor", icon: "fa-clipboard-check", badge: "Quality & SLA", desc: "TQM response time telemetry (<10ms SLA), process compliance & immutable audit logs" },
+            { role: "security_supervisor", username: "secsupervisor", label: "Security Supervisor", icon: "fa-tower-observation", badge: "Gate Oversight", desc: "Gate log auditing, guard shift rosters, incident escalations & campus perimeter" },
+            { role: "security_guard", username: "security", label: "Security Guard", icon: "fa-person-military-pointing", badge: "Gate Security", desc: "Real-time gate logging, visitor check-in/checkout & student outpass validation" },
+            { role: "cctv_operator", username: "cctv", label: "Surveillance Operator", icon: "fa-video", badge: "Surveillance", desc: "Campus camera matrix monitoring, perimeter sensor alerts, and emergency response" },
+            { role: "mess_manager", username: "messmanager", label: "Mess Manager", icon: "fa-utensils", badge: "Dining", desc: "Dietary planning, weekly menus, meal subscriptions & food inventory" },
+            { role: "head_chef", username: "chef", label: "Head Chef", icon: "fa-bowl-rice", badge: "Kitchen", desc: "Kitchen operations, preparation cycles, daily grocery requisitions, and food quality" },
+            { role: "maintenance_manager", username: "maintmgr", label: "Maintenance Manager", icon: "fa-screwdriver-wrench", badge: "Facilities", desc: "Work order triage, technician dispatching, vendor oversight, and SLA compliance" },
+            { role: "maintenance_staff", username: "maintenance", label: "Maintenance Staff", icon: "fa-toolbox", badge: "Facility Tech", desc: "Facility repair work orders (electrical, plumbing, carpentry) & spare parts stock" },
+            { role: "electrician", username: "electrician", label: "Maintenance Electrician", icon: "fa-bolt", badge: "Electrical", desc: "Power supply maintenance, electrical fixtures, circuit breakers, and lighting repairs" },
+            { role: "plumber", username: "plumber", label: "Maintenance Plumber", icon: "fa-faucet-drip", badge: "Plumbing", desc: "Water distribution lines, drainage clearing, pipeline upkeep, and sanitary fixtures" },
+            { role: "carpenter", username: "carpenter", label: "Maintenance Carpenter", icon: "fa-hammer", badge: "Carpentry", desc: "Door frames, window locks, bed frames, wooden furniture repairs, and locks" },
+            { role: "housekeeping_staff", username: "housekeeping", label: "Housekeeping Staff", icon: "fa-broom", badge: "Sanitation", desc: "Floor hygiene inspections, corridor cleaning rosters, and waste management" },
+            { role: "laundry_staff", username: "laundry", label: "Laundry Staff", icon: "fa-shirt", badge: "Laundry", desc: "Linen washing cycles, resident clothing intake, token dispatch, and dryer upkeep" },
+            { role: "medical_officer", username: "doctor", label: "Medical Officer", icon: "fa-heart-pulse", badge: "Infirmary", desc: "First-aid clinics, emergency health alerts, medical records, and infirmary logs" },
+            { role: "it_admin", username: "itadmin", label: "IT Administrator", icon: "fa-server", badge: "IT Operations", desc: "System telemetry, database backups, background worker leases & security audit logs" },
+            { role: "inventory_manager", username: "inventorymgr", label: "Inventory Manager", icon: "fa-boxes-stacked", badge: "Stores", desc: "Central asset storekeeping, reorder point tracking, and bin card transactions" },
+            { role: "procurement_manager", username: "procmgr", label: "Procurement Manager", icon: "fa-truck-field", badge: "Vendors", desc: "Supplier purchase orders, vendor quotations, contract renewals, and deliveries" },
+            { role: "student", username: "rohan", label: "Student Resident", icon: "fa-graduation-cap", badge: "Student Portal", desc: "Personal room details, daily attendance, leave/outpass applications & grievances" },
+            { role: "parent_guardian", username: "parent", label: "Parent / Guardian", icon: "fa-people-roof", badge: "Family Portal", desc: "Ward attendance status, fee dues, payment receipts & leave communications" },
+            { role: "transport_supervisor", username: "transport", label: "Transport Supervisor", icon: "fa-bus", badge: "Transport", desc: "Campus shuttle bus routes, timing rosters, driver shifts, and fleet inspections" },
+            { role: "sports_coordinator", username: "sports", label: "Sports Coordinator", icon: "fa-table-tennis-paddle-ball", badge: "Athletics", desc: "Hostel recreation rooms, gym equipment logs, tournament planning, and grounds" },
+            { role: "grievance_officer", username: "grievance", label: "Grievance Officer", icon: "fa-handshake-angle", badge: "Protection", desc: "Confidential anti-ragging helpline, dispute mediation, and student safety audits" }
         ],
         // Role-Specific Navigation Mappings
         roleNavigationMap: {
@@ -187,6 +248,13 @@ document.addEventListener("alpine:init", () => {
                 { id: "inventory", label: "Hostel Supplies", icon: "fa-boxes-stacked" },
                 { id: "announcements", label: "Announcements", icon: "fa-bullhorn" }
             ],
+            institutional_admin: [
+                { id: "dashboard", label: "Institutional Overview", icon: "fa-gauge-high" },
+                { id: "allocations", label: "Hostel Directories", icon: "fa-bed" },
+                { id: "attendance", label: "Campus Attendance", icon: "fa-clipboard-user" },
+                { id: "announcements", label: "Institutional Notices", icon: "fa-bullhorn" },
+                { id: "admin", label: "Governance Telemetry", icon: "fa-sliders" }
+            ],
             warden: [
                 { id: "dashboard", label: "Warden Dashboard", icon: "fa-gauge-high" },
                 { id: "registrations", label: "Registration Approvals", icon: "fa-user-check" },
@@ -204,6 +272,24 @@ document.addEventListener("alpine:init", () => {
                 { id: "allocations", label: "Room Checks", icon: "fa-bed" },
                 { id: "announcements", label: "Hostel Notices", icon: "fa-bullhorn" }
             ],
+            hostel_clerk: [
+                { id: "dashboard", label: "Front Desk Console", icon: "fa-gauge-high" },
+                { id: "registrations", label: "Verification Desk", icon: "fa-user-check" },
+                { id: "visitors", label: "Desk Visitor Log", icon: "fa-user-clock" },
+                { id: "allocations", label: "Resident Records", icon: "fa-bed" },
+                { id: "announcements", label: "Office Circulars", icon: "fa-bullhorn" }
+            ],
+            admission_officer: [
+                { id: "dashboard", label: "Admissions Desk", icon: "fa-gauge-high" },
+                { id: "registrations", label: "Applicant Scrutiny", icon: "fa-user-check" },
+                { id: "allocations", label: "Room Allotment Intake", icon: "fa-bed" },
+                { id: "announcements", label: "Admission Notices", icon: "fa-bullhorn" }
+            ],
+            hostel_allotment_officer: [
+                { id: "dashboard", label: "Allotment Desk", icon: "fa-gauge-high" },
+                { id: "allocations", label: "Room & Bed Allocation", icon: "fa-bed" },
+                { id: "announcements", label: "Hostel Notices", icon: "fa-bullhorn" }
+            ],
             student: [
                 { id: "dashboard", label: "My Dashboard", icon: "fa-gauge-high" },
                 { id: "allocations", label: "My Room & Bed", icon: "fa-bed" },
@@ -213,10 +299,37 @@ document.addEventListener("alpine:init", () => {
                 { id: "mess", label: "Mess Menu", icon: "fa-utensils" },
                 { id: "announcements", label: "Announcements", icon: "fa-bullhorn" }
             ],
+            parent_guardian: [
+                { id: "dashboard", label: "Parent Portal", icon: "fa-gauge-high" },
+                { id: "finance", label: "Ward Fee Ledgers", icon: "fa-file-invoice-dollar" },
+                { id: "announcements", label: "Hostel Circulars", icon: "fa-bullhorn" }
+            ],
             accountant: [
                 { id: "dashboard", label: "Finance Dashboard", icon: "fa-gauge-high" },
                 { id: "finance", label: "Invoices & Billing", icon: "fa-file-invoice-dollar" },
                 { id: "announcements", label: "Fee Circulars", icon: "fa-bullhorn" }
+            ],
+            cashier: [
+                { id: "dashboard", label: "Cashier Counter", icon: "fa-gauge-high" },
+                { id: "finance", label: "Counter Receipts", icon: "fa-file-invoice-dollar" },
+                { id: "announcements", label: "Circulars", icon: "fa-bullhorn" }
+            ],
+            security_supervisor: [
+                { id: "dashboard", label: "Security Command", icon: "fa-gauge-high" },
+                { id: "visitors", label: "Gate Logs & Passes", icon: "fa-user-clock" },
+                { id: "leaves", label: "Student Outpasses", icon: "fa-id-badge" },
+                { id: "announcements", label: "Security Bulletins", icon: "fa-bullhorn" }
+            ],
+            security_guard: [
+                { id: "dashboard", label: "Gate Entry Desk", icon: "fa-gauge-high" },
+                { id: "visitors", label: "Visitor Logbook", icon: "fa-user-clock" },
+                { id: "leaves", label: "Gate Outpass Scanner", icon: "fa-id-badge" },
+                { id: "announcements", label: "Shift Bulletins", icon: "fa-bullhorn" }
+            ],
+            cctv_operator: [
+                { id: "dashboard", label: "Surveillance Matrix", icon: "fa-gauge-high" },
+                { id: "visitors", label: "Gate Feeds", icon: "fa-user-clock" },
+                { id: "announcements", label: "Safety Bulletins", icon: "fa-bullhorn" }
             ],
             mess_manager: [
                 { id: "dashboard", label: "Mess Dashboard", icon: "fa-gauge-high" },
@@ -224,33 +337,81 @@ document.addEventListener("alpine:init", () => {
                 { id: "inventory", label: "Pantry & Stock", icon: "fa-boxes-stacked" },
                 { id: "announcements", label: "Mess Notices", icon: "fa-bullhorn" }
             ],
+            head_chef: [
+                { id: "dashboard", label: "Kitchen Operations", icon: "fa-gauge-high" },
+                { id: "mess", label: "Daily Meal Prep", icon: "fa-utensils" },
+                { id: "inventory", label: "Ration Inventory", icon: "fa-boxes-stacked" },
+                { id: "announcements", label: "Kitchen Bulletins", icon: "fa-bullhorn" }
+            ],
+            maintenance_manager: [
+                { id: "dashboard", label: "Maintenance Command", icon: "fa-gauge-high" },
+                { id: "inventory", label: "Tools & Equipment", icon: "fa-boxes-stacked" },
+                { id: "announcements", label: "Facility Bulletins", icon: "fa-bullhorn" }
+            ],
             maintenance_staff: [
                 { id: "dashboard", label: "Maintenance Console", icon: "fa-gauge-high" },
                 { id: "inventory", label: "Tools & Spares", icon: "fa-boxes-stacked" },
                 { id: "announcements", label: "Announcements", icon: "fa-bullhorn" }
             ],
-            security_guard: [
-                { id: "dashboard", label: "Gate Security Console", icon: "fa-gauge-high" },
-                { id: "leaves", label: "Gate Outpass Check", icon: "fa-id-badge" },
-                { id: "visitors", label: "Visitor Passes", icon: "fa-user-clock" },
-                { id: "announcements", label: "Announcements", icon: "fa-bullhorn" }
+            electrician: [
+                { id: "dashboard", label: "Electrical Work Orders", icon: "fa-bolt" },
+                { id: "inventory", label: "Electrical Spares", icon: "fa-boxes-stacked" },
+                { id: "announcements", label: "Maintenance Notices", icon: "fa-bullhorn" }
             ],
-            admission_officer: [
-                { id: "dashboard", label: "Admissions Dashboard", icon: "fa-gauge-high" },
-                { id: "allocations", label: "Room Availability", icon: "fa-bed" },
-                { id: "announcements", label: "Admissions Notices", icon: "fa-bullhorn" }
+            plumber: [
+                { id: "dashboard", label: "Plumbing Work Orders", icon: "fa-faucet-drip" },
+                { id: "inventory", label: "Plumbing Spares", icon: "fa-boxes-stacked" },
+                { id: "announcements", label: "Maintenance Notices", icon: "fa-bullhorn" }
             ],
-            parent_guardian: [
-                { id: "dashboard", label: "Ward Dashboard", icon: "fa-gauge-high" },
-                { id: "attendance", label: "Ward Attendance", icon: "fa-clipboard-user" },
-                { id: "leaves", label: "Ward Leaves", icon: "fa-id-badge" },
-                { id: "finance", label: "Fee Dues & Receipts", icon: "fa-file-invoice-dollar" },
-                { id: "announcements", label: "Announcements", icon: "fa-bullhorn" }
+            carpenter: [
+                { id: "dashboard", label: "Carpentry Work Orders", icon: "fa-hammer" },
+                { id: "inventory", label: "Hardware & Wood", icon: "fa-boxes-stacked" },
+                { id: "announcements", label: "Maintenance Notices", icon: "fa-bullhorn" }
+            ],
+            housekeeping_staff: [
+                { id: "dashboard", label: "Housekeeping Log", icon: "fa-gauge-high" },
+                { id: "announcements", label: "Sanitation Circulars", icon: "fa-bullhorn" }
+            ],
+            laundry_staff: [
+                { id: "dashboard", label: "Laundry Intake", icon: "fa-gauge-high" },
+                { id: "announcements", label: "Laundry Notices", icon: "fa-bullhorn" }
+            ],
+            medical_officer: [
+                { id: "dashboard", label: "Infirmary Console", icon: "fa-gauge-high" },
+                { id: "attendance", label: "Medical Absences", icon: "fa-clipboard-user" },
+                { id: "announcements", label: "Health Advisories", icon: "fa-bullhorn" }
+            ],
+            it_admin: [
+                { id: "dashboard", label: "IT Administration Console", icon: "fa-gauge-high" },
+                { id: "admin", label: "System Audit & Telemetry", icon: "fa-sliders" },
+                { id: "announcements", label: "System Maintenance Broadcasts", icon: "fa-bullhorn" }
+            ],
+            inventory_manager: [
+                { id: "dashboard", label: "Inventory Console", icon: "fa-gauge-high" },
+                { id: "inventory", label: "Stores & Stock", icon: "fa-boxes-stacked" },
+                { id: "announcements", label: "Store Circulars", icon: "fa-bullhorn" }
+            ],
+            procurement_manager: [
+                { id: "dashboard", label: "Procurement Desk", icon: "fa-gauge-high" },
+                { id: "inventory", label: "Vendor Supplies", icon: "fa-boxes-stacked" },
+                { id: "announcements", label: "Procurement Notices", icon: "fa-bullhorn" }
+            ],
+            transport_supervisor: [
+                { id: "dashboard", label: "Transport Desk", icon: "fa-gauge-high" },
+                { id: "announcements", label: "Shuttle Schedules", icon: "fa-bullhorn" }
+            ],
+            sports_coordinator: [
+                { id: "dashboard", label: "Sports & Gym Desk", icon: "fa-gauge-high" },
+                { id: "announcements", label: "Sports Bulletins", icon: "fa-bullhorn" }
+            ],
+            grievance_officer: [
+                { id: "dashboard", label: "Grievance Helpline", icon: "fa-gauge-high" },
+                { id: "announcements", label: "Protection Advisories", icon: "fa-bullhorn" }
             ],
             auditor: [
-                { id: "dashboard", label: "Compliance Dashboard", icon: "fa-gauge-high" },
-                { id: "admin", label: "System Audit Logs", icon: "fa-sliders" },
-                { id: "finance", label: "Financial Ledger Audit", icon: "fa-file-invoice-dollar" }
+                { id: "dashboard", label: "TQM Quality Dashboard", icon: "fa-gauge-high" },
+                { id: "admin", label: "Immutable Audit Trail", icon: "fa-sliders" },
+                { id: "announcements", label: "Compliance Bulletins", icon: "fa-bullhorn" }
             ]
         },
 
@@ -263,6 +424,66 @@ document.addEventListener("alpine:init", () => {
             }
             const roleKey = this.activeRoleView || (this.userRoles && this.userRoles[0]) || "student";
             return this.roleNavigationMap[roleKey] || this.roleNavigationMap["student"];
+        },
+
+        // 28 Consolidated Dashboard Groups & Department State
+        departmentsList: [],
+        dashboardsList: [],
+        departmentsLoading: false,
+        dashboardsLoading: false,
+        activeDashboardGroup: "DASHBOARD_01",
+        activeTradeFilter: "all", // "all" | "electrical" | "plumbing" | "carpentry" | "general"
+        activeFinanceScope: "all", // "all" | "invoices" | "cashier" | "collections" | "refunds"
+
+        resolveDashboardGroup(role) {
+            const roleNorm = (role || "").toLowerCase();
+            const groupMap = {
+                super_admin: { id: "DASHBOARD_01", num: "01", title: "Super Admin Dashboard", dept: "Executive Administration", deptCode: "EXEC_ADMIN", icon: "fa-shield-halved" },
+                hostel_admin: { id: "DASHBOARD_02", num: "02", title: "Executive Management Dashboard", dept: "Executive Administration", deptCode: "EXEC_ADMIN", icon: "fa-hotel" },
+                deputy_hostel_director: { id: "DASHBOARD_02", num: "02", title: "Executive Management Dashboard", dept: "Executive Administration", deptCode: "EXEC_ADMIN", icon: "fa-hotel" },
+                institutional_admin: { id: "DASHBOARD_03", num: "03", title: "Institutional Administration Dashboard", dept: "Executive Administration", deptCode: "EXEC_ADMIN", icon: "fa-building-columns" },
+                registrar: { id: "DASHBOARD_03", num: "03", title: "Institutional Administration Dashboard", dept: "Executive Administration", deptCode: "EXEC_ADMIN", icon: "fa-building-columns" },
+                dean_student_welfare: { id: "DASHBOARD_03", num: "03", title: "Institutional Administration Dashboard", dept: "Executive Administration", deptCode: "EXEC_ADMIN", icon: "fa-building-columns" },
+                warden: { id: "DASHBOARD_04", num: "04", title: "Chief Warden Dashboard", dept: "Hostel Administration", deptCode: "HOSTEL_ADMIN", icon: "fa-user-tie" },
+                chief_warden: { id: "DASHBOARD_04", num: "04", title: "Chief Warden Dashboard", dept: "Hostel Administration", deptCode: "HOSTEL_ADMIN", icon: "fa-user-tie" },
+                deputy_chief_warden: { id: "DASHBOARD_04", num: "04", title: "Chief Warden Dashboard", dept: "Hostel Administration", deptCode: "HOSTEL_ADMIN", icon: "fa-user-tie" },
+                assistant_warden: { id: "DASHBOARD_05", num: "05", title: "Assistant Warden Dashboard", dept: "Hostel Administration", deptCode: "HOSTEL_ADMIN", icon: "fa-user-shield" },
+                resident_warden: { id: "DASHBOARD_05", num: "05", title: "Assistant Warden Dashboard", dept: "Hostel Administration", deptCode: "HOSTEL_ADMIN", icon: "fa-user-shield" },
+                hostel_clerk: { id: "DASHBOARD_06", num: "06", title: "Hostel Administration Dashboard", dept: "Hostel Administration", deptCode: "HOSTEL_ADMIN", icon: "fa-id-card-clip" },
+                hostel_administrator: { id: "DASHBOARD_06", num: "06", title: "Hostel Administration Dashboard", dept: "Hostel Administration", deptCode: "HOSTEL_ADMIN", icon: "fa-id-card-clip" },
+                office_assistant: { id: "DASHBOARD_06", num: "06", title: "Hostel Administration Dashboard", dept: "Hostel Administration", deptCode: "HOSTEL_ADMIN", icon: "fa-id-card-clip" },
+                admission_officer: { id: "DASHBOARD_07", num: "07", title: "Admission Management Dashboard", dept: "Admission and Accommodation", deptCode: "ADMISSIONS", icon: "fa-user-plus" },
+                admission_assistant: { id: "DASHBOARD_07", num: "07", title: "Admission Management Dashboard", dept: "Admission and Accommodation", deptCode: "ADMISSIONS", icon: "fa-user-plus" },
+                hostel_allotment_officer: { id: "DASHBOARD_08", num: "08", title: "Hostel and Room Allocation Dashboard", dept: "Admission and Accommodation", deptCode: "ADMISSIONS", icon: "fa-bed" },
+                accountant: { id: "DASHBOARD_09", num: "09", title: "Finance and Accounts Dashboard", dept: "Finance and Accounts", deptCode: "FINANCE", icon: "fa-calculator" },
+                chief_accountant: { id: "DASHBOARD_09", num: "09", title: "Finance and Accounts Dashboard", dept: "Finance and Accounts", deptCode: "FINANCE", icon: "fa-calculator" },
+                cashier: { id: "DASHBOARD_09", num: "09", title: "Finance and Accounts Dashboard (Cashier Counter)", dept: "Finance and Accounts", deptCode: "FINANCE", icon: "fa-cash-register" },
+                auditor: { id: "DASHBOARD_10", num: "10", title: "Audit and Compliance Dashboard", dept: "Audit and Compliance", deptCode: "AUDIT_COMPLIANCE", icon: "fa-clipboard-check" },
+                internal_auditor: { id: "DASHBOARD_10", num: "10", title: "Audit and Compliance Dashboard", dept: "Audit and Compliance", deptCode: "AUDIT_COMPLIANCE", icon: "fa-clipboard-check" },
+                security_supervisor: { id: "DASHBOARD_11", num: "11", title: "Security Command Dashboard", dept: "Security and Safety", deptCode: "SECURITY_SAFETY", icon: "fa-tower-observation" },
+                chief_security_officer: { id: "DASHBOARD_11", num: "11", title: "Security Command Dashboard", dept: "Security and Safety", deptCode: "SECURITY_SAFETY", icon: "fa-tower-observation" },
+                security_guard: { id: "DASHBOARD_12", num: "12", title: "Gate and Security Operations Dashboard", dept: "Security and Safety", deptCode: "SECURITY_SAFETY", icon: "fa-person-military-pointing" },
+                cctv_operator: { id: "DASHBOARD_13", num: "13", title: "Surveillance and Safety Dashboard", dept: "Security and Safety", deptCode: "SECURITY_SAFETY", icon: "fa-video" },
+                mess_manager: { id: "DASHBOARD_14", num: "14", title: "Mess Management Dashboard", dept: "Mess and Food Services", deptCode: "MESS_FOOD", icon: "fa-utensils" },
+                head_chef: { id: "DASHBOARD_15", num: "15", title: "Kitchen and Food Operations Dashboard", dept: "Mess and Food Services", deptCode: "MESS_FOOD", icon: "fa-bowl-rice" },
+                maintenance_manager: { id: "DASHBOARD_16", num: "16", title: "Maintenance Management Dashboard", dept: "Maintenance and Facility", deptCode: "MAINTENANCE", icon: "fa-screwdriver-wrench" },
+                maintenance_staff: { id: "DASHBOARD_17", num: "17", title: "Maintenance Technician Dashboard", dept: "Maintenance and Facility", deptCode: "MAINTENANCE", icon: "fa-toolbox" },
+                electrician: { id: "DASHBOARD_17", num: "17", title: "Maintenance Technician Dashboard (Electrical)", dept: "Maintenance and Facility", deptCode: "MAINTENANCE", icon: "fa-bolt" },
+                plumber: { id: "DASHBOARD_17", num: "17", title: "Maintenance Technician Dashboard (Plumbing)", dept: "Maintenance and Facility", deptCode: "MAINTENANCE", icon: "fa-faucet-drip" },
+                carpenter: { id: "DASHBOARD_17", num: "17", title: "Maintenance Technician Dashboard (Carpentry)", dept: "Maintenance and Facility", deptCode: "MAINTENANCE", icon: "fa-hammer" },
+                housekeeping_staff: { id: "DASHBOARD_18", num: "18", title: "Housekeeping and Sanitation Dashboard", dept: "Housekeeping and Sanitation", deptCode: "HOUSEKEEPING", icon: "fa-broom" },
+                laundry_staff: { id: "DASHBOARD_19", num: "19", title: "Laundry Management Dashboard", dept: "Laundry Management", deptCode: "LAUNDRY", icon: "fa-shirt" },
+                medical_officer: { id: "DASHBOARD_20", num: "20", title: "Medical and Welfare Dashboard", dept: "Medical and Student Welfare", deptCode: "MEDICAL_WELFARE", icon: "fa-heart-pulse" },
+                it_admin: { id: "DASHBOARD_21", num: "21", title: "IT and System Administration Dashboard", dept: "IT and System Administration", deptCode: "IT_SYSTEMS", icon: "fa-server" },
+                inventory_manager: { id: "DASHBOARD_22", num: "22", title: "Inventory and Asset Management Dashboard", dept: "Inventory and Asset Management", deptCode: "INVENTORY_ASSET", icon: "fa-boxes-stacked" },
+                procurement_manager: { id: "DASHBOARD_23", num: "23", title: "Procurement and Vendor Management Dashboard", dept: "Procurement and Vendor Management", deptCode: "PROCUREMENT_VENDOR", icon: "fa-truck-field" },
+                student: { id: "DASHBOARD_24", num: "24", title: "Student Resident Portal", dept: "Student and Resident Services", deptCode: "STUDENT_SERVICES", icon: "fa-graduation-cap" },
+                parent_guardian: { id: "DASHBOARD_25", num: "25", title: "Parent / Guardian Portal", dept: "Student and Resident Services", deptCode: "STUDENT_SERVICES", icon: "fa-people-roof" },
+                transport_supervisor: { id: "DASHBOARD_26", num: "26", title: "Transport Management Dashboard", dept: "Transport and Recreation", deptCode: "TRANSPORT_RECREATION", icon: "fa-bus" },
+                sports_coordinator: { id: "DASHBOARD_27", num: "27", title: "Recreation and Sports Management Dashboard", dept: "Transport and Recreation", deptCode: "TRANSPORT_RECREATION", icon: "fa-table-tennis-paddle-ball" },
+                grievance_officer: { id: "DASHBOARD_28", num: "28", title: "Grievance and Student Protection Dashboard", dept: "Grievance and Student Protection", deptCode: "GRIEVANCE_PROTECTION", icon: "fa-handshake-angle" }
+            };
+            return groupMap[roleNorm] || { id: "DASHBOARD_24", num: "24", title: "Resident Portal", dept: "Student Services", deptCode: "STUDENT_SERVICES", icon: "fa-user" };
         },
 
 
@@ -386,14 +607,14 @@ document.addEventListener("alpine:init", () => {
         attendanceBuildingId: "",
         attendanceFloorId: "",
         attendanceRoomId: "",
-        attendanceSummary: null,
+        attendanceSummary: { overall_attendance_percentage: 0, total_students: 0, present_count: 0, absent_count: 0 },
         attendanceMarkingStudents: [],
         attendanceRecords: [],
         attendanceRecordsTotal: 0,
         attendanceFilterStatus: "all",
         attendanceReportStartDate: new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0],
         attendanceReportEndDate: new Date().toISOString().split("T")[0],
-        attendanceReportData: null,
+        attendanceReportData: { overall_attendance_percentage: 0, by_hostel: [], records: [] },
         attendanceCorrectionModal: {
             open: false,
             attendanceId: null,
@@ -549,6 +770,22 @@ document.addEventListener("alpine:init", () => {
         },
         financialReportData: null,
         financialReportLoading: false,
+
+                // SA-01 Super Admin Executive Overview State
+        executiveOverviewData: null,
+        executiveOverviewLoading: false,
+        executiveOverviewError: null,
+        executiveOverviewStale: false,
+        executiveLastSynced: null,
+        integrityScanning: false,
+        executiveFilters: {
+            academic_session: "2026-27",
+            campus: "all",
+            hostel_id: "all",
+            department: "all",
+            date_from: "",
+            date_to: ""
+        },
 
         dashboardStats: {
             hostels: { total: 1, rooms: 3, beds: 6, occupied_beds: 2, available_beds: 4, occupancy_rate: 33.3 },
@@ -977,14 +1214,127 @@ selectPreset(preset) {
             }
         },
 
+                async loadExecutiveOverview(bypassCache = false) {
+            this.executiveOverviewLoading = true;
+            this.executiveOverviewError = null;
+            try {
+                const data = await window.API.getExecutiveOverview(this.executiveFilters, bypassCache);
+                if (data) {
+                    this.executiveOverviewData = data;
+                    this.executiveLastSynced = new Date().toLocaleTimeString();
+                    this.executiveOverviewStale = false;
+                    if (data.institution_overview) {
+                        this.dashboardStats.hostels.total = data.institution_overview.hostels;
+                        this.dashboardStats.hostels.rooms = data.institution_overview.rooms;
+                        this.dashboardStats.hostels.beds = data.institution_overview.beds;
+                        this.dashboardStats.hostels.occupied_beds = data.kpi_grid ? data.kpi_grid.hostels.occupied_beds : 0;
+                        this.dashboardStats.hostels.available_beds = data.kpi_grid ? data.kpi_grid.hostels.available_beds : 0;
+                        this.dashboardStats.hostels.occupancy_rate = data.kpi_grid ? data.kpi_grid.hostels.occupancy_rate_pct : 0;
+                        this.dashboardStats.students.total = data.institution_overview.students;
+                        this.dashboardStats.students.active = data.institution_overview.students_active;
+                        this.dashboardStats.users.total = data.institution_overview.users;
+                    }
+                }
+            } catch (err) {
+                console.error("Error loading executive overview:", err);
+                this.executiveOverviewError = err.message || "Failed to load executive overview.";
+                this.executiveOverviewStale = true;
+            } finally {
+                this.executiveOverviewLoading = false;
+            }
+        },
+
+        applyExecutiveFilter(key, value) {
+            this.executiveFilters[key] = value;
+            this.loadExecutiveOverview(true);
+        },
+
+        resetExecutiveFilters() {
+            this.executiveFilters = {
+                academic_session: "2026-27",
+                campus: "all",
+                hostel_id: "all",
+                department: "all",
+                date_from: "",
+                date_to: ""
+            };
+            this.loadExecutiveOverview(true);
+        },
+
+        async runLiveDatabaseIntegrityScan() {
+            this.integrityScanning = true;
+            try {
+                const res = await window.API.request("/api/v1/metrics/integrity/verify", { method: "POST" });
+                if (res && res.status === "success") {
+                    this.showToast(res.message || "Database integrity scan completed.", "success");
+                } else {
+                    this.showToast("Integrity scan reported diagnostic alert.", "warning");
+                }
+                await this.loadExecutiveOverview(true);
+            } catch (err) {
+                console.error("Integrity scan failed:", err);
+                this.showToast("Integrity scan failed: " + (err.message || "Network error"), "error");
+            } finally {
+                this.integrityScanning = false;
+            }
+        },
+
         async loadDashboardStats() {
+            // Update active dashboard group
+            const dashInfo = this.resolveDashboardGroup(this.activeRoleView);
+            this.activeDashboardGroup = dashInfo.id;
+
+            if (this.activeRoleView === 'super_admin') {
+                this.loadExecutiveOverview();
+            }
+
+            // Auto-configure trade filter for maintenance technicians
+            if (this.activeRoleView === "electrician") {
+                this.activeTradeFilter = "electrical";
+            } else if (this.activeRoleView === "plumber") {
+                this.activeTradeFilter = "plumbing";
+            } else if (this.activeRoleView === "carpenter") {
+                this.activeTradeFilter = "carpentry";
+            } else if (!["maintenance_staff", "electrician", "plumber", "carpenter"].includes(this.activeRoleView)) {
+                this.activeTradeFilter = "all";
+            }
+
             try {
                 const stats = await window.API.getDashboardStats();
                 if (stats) {
-                    this.dashboardStats = stats;
+                    this.dashboardStats = {
+                        ...this.dashboardStats,
+                        ...stats,
+                        hostels: { ...(this.dashboardStats.hostels || {}), ...(stats.hostels || {}) },
+                        students: { ...(this.dashboardStats.students || {}), ...(stats.students || {}) },
+                        finance: { ...(this.dashboardStats.finance || {}), ...(stats.finance || {}) },
+                        operations: { ...(this.dashboardStats.operations || {}), ...(stats.operations || {}) }
+                    };
                 }
             } catch (e) {
                 // Keep default seeded metrics
+            }
+        },
+
+        async loadAdminDepartments() {
+            this.departmentsLoading = true;
+            try {
+                this.departmentsList = await window.API.getDepartments();
+            } catch (err) {
+                this.departmentsList = [];
+            } finally {
+                this.departmentsLoading = false;
+            }
+        },
+
+        async loadAdminDashboards() {
+            this.dashboardsLoading = true;
+            try {
+                this.dashboardsList = await window.API.getDashboards();
+            } catch (err) {
+                this.dashboardsList = [];
+            } finally {
+                this.dashboardsLoading = false;
             }
         },
 
@@ -1109,9 +1459,29 @@ selectPreset(preset) {
                     role: this.registerForm.role,
                     enrollment_no: this.registerForm.role === 'student' ? (this.registerForm.enrollment_no || null) : null,
                     branch: this.registerForm.role === 'student' ? this.registerForm.branch : null,
+                    course: this.registerForm.role === 'student' ? (this.registerForm.course || 'B.Tech') : null,
+                    academic_year: this.registerForm.role === 'student' ? (this.registerForm.academic_year || null) : null,
+                    semester: this.registerForm.role === 'student' ? (parseInt(this.registerForm.semester) || 1) : null,
+                    address: this.registerForm.address || null,
+                    city: this.registerForm.city || null,
+                    state: this.registerForm.state || null,
+                    postal_code: this.registerForm.postal_code || null,
+                    guardian_name: this.registerForm.guardian_name || null,
+                    guardian_relation: this.registerForm.guardian_relation || null,
+                    guardian_phone: this.registerForm.guardian_phone || null,
+                    guardian_email: this.registerForm.guardian_email || null,
+                    emergency_contact_name: this.registerForm.emergency_contact_name || null,
+                    emergency_contact_phone: this.registerForm.emergency_contact_phone || null,
                     specialization: this.registerForm.role === 'staff' ? this.registerForm.specialization : null,
+                    staff_category: this.registerForm.role === 'staff' ? (this.registerForm.staff_category || 'Operations') : null,
+                    designation: this.registerForm.role === 'staff' ? (this.registerForm.designation || null) : null,
+                    department: this.registerForm.role === 'staff' ? (this.registerForm.department || null) : null,
+                    employee_id: this.registerForm.role === 'staff' ? (this.registerForm.employee_id || null) : null,
+                    work_location: this.registerForm.role === 'staff' ? (this.registerForm.work_location || null) : null,
                     hostel_id: (this.registerForm.role === 'staff' && this.registerForm.hostel_id) ? parseInt(this.registerForm.hostel_id) : null,
                     child_identifier: this.registerForm.role === 'parent_guardian' ? this.registerForm.child_identifier : null,
+                    ward_identifiers: (this.registerForm.role === 'parent_guardian' && this.registerForm.child_identifier) ?
+                        this.registerForm.child_identifier.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean) : null,
                     relationship: this.registerForm.role === 'parent_guardian' ? this.registerForm.relationship : null
                 };
                 const authData = await window.API.register(payload);
@@ -1225,8 +1595,13 @@ selectPreset(preset) {
         },
 
         async handleSwitchRole(roleKey) {
+            // Role-switching is disabled for single-role users
+            if (!this.userRoles || this.userRoles.length <= 1) {
+                this.showToast("Role switching is disabled for single-role accounts.", "error");
+                return;
+            }
             // Strictly reject if target role is not assigned to current authenticated user
-            if (!this.userRoles || !this.userRoles.includes(roleKey)) {
+            if (!this.userRoles.includes(roleKey)) {
                 this.showToast(`Access Denied: Role '${roleKey}' is not assigned to your account.`, "error");
                 return;
             }
@@ -1323,7 +1698,7 @@ selectPreset(preset) {
                 if (filterHostel) params.hostel_id = filterHostel;
                 this.allocationsList = await window.API.getAllocations(params);
             } catch (err) {
-                this.showToast(`Failed to load allocations: ${err.message}`, "error");
+                console.warn(`Failed to load allocations: ${err.message}`);
             }
         },
 
@@ -1333,7 +1708,7 @@ selectPreset(preset) {
                 if (gender) params.gender = gender;
                 this.availableBedsList = await window.API.getAvailableBeds(params);
             } catch (err) {
-                this.showToast(`Failed to load available beds: ${err.message}`, "error");
+                console.warn(`Failed to load available beds: ${err.message}`);
             }
         },
 
@@ -1341,7 +1716,7 @@ selectPreset(preset) {
             try {
                 this.transferRequestsList = await window.API.getTransfers();
             } catch (err) {
-                this.showToast(`Failed to load transfer requests: ${err.message}`, "error");
+                console.warn(`Failed to load transfer requests: ${err.message}`);
             }
         },
 
@@ -1510,13 +1885,22 @@ selectPreset(preset) {
             }
         },
 
+        escapeHtml(str) {
+            if (!str) return "";
+            const div = document.createElement("div");
+            div.textContent = String(str);
+            return div.innerHTML;
+        },
+
         highlightMatch(text, query) {
             if (!text) return "";
-            if (!query || !query.trim()) return text;
+            const safeText = this.escapeHtml(text);
+            if (!query || !query.trim()) return safeText;
             const terms = query.trim().split(/\s+/).filter(Boolean);
-            if (!terms.length) return text;
-            const pattern = new RegExp(`(${terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
-            return text.replace(pattern, '<mark class="bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 font-bold px-0.5 rounded">$1</mark>');
+            if (!terms.length) return safeText;
+            const escapedTerms = terms.map(t => this.escapeHtml(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+            const pattern = new RegExp(`(${escapedTerms.join('|')})`, 'gi');
+            return safeText.replace(pattern, '<mark class="bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 font-bold px-0.5 rounded">$1</mark>');
         },
 
         navigateTo(section) {
@@ -1588,11 +1972,25 @@ selectPreset(preset) {
             } else if (section === 'announcements') {
                 this.loadAnnouncements();
             } else if (section === 'admin') {
-                this.loadAdminSettings();
-                this.loadAdminUsers();
-                this.loadAdminRolesAndPermissions();
-                this.loadAdminAuditLogs();
-                this.loadAdminBackups();
+                this.loadAdminDepartments();
+                this.loadAdminDashboards();
+                if (this.activeRoleView === 'auditor') {
+                    this.adminTab = 'audit';
+                    this.loadAdminAuditLogs();
+                } else if (this.activeRoleView === 'it_admin') {
+                    if (this.adminTab === 'settings' || this.adminTab === 'users' || this.adminTab === 'registrations') {
+                        this.adminTab = 'audit';
+                    }
+                    this.loadAdminRolesAndPermissions();
+                    this.loadAdminAuditLogs();
+                    this.loadAdminBackups();
+                } else {
+                    this.loadAdminSettings();
+                    this.loadAdminUsers();
+                    this.loadAdminRolesAndPermissions();
+                    this.loadAdminAuditLogs();
+                    this.loadAdminBackups();
+                }
             }
             this.navigationLatencyMs = parseFloat((performance.now() - t0).toFixed(2));
         },
@@ -2308,6 +2706,10 @@ selectPreset(preset) {
         },
 
         // ==================== VISITOR MANAGEMENT MODULE ====================
+        async loadVisitors() {
+            await Promise.allSettled([this.loadActiveVisitors(), this.loadVisitorLogs()]);
+        },
+
         async loadActiveVisitors() {
             try {
                 this.activeVisitorsList = await window.API.getActiveVisitors();
@@ -3407,6 +3809,14 @@ selectPreset(preset) {
         selectedRoleForPermissions: null,
         editingRolePermissions: [],
         adminRolePermissionsModalOpen: false,
+        adminCreateRoleModalOpen: false,
+        newRoleForm: {
+            name: "",
+            code: "",
+            description: "",
+            stakeholder_category: "Operational / Student Life",
+            permissions: []
+        },
         adminAuditLogsList: [],
         adminAuditLogsTotal: 0,
         adminAuditLogsPage: 1,
@@ -3417,15 +3827,401 @@ selectPreset(preset) {
         adminAuditLogsEndDate: '',
         selectedAuditLog: null,
         adminAuditLogDetailModalOpen: false,
-        adminBackupsList: [],
-        backupNote: '',
+        adminBackupsList: [],
+        backupNote: '',
+
+        // --- SA-02: ENTERPRISE INFRASTRUCTURE & CAMPUS GOVERNANCE STATE ---
+        infraSubTab: 'hierarchy', // hierarchy | campuses | hostels | buildings_blocks | rooms_beds | capacity | import_export | profile
+        infraLoading: false,
+        infraInstitution: null,
+        infraCampusesList: [],
+        infraHostelsList: [],
+        infraBuildingsList: [],
+        infraBlocksList: [],
+        infraFloorsList: [],
+        infraRoomsList: [],
+        infraRoomsTotal: 0,
+        infraRoomsPage: 1,
+        infraBedsList: [],
+        infraBedsTotal: 0,
+        infraBedsPage: 1,
+        infraHierarchy: null,
+        infraHierarchyLatency: 0,
+        infraCapacityMetrics: null,
+        infraCapacityLatency: 0,
+        infraSelectedCampusId: '',
+        infraSelectedHostelId: '',
+        infraSearchQuery: '',
+
+        // Modals state
+        infraCampusModalOpen: false,
+        infraCampusForm: {
+            name: '',
+            code: '',
+            address: '',
+            city: '',
+            state: '',
+            contact_person: '',
+            contact_email: '',
+            contact_phone: '',
+            operating_status: 'Active',
+            is_active: 1
+        },
+        infraCampusAdminModalOpen: false,
+        infraCampusAdminForm: {
+            campus_id: null,
+            admin_id: null,
+            contact_person: '',
+            contact_email: '',
+            contact_phone: ''
+        },
+        infraHostelModalOpen: false,
+        infraHostelForm: {
+            name: '',
+            code: '',
+            campus_id: '',
+            hostel_type: 'Co-Ed',
+            category: 'General',
+            curfew_time: '22:00',
+            visitor_hours: '16:00 - 19:00',
+            mess_type: 'Veg and Non-Veg',
+            address: '',
+            is_active: 1
+        },
+        infraHostelLeadershipModalOpen: false,
+        infraHostelLeadershipForm: {
+            hostel_id: null,
+            warden_id: '',
+            assistant_warden_id: '',
+            supervisor_id: ''
+        },
+        infraBuildingModalOpen: false,
+        infraBuildingForm: {
+            name: '',
+            code: '',
+            hostel_id: '',
+            total_floors: 3,
+            construction_year: 2022,
+            condition_rating: 'Good',
+            elevators_count: 0,
+            emergency_exits_count: 2,
+            is_active: 1
+        },
+        infraBlockModalOpen: false,
+        infraBlockForm: {
+            name: '',
+            code: '',
+            building_id: '',
+            description: '',
+            is_active: 1
+        },
+        infraFloorModalOpen: false,
+        infraFloorForm: {
+            floor_name: '',
+            floor_number: 1,
+            building_id: '',
+            block_id: '',
+            is_active: 1
+        },
+        infraRoomModalOpen: false,
+        infraRoomForm: {
+            room_number: '',
+            floor_id: '',
+            room_type: 'Double',
+            capacity: 2,
+            base_fee: 5000.0,
+            status: 'Available',
+            maintenance_status: 'Operational',
+            is_ac: 0,
+            attached_washroom: 0,
+            auto_create_beds: true,
+            is_active: 1
+        },
+        infraRoomCapacityModalOpen: false,
+        infraRoomCapacityForm: {
+            room_id: null,
+            room_number: '',
+            current_capacity: 0,
+            new_capacity: 0,
+            occupied_count: 0
+        },
+        infraBedMaintenanceModalOpen: false,
+        infraBedMaintenanceForm: {
+            bed_id: null,
+            bed_number: '',
+            maintenance_status: 'Under_Repair',
+            notes: ''
+        },
+        infraImportModalOpen: false,
+        infraImportForm: {
+            entity_type: 'campuses',
+            records_raw: '',
+            dry_run: true
+        },
+        infraImportResult: null,
+
+        async loadInfrastructureData() {
+            this.infraLoading = true;
+            try {
+                const [inst, campuses, hierarchy, capacity] = await Promise.all([
+                    window.API.getInstitution().catch(() => null),
+                    window.API.getCampuses().catch(() => []),
+                    window.API.getInfrastructureHierarchy().catch(() => null),
+                    window.API.getCapacityMetrics().catch(() => null)
+                ]);
+                this.infraInstitution = inst;
+                this.infraCampusesList = campuses || [];
+                if (hierarchy) {
+                    this.infraHierarchy = hierarchy.hierarchy;
+                    this.infraHierarchyLatency = hierarchy.latency_ms;
+                }
+                if (capacity) {
+                    this.infraCapacityMetrics = capacity;
+                    this.infraCapacityLatency = capacity.latency_ms;
+                }
+                if (this.infraSubTab === 'hostels') await this.loadInfraHostels();
+                if (this.infraSubTab === 'buildings_blocks') await this.loadInfraBuildingsAndBlocks();
+                if (this.infraSubTab === 'rooms_beds') await this.loadInfraRooms();
+            } catch (err) {
+                console.error("Infrastructure loading error:", err);
+            } finally {
+                this.infraLoading = false;
+            }
+        },
+
+        async loadInfraHostels() {
+            try {
+                const params = {};
+                if (this.infraSelectedCampusId) params.campus_id = this.infraSelectedCampusId;
+                if (this.infraSearchQuery) params.search = this.infraSearchQuery;
+                this.infraHostelsList = await window.API.getHostelsExtended(params);
+            } catch (err) {
+                this.showToast(`Failed to load hostels: ${err.message}`, "error");
+            }
+        },
+
+        async loadInfraBuildingsAndBlocks() {
+            try {
+                const bParams = {};
+                if (this.infraSelectedHostelId) bParams.hostel_id = this.infraSelectedHostelId;
+                const [blds, blks, flrs] = await Promise.all([
+                    window.API.getBuildingsExtended(bParams),
+                    window.API.getBlocks(bParams),
+                    window.API.getFloors()
+                ]);
+                this.infraBuildingsList = blds || [];
+                this.infraBlocksList = blks || [];
+                this.infraFloorsList = flrs || [];
+            } catch (err) {
+                this.showToast(`Failed to load buildings & blocks: ${err.message}`, "error");
+            }
+        },
+
+        async loadInfraRooms() {
+            try {
+                const params = { page: this.infraRoomsPage, limit: 50 };
+                if (this.infraSelectedHostelId) params.hostel_id = this.infraSelectedHostelId;
+                if (this.infraSearchQuery) params.search = this.infraSearchQuery;
+                const res = await window.API.getRooms(params);
+                this.infraRoomsList = res.rooms || [];
+                this.infraRoomsTotal = res.total || 0;
+            } catch (err) {
+                this.showToast(`Failed to load rooms: ${err.message}`, "error");
+            }
+        },
+
+        async loadInfraBeds(roomId = null) {
+            try {
+                const params = { page: this.infraBedsPage, limit: 50 };
+                if (roomId) params.room_id = roomId;
+                const res = await window.API.getBeds(params);
+                this.infraBedsList = res.beds || [];
+                this.infraBedsTotal = res.total || 0;
+            } catch (err) {
+                this.showToast(`Failed to load beds: ${err.message}`, "error");
+            }
+        },
+
+        async handleCreateCampus() {
+            try {
+                await window.API.createCampus(this.infraCampusForm);
+                this.showToast("Campus created successfully!", "success");
+                this.infraCampusModalOpen = false;
+                await this.loadInfrastructureData();
+            } catch (err) {
+                this.showToast(err.message, "error");
+            }
+        },
+
+        async handleCreateHostel() {
+            try {
+                await window.API.createHostelExtended(this.infraHostelForm);
+                this.showToast("Hostel registered successfully!", "success");
+                this.infraHostelModalOpen = false;
+                await this.loadInfraHostels();
+                await this.loadInfrastructureData();
+            } catch (err) {
+                this.showToast(err.message, "error");
+            }
+        },
+
+        async handleAssignHostelLeadership() {
+            try {
+                const hid = this.infraHostelLeadershipForm.hostel_id;
+                await window.API.assignHostelLeadership(hid, {
+                    warden_id: this.infraHostelLeadershipForm.warden_id ? parseInt(this.infraHostelLeadershipForm.warden_id) : null,
+                    assistant_warden_id: this.infraHostelLeadershipForm.assistant_warden_id ? parseInt(this.infraHostelLeadershipForm.assistant_warden_id) : null,
+                    supervisor_id: this.infraHostelLeadershipForm.supervisor_id ? parseInt(this.infraHostelLeadershipForm.supervisor_id) : null,
+                });
+                this.showToast("Hostel leadership assigned successfully!", "success");
+                this.infraHostelLeadershipModalOpen = false;
+                await this.loadInfraHostels();
+            } catch (err) {
+                this.showToast(err.message, "error");
+            }
+        },
+
+        async handleCreateBuilding() {
+            try {
+                await window.API.createBuildingExtended(this.infraBuildingForm);
+                this.showToast("Building registered successfully!", "success");
+                this.infraBuildingModalOpen = false;
+                await this.loadInfraBuildingsAndBlocks();
+                await this.loadInfrastructureData();
+            } catch (err) {
+                this.showToast(err.message, "error");
+            }
+        },
+
+        async handleCreateBlock() {
+            try {
+                await window.API.createBlock(this.infraBlockForm);
+                this.showToast("Block registered successfully!", "success");
+                this.infraBlockModalOpen = false;
+                await this.loadInfraBuildingsAndBlocks();
+            } catch (err) {
+                this.showToast(err.message, "error");
+            }
+        },
+
+        async handleCreateFloor() {
+            try {
+                await window.API.createFloor(this.infraFloorForm);
+                this.showToast("Floor registered successfully!", "success");
+                this.infraFloorModalOpen = false;
+                await this.loadInfraBuildingsAndBlocks();
+            } catch (err) {
+                this.showToast(err.message, "error");
+            }
+        },
+
+        async handleCreateRoom() {
+            try {
+                await window.API.createRoom(this.infraRoomForm, this.infraRoomForm.auto_create_beds);
+                this.showToast("Room registered successfully with auto beds!", "success");
+                this.infraRoomModalOpen = false;
+                await this.loadInfraRooms();
+                await this.loadInfrastructureData();
+            } catch (err) {
+                this.showToast(err.message, "error");
+            }
+        },
+
+        async handleUpdateRoomCapacity() {
+            try {
+                const rid = this.infraRoomCapacityForm.room_id;
+                await window.API.updateRoomCapacity(rid, parseInt(this.infraRoomCapacityForm.new_capacity));
+                this.showToast("Room capacity updated successfully!", "success");
+                this.infraRoomCapacityModalOpen = false;
+                await this.loadInfraRooms();
+                await this.loadInfrastructureData();
+            } catch (err) {
+                this.showToast(err.message, "error");
+            }
+        },
+
+        async handleToggleBedMaintenance() {
+            try {
+                const bid = this.infraBedMaintenanceForm.bed_id;
+                await window.API.updateBedMaintenance(
+                    bid,
+                    this.infraBedMaintenanceForm.maintenance_status,
+                    null,
+                    this.infraBedMaintenanceForm.notes
+                );
+                this.showToast("Bed maintenance status updated!", "success");
+                this.infraBedMaintenanceModalOpen = false;
+                await this.loadInfraRooms();
+                await this.loadInfrastructureData();
+            } catch (err) {
+                this.showToast(err.message, "error");
+            }
+        },
+
+        async handleExecuteBulkImport(dryRun = true) {
+            try {
+                let records;
+                const raw = this.infraImportForm.records_raw.trim();
+                if (raw.startsWith('[') || raw.startsWith('{')) {
+                    records = JSON.parse(raw);
+                    if (!Array.isArray(records)) records = [records];
+                } else {
+                    const lines = raw.split('\n').map(l => l.trim()).filter(l => l);
+                    const headers = lines[0].split(',').map(h => h.trim());
+                    records = lines.slice(1).map(line => {
+                        const vals = line.split(',').map(v => v.trim());
+                        const obj = {};
+                        headers.forEach((h, idx) => { obj[h] = vals[idx]; });
+                        return obj;
+                    });
+                }
+                const res = await window.API.bulkImportInfrastructure(this.infraImportForm.entity_type, records, dryRun);
+                this.infraImportResult = res;
+                if (!dryRun && res.success) {
+                    this.showToast(`Imported ${res.created_count} records successfully!`, "success");
+                    await this.loadInfrastructureData();
+                } else if (dryRun && res.success) {
+                    this.showToast(`Dry run successful! ${res.valid_rows} rows valid.`, "info");
+                }
+            } catch (err) {
+                this.showToast(`Import error: ${err.message}`, "error");
+            }
+        },
+
+        async handleExportInfrastructure(entityType, format = "csv") {
+            try {
+                const data = await window.API.bulkExportInfrastructure(entityType, null, null, format);
+                if (format === "csv") {
+                    const blob = new Blob([data], { type: "text/csv;charset=utf-8;" });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", url);
+                    link.setAttribute("download", `${entityType}_export.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                } else {
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", url);
+                    link.setAttribute("download", `${entityType}_export.json`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }
+                this.showToast(`Exported ${entityType} successfully!`, "success");
+            } catch (err) {
+                this.showToast(`Export failed: ${err.message}`, "error");
+            }
+        },
 
         async loadAdminSettings() {
             try {
                 const cat = this.selectedSettingsCategory === 'all' ? null : this.selectedSettingsCategory;
                 this.adminSettings = await window.API.getAdminSettings(cat);
             } catch (err) {
-                this.showToast(`Settings load error: ${err.message}`, "error");
+                console.warn(`Settings load: ${err.message}`);
             }
         },
 
@@ -3463,7 +4259,7 @@ selectPreset(preset) {
                 this.adminUsersList = res.items || [];
                 this.adminUsersTotal = res.total || 0;
             } catch (err) {
-                this.showToast(`Users load error: ${err.message}`, "error");
+                console.warn(`Users load: ${err.message}`);
             }
         },
 
@@ -3561,6 +4357,43 @@ selectPreset(preset) {
             }
         },
 
+        openCreateRoleModal() {
+            this.newRoleForm = {
+                name: "",
+                code: "",
+                description: "",
+                stakeholder_category: "Operational / Student Life",
+                permissions: []
+            };
+            this.adminCreateRoleModalOpen = true;
+        },
+
+        async submitCreateRole() {
+            if (!this.newRoleForm.name || !this.newRoleForm.code) {
+                this.showToast("Please provide both role name and canonical code.", "error");
+                return;
+            }
+            try {
+                const res = await window.API.createAdminRole(this.newRoleForm);
+                this.showToast(`Custom role '${res.name}' (${res.code}) created successfully!`, "success");
+                this.adminCreateRoleModalOpen = false;
+                await this.loadAdminRolesAndPermissions();
+            } catch (err) {
+                this.showToast(`Creation failed: ${err.message}`, "error");
+            }
+        },
+
+        async deleteCustomRole(r) {
+            if (!confirm(`Are you sure you want to delete role '${r.name}' (${r.code})?`)) return;
+            try {
+                await window.API.deleteAdminRole(r.id);
+                this.showToast(`Role '${r.name}' deleted successfully.`, "success");
+                await this.loadAdminRolesAndPermissions();
+            } catch (err) {
+                this.showToast(`Deletion failed: ${err.message}`, "error");
+            }
+        },
+
         async loadAdminAuditLogs(page = 1) {
             try {
                 this.adminAuditLogsPage = page;
@@ -3577,7 +4410,7 @@ selectPreset(preset) {
                 this.adminAuditLogsList = res.items || [];
                 this.adminAuditLogsTotal = res.total || 0;
             } catch (err) {
-                this.showToast(`Audit log load error: ${err.message}`, "error");
+                console.warn(`Audit log load: ${err.message}`);
             }
         },
 

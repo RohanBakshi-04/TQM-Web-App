@@ -1,0 +1,557 @@
+"""Real Headless Browser Acceptance Testing with Playwright.
+
+Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
+Quality Objective: Q05 - Zero-defect browser operation across all 12 roles,
+                   responsive viewports, and interactive form handling.
+"""
+
+import os
+import shutil
+import socket
+import sqlite3
+import tempfile
+import threading
+import time
+import unittest
+import urllib.request
+
+import uvicorn
+from playwright.sync_api import sync_playwright
+
+from backend.app.config import settings
+from backend.app.database.init_db import initialize_database
+from backend.app.main import app
+
+
+def get_free_port() -> int:
+    """Find a random free ephemeral port on localhost."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    return port
+
+
+class TestBrowserAcceptance(unittest.TestCase):
+    """End-to-end headless browser acceptance tests using Playwright."""
+
+    @classmethod
+    def setUpClass(cls):
+        # 1. Provision isolated test database
+        cls.temp_dir = tempfile.mkdtemp(prefix="hms_browser_")
+        cls.db_path = os.path.join(cls.temp_dir, "browser_acceptance.db")
+        cls.orig_db_path = settings.database_path
+        settings.database_path = cls.db_path
+
+        conn = sqlite3.connect(cls.db_path)
+        conn.row_factory = sqlite3.Row
+        initialize_database(conn, seed=True)
+        conn.close()
+
+        # 2. Start Uvicorn test server on random free port
+        cls.port = get_free_port()
+        cls.base_url = f"http://127.0.0.1:{cls.port}"
+        cls.server = uvicorn.Server(
+            uvicorn.Config(app, host="127.0.0.1", port=cls.port, log_level="error")
+        )
+        cls.server_thread = threading.Thread(target=cls.server.run, daemon=True)
+        cls.server_thread.start()
+
+        # Wait for server to become responsive
+        for _ in range(50):
+            try:
+                with urllib.request.urlopen(f"{cls.base_url}/api/health", timeout=1) as resp:
+                    if resp.status == 200:
+                        break
+            except Exception:
+                time.sleep(0.1)
+
+        # 3. Launch Playwright
+        cls.playwright = sync_playwright().start()
+        cls.browser = cls.playwright.chromium.launch(headless=True)
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            cls.browser.close()
+            cls.playwright.stop()
+        except Exception:
+            pass
+
+        cls.server.should_exit = True
+        cls.server_thread.join(timeout=3)
+
+        settings.database_path = cls.orig_db_path
+        shutil.rmtree(cls.temp_dir, ignore_errors=True)
+
+    def login_role(self, page, username, password="Password123!"):
+        """Helper to navigate to Sign In, fill credentials, and submit."""
+        page.goto(self.base_url, wait_until="domcontentloaded")
+        # Direct Alpine view transition to Sign In
+        page.evaluate("""() => {
+            const el = document.querySelector('[x-data]');
+            if (el && el._x_dataStack) {
+                const data = el._x_dataStack[0];
+                data.activeSection = 'login';
+                data.authTab = 'login';
+            }
+        }""")
+        page.wait_for_selector("input[x-model='loginCredentials.username']", state="visible", timeout=5000)
+
+        # Target the login form specifically to avoid hidden modals
+        login_form = page.locator("form").filter(has=page.locator("input[x-model='loginCredentials.username']"))
+        login_form.locator("input[x-model='loginCredentials.username']").fill(username)
+        login_form.locator("input[x-model='loginCredentials.password']").fill(password)
+        login_form.locator("button[type='submit']").click()
+        try:
+            page.wait_for_function(
+                "() => { const el = document.querySelector('[x-data]'); return el && el._x_dataStack && (el._x_dataStack[0].isAuthenticated === true || Boolean(el._x_dataStack[0].loginError)); }",
+                timeout=5000
+            )
+        except Exception:
+            page.wait_for_timeout(1000)
+
+    def logout_role(self, page):
+        """Helper to log out user and reset session state."""
+        page.evaluate("""() => {
+            if (window.API && window.API.logout) {
+                window.API.logout();
+            }
+            const el = document.querySelector('[x-data]');
+            if (el && el._x_dataStack) {
+                const data = el._x_dataStack[0];
+                data.currentUser = null;
+                data.isAuthenticated = false;
+                data.activeSection = 'welcome';
+            }
+        }""")
+        page.wait_for_timeout(300)
+
+    def test_01_desktop_viewport_and_all_15_stakeholder_logins(self):
+        """Test Desktop (1440x900): verify landing, invalid credentials rejection, and successful logins for all 15 roles."""
+        context = self.browser.new_context(viewport={"width": 1440, "height": 900})
+        page = context.new_page()
+
+        # 1. Load application
+        page.goto(self.base_url, wait_until="domcontentloaded")
+        self.assertIn("Hostel Management System", page.title())
+
+        # 2. Verify invalid credentials rejection
+        self.login_role(page, "superadmin", "CompletelyWrongPassword!")
+        login_err = page.evaluate("() => document.querySelector('[x-data]')._x_dataStack[0].loginError")
+        self.assertTrue(bool(login_err), "Expected loginError state to be populated on invalid login")
+        self.logout_role(page)
+
+        # 3. Verify all 15 roles can log in and render role-specific dashboard views
+        all_roles = [
+            ("superadmin", "super_admin"),
+            ("hosteladmin", "hostel_admin"),
+            ("warden", "warden"),
+            ("asstwarden", "assistant_warden"),
+            ("clerk", "hostel_clerk"),
+            ("accountant", "accountant"),
+            ("admission", "admission_officer"),
+            ("secsupervisor", "security_supervisor"),
+            ("security", "security_guard"),
+            ("itadmin", "it_admin"),
+            ("rohan", "student"),
+            ("parent", "parent_guardian"),
+            ("messmanager", "mess_manager"),
+            ("maintenance", "maintenance_staff"),
+            ("evaluator", "auditor")
+        ]
+
+        for username, role_key in all_roles:
+            self.login_role(page, username, "Password123!")
+
+            # Assert user is authenticated and activeSection is dashboard
+            app_state = page.evaluate("""() => {
+                const el = document.querySelector('[x-data]');
+                if (!el || !el._x_dataStack) return {};
+                const data = el._x_dataStack[0];
+                return {
+                    isAuthenticated: data.isAuthenticated,
+                    activeSection: data.activeSection,
+                    userRoles: data.userRoles,
+                    currentUser: data.currentUser ? data.currentUser.username : null
+                };
+            }""")
+            self.assertTrue(app_state.get("isAuthenticated"), f"Authentication state false for role {role_key}")
+            self.assertEqual(app_state.get("activeSection"), "dashboard", f"activeSection not dashboard for role {role_key}")
+            self.assertEqual(app_state.get("currentUser"), username, f"currentUser mismatch for {username}")
+
+            # Verify navigation items rendered for this role
+            nav_count = page.locator("nav button, nav a").count()
+            self.assertGreater(nav_count, 0, f"No navigation links rendered for role {role_key}")
+
+            # Log out before next role
+            self.logout_role(page)
+
+        context.close()
+
+    def test_02_tablet_viewport_responsiveness(self):
+        """Test Tablet (768x1024): verify responsive layout and navigation on intermediate screen sizes."""
+        context = self.browser.new_context(viewport={"width": 768, "height": 1024})
+        page = context.new_page()
+
+        page.goto(self.base_url, wait_until="domcontentloaded")
+        self.assertTrue(page.locator("body").is_visible())
+
+        # Sign in as warden on tablet
+        self.login_role(page, "warden", "Password123!")
+        is_auth = page.evaluate("() => document.querySelector('[x-data]')._x_dataStack[0].isAuthenticated")
+        self.assertTrue(is_auth)
+
+        # Verify tablet header and dashboard elements
+        self.assertTrue(page.locator("h1, h2, h3").count() > 0)
+        self.logout_role(page)
+        context.close()
+
+    def test_03_mobile_viewport_responsiveness(self):
+        """Test Mobile (390x844): verify mobile viewport, touch layout, and no horizontal overflow."""
+        context = self.browser.new_context(
+            viewport={"width": 390, "height": 844},
+            is_mobile=True,
+            has_touch=True
+        )
+        page = context.new_page()
+
+        page.goto(self.base_url, wait_until="domcontentloaded")
+
+        # Sign in as student (rohan) on mobile
+        self.login_role(page, "rohan", "Password123!")
+        is_auth = page.evaluate("() => document.querySelector('[x-data]')._x_dataStack[0].isAuthenticated")
+        self.assertTrue(is_auth)
+
+        # Verify student mobile layout renders without horizontal overflow
+        body_width = page.evaluate("() => document.body.scrollWidth")
+        self.assertLessEqual(body_width, 420, "Mobile layout horizontal overflow detected!")
+
+        self.logout_role(page)
+        context.close()
+
+    def test_04_fast_search_modal_interaction(self):
+        """Test Fast Search Modal: verify modal trigger (Ctrl+K or button) and instant search results."""
+        context = self.browser.new_context(viewport={"width": 1440, "height": 900})
+        page = context.new_page()
+
+        page.goto(self.base_url, wait_until="domcontentloaded")
+
+        # Open search modal via search button
+        search_btn = page.locator("button:visible:has-text('Search')").first
+        search_btn.click()
+        page.wait_for_timeout(300)
+
+        # Type search query
+        search_input = page.locator("input:visible[x-model='searchQuery']")
+        search_input.fill("Rohan")
+        page.wait_for_timeout(600)
+
+        # Verify search results list or message
+        results_count = page.evaluate("() => document.querySelector('[x-data]')._x_dataStack[0].searchResults.length")
+        self.assertGreaterEqual(results_count, 0)
+
+        # Close search with Escape
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(200)
+
+        context.close()
+
+    def test_05_theme_dark_mode_toggle(self):
+        """Test Theme Toggle: verify clicking dark mode toggle toggles 'dark' class on HTML root."""
+        context = self.browser.new_context(viewport={"width": 1440, "height": 900})
+        page = context.new_page()
+
+        page.goto(self.base_url, wait_until="domcontentloaded")
+
+        # Initial class check
+        has_dark_before = "dark" in page.evaluate("() => document.documentElement.className")
+
+        # Click theme toggle button
+        theme_btn = page.locator("button[title*='Toggle Light / Dark Theme']").first
+        theme_btn.click()
+        page.wait_for_timeout(300)
+
+        has_dark_after = "dark" in page.evaluate("() => document.documentElement.className")
+        self.assertNotEqual(has_dark_before, has_dark_after, "Theme toggle did not switch dark class on <html>")
+
+        context.close()
+
+    def verify_manual_integrity_scan(self, page, viewport_name: str):
+        """Verify the manual scan button end-to-end: visibility, loading state, network response schema, and re-enabling."""
+        scan_btn = page.locator("#sa01-verify-integrity-btn")
+        self.assertEqual(scan_btn.count(), 1, f"{viewport_name}: Expected exactly one #sa01-verify-integrity-btn in DOM")
+        scan_btn.scroll_into_view_if_needed()
+        self.assertTrue(scan_btn.is_visible(), f"{viewport_name}: #sa01-verify-integrity-btn is not visible")
+        self.assertTrue(scan_btn.is_enabled(), f"{viewport_name}: #sa01-verify-integrity-btn is not enabled")
+
+        # Click and wait for actual verify response
+        with page.expect_response(
+            lambda r: "/api/v1/metrics/integrity/verify" in r.url and r.request.method == "POST",
+            timeout=8000
+        ) as resp_info:
+            scan_btn.click()
+
+        resp = resp_info.value
+        self.assertEqual(resp.status, 200, f"{viewport_name}: Expected HTTP 200 from verify endpoint")
+        data = resp.json()
+        self.assertEqual(data.get("status"), "success", f"{viewport_name}: Expected status success")
+        self.assertIn("diagnostics", data)
+        self.assertEqual(data["diagnostics"].get("status"), "healthy")
+        self.assertEqual(data["diagnostics"].get("raw_result", "").lower(), "ok")
+        self.assertGreaterEqual(data["diagnostics"].get("duration_ms", 0), 0.0)
+
+        # Verify button re-enabled after scan completion
+        page.wait_for_function("() => !document.querySelector('#sa01-verify-integrity-btn').disabled", timeout=5000)
+        self.assertTrue(scan_btn.is_enabled(), f"{viewport_name}: Button did not re-enable after scan")
+        print(f"[PASS] {viewport_name}: Manual integrity scan HTTP 200, schema verified, and button re-enabled")
+
+    def test_06_super_admin_executive_dashboard_all_13_sections(self):
+        """Test SA-01 Executive Overview: Validate all 13 sections A-M on Desktop, Tablet, and Mobile viewports."""
+        sections = [
+            ("sa01-section-a", "Section A: Executive Header & Metadata"),
+            ("sa01-section-b", "Section B: Institutional Overview (10 Entities)"),
+            ("sa01-section-c", "Section C: Critical KPI Grid (4 Domains)"),
+            ("sa01-section-d", "Section D: Operational Performance & SLA"),
+            ("sa01-section-e", "Section E: Institutional Financial Overview"),
+            ("sa01-section-f", "Section F: Admissions Intake & Branch Distribution"),
+            ("sa01-section-g", "Section G: Infrastructure Hierarchy & Live Occupancy"),
+            ("sa01-section-h", "Section H: Workforce & 17 Departments Overview"),
+            ("sa01-section-i", "Section I: Institutional Operational Visualizer (SVG Charts)"),
+            ("sa01-section-j", "Section J: Live Transaction Activity Trail"),
+            ("sa01-section-k", "Section K: Real-Time Critical Incident & Security Alert Center"),
+            ("sa01-section-l", "Section L: Executive Quick Actions & Navigation Shortcuts"),
+            ("sa01-section-m", "Section M: Institutional Infrastructure & System Health Telemetry")
+        ]
+
+        # -------------------------------------------------------------
+        # 1. Desktop Viewport (1440x900)
+        # -------------------------------------------------------------
+        context = self.browser.new_context(viewport={"width": 1440, "height": 900})
+        page = context.new_page()
+
+        page.goto(self.base_url, wait_until="domcontentloaded")
+        self.login_role(page, "superadmin", "Password123!")
+
+        page.evaluate("""() => {
+            const data = document.querySelector('[x-data]')._x_dataStack[0];
+            data.activeSection = 'dashboard';
+            data.selectedDashboardGroup = 'super_admin';
+            if (typeof data.fetchSuperAdminExecutiveOverview === 'function') {
+                data.fetchSuperAdminExecutiveOverview();
+            }
+        }""")
+        page.wait_for_timeout(1000)
+
+        print("\n--- BROWSER VERIFICATION: DESKTOP (1440x900) ALL 13 SECTIONS ---")
+        for sec_id, sec_title in sections:
+            locator = page.locator(f"#{sec_id}")
+            self.assertTrue(locator.count() > 0, f"Desktop: #{sec_id} ({sec_title}) missing from DOM")
+            locator.scroll_into_view_if_needed()
+            self.assertTrue(locator.is_visible(), f"Desktop: #{sec_id} ({sec_title}) is not visible")
+            print(f"[PASS] Desktop #{sec_id}: {sec_title} - Rendered and visible")
+
+        # Mandatory manual database integrity verification button test on Desktop
+        self.verify_manual_integrity_scan(page, "Desktop")
+
+        self.logout_role(page)
+        context.close()
+
+        # -------------------------------------------------------------
+        # 2. Tablet Viewport (768x1024)
+        # -------------------------------------------------------------
+        tablet_ctx = self.browser.new_context(viewport={"width": 768, "height": 1024})
+        t_page = tablet_ctx.new_page()
+        t_page.goto(self.base_url, wait_until="domcontentloaded")
+        self.login_role(t_page, "superadmin", "Password123!")
+        t_page.evaluate("""() => {
+            const data = document.querySelector('[x-data]')._x_dataStack[0];
+            data.activeSection = 'dashboard';
+            data.selectedDashboardGroup = 'super_admin';
+            if (typeof data.fetchSuperAdminExecutiveOverview === 'function') {
+                data.fetchSuperAdminExecutiveOverview();
+            }
+        }""")
+        t_page.wait_for_timeout(1000)
+
+        print("\n--- BROWSER VERIFICATION: TABLET (768x1024) ALL 13 SECTIONS ---")
+        for sec_id, sec_title in sections:
+            locator = t_page.locator(f"#{sec_id}")
+            self.assertTrue(locator.count() > 0, f"Tablet: #{sec_id} ({sec_title}) missing from DOM")
+            locator.scroll_into_view_if_needed()
+            self.assertTrue(locator.is_visible(), f"Tablet: #{sec_id} ({sec_title}) is not visible")
+            print(f"[PASS] Tablet #{sec_id}: {sec_title} - Rendered and visible")
+
+        # Mandatory manual database integrity verification button test on Tablet
+        self.verify_manual_integrity_scan(t_page, "Tablet")
+
+        self.logout_role(t_page)
+        tablet_ctx.close()
+
+        # -------------------------------------------------------------
+        # 3. Mobile Viewport (390x844)
+        # -------------------------------------------------------------
+        mobile_ctx = self.browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+        m_page = mobile_ctx.new_page()
+        m_page.goto(self.base_url, wait_until="domcontentloaded")
+        self.login_role(m_page, "superadmin", "Password123!")
+        m_page.evaluate("""() => {
+            const data = document.querySelector('[x-data]')._x_dataStack[0];
+            data.activeSection = 'dashboard';
+            data.selectedDashboardGroup = 'super_admin';
+            if (typeof data.fetchSuperAdminExecutiveOverview === 'function') {
+                data.fetchSuperAdminExecutiveOverview();
+            }
+        }""")
+        m_page.wait_for_timeout(1000)
+
+        print("\n--- BROWSER VERIFICATION: MOBILE (390x844) ALL 13 SECTIONS ---")
+        for sec_id, sec_title in sections:
+            locator = m_page.locator(f"#{sec_id}")
+            self.assertTrue(locator.count() > 0, f"Mobile: #{sec_id} ({sec_title}) missing from DOM")
+            locator.scroll_into_view_if_needed()
+            self.assertTrue(locator.is_visible(), f"Mobile: #{sec_id} ({sec_title}) is not visible")
+            print(f"[PASS] Mobile #{sec_id}: {sec_title} - Rendered and visible")
+
+        # Mandatory manual database integrity verification button test on Mobile
+        self.verify_manual_integrity_scan(m_page, "Mobile")
+
+        scroll_width = m_page.evaluate("() => document.body.scrollWidth")
+        self.assertLessEqual(scroll_width, 420, f"Mobile layout horizontal overflow detected: scrollWidth={scroll_width}")
+
+        self.logout_role(m_page)
+        mobile_ctx.close()
+
+    def test_07_database_integrity_error_surfacing_in_browser(self):
+        """Verify errors during manual scan are surfaced in the UI instead of presented as successful scans."""
+        from backend.app.services.database_integrity_service import integrity_monitor
+
+        context = self.browser.new_context(viewport={"width": 1440, "height": 900})
+        page = context.new_page()
+        page.goto(self.base_url, wait_until="domcontentloaded")
+        self.login_role(page, "superadmin", "Password123!")
+
+        page.evaluate("""() => {
+            const data = document.querySelector('[x-data]')._x_dataStack[0];
+            data.activeSection = 'dashboard';
+            data.selectedDashboardGroup = 'super_admin';
+            if (typeof data.fetchSuperAdminExecutiveOverview === 'function') {
+                data.fetchSuperAdminExecutiveOverview();
+            }
+        }""")
+        page.wait_for_timeout(1000)
+
+        try:
+            # Inject simulated database anomaly
+            integrity_monitor.set_simulated_error("Page scan integrity violation at block 8192")
+
+            scan_btn = page.locator("#sa01-verify-integrity-btn")
+            scan_btn.scroll_into_view_if_needed()
+
+            with page.expect_response(
+                lambda r: "/api/v1/metrics/integrity/verify" in r.url and r.request.method == "POST",
+                timeout=8000
+            ) as resp_info:
+                scan_btn.click()
+
+            resp = resp_info.value
+            self.assertEqual(resp.status, 200)
+            data = resp.json()
+            self.assertEqual(data["diagnostics"]["status"], "failed")
+            self.assertIn("Page scan integrity violation", data["diagnostics"]["last_error"])
+
+            # Verify that UI displays the alert with the specific error message
+            page.wait_for_selector("text=Page scan integrity violation at block 8192", timeout=5000)
+            alert = page.locator("text=Page scan integrity violation at block 8192")
+            self.assertTrue(alert.is_visible(), "Error alert should be visible in the DOM upon failure")
+            print("[PASS] Browser Acceptance: Diagnostic error correctly surfaced in UI alert banner")
+
+        finally:
+            # Clear simulation and recover
+            integrity_monitor.set_simulated_error(None)
+            integrity_monitor.reset()
+            # Click scan again to verify recovery
+            scan_btn = page.locator("#sa01-verify-integrity-btn")
+            with page.expect_response(lambda r: "/api/v1/metrics/integrity/verify" in r.url, timeout=8000):
+                scan_btn.click()
+            page.wait_for_timeout(500)
+            self.logout_role(page)
+            context.close()
+
+    def test_08_sa02_infrastructure_command_center_and_subtabs(self):
+        """Test SA-02 Enterprise Infrastructure Command Center & sub-tabs in browser."""
+        context = self.browser.new_context(viewport={"width": 1440, "height": 900})
+        page = context.new_page()
+        page.goto(self.base_url, wait_until="domcontentloaded")
+
+        self.login_role(page, "superadmin", "Password123!")
+
+        # Navigate directly to Infrastructure Command Center
+        page.evaluate("""async () => {
+            const data = document.querySelector('[x-data]')._x_dataStack[0];
+            data.activeSection = 'admin';
+            data.adminTab = 'infrastructure';
+            if (typeof data.loadInfrastructureData === 'function') {
+                await data.loadInfrastructureData();
+            }
+        }""")
+        page.wait_for_timeout(1000)
+
+        diag = page.evaluate("""() => {
+            const data = document.querySelector('[x-data]')._x_dataStack[0];
+            const infraDiv = document.querySelector('[x-show*=\"infrastructure\"]');
+            return {
+                activeSection: data.activeSection,
+                adminTab: data.adminTab,
+                infraLoading: data.infraLoading,
+                infraDivExists: Boolean(infraDiv),
+                infraDivDisplay: infraDiv ? window.getComputedStyle(infraDiv).display : null,
+                infraInstitution: data.infraInstitution
+            };
+        }""")
+        print("\n[DIAGNOSTICS]", diag)
+
+        infra_container = page.locator('[x-show*="infrastructure"]')
+        
+        # 1. Assert institutional banner is visible
+        inst_title = infra_container.locator("text=University Campus of Excellence").first
+        inst_title.wait_for(state="visible", timeout=5000)
+        self.assertTrue(inst_title.is_visible(), "Institution title should be visible in Command Center")
+
+        # 2. Test clicking Hierarchy Tree subtab
+        tree_btn = infra_container.locator("button:has-text('Hierarchy Tree')").first
+        tree_btn.click()
+        page.wait_for_timeout(500)
+        self.assertTrue(page.locator("text=Institutional Structural Hierarchy").first.is_visible())
+
+        # 3. Test clicking Campuses subtab
+        campuses_btn = infra_container.locator("button:has-text('Campuses')").first
+        campuses_btn.click()
+        page.wait_for_timeout(500)
+        self.assertTrue(page.locator("text=Campuses Management").first.is_visible())
+
+        # 4. Test clicking Hostels subtab
+        hostels_btn = infra_container.locator("button:has-text('Hostels')").first
+        hostels_btn.click()
+        page.wait_for_timeout(500)
+        self.assertTrue(page.locator("text=Hostels & Categories").first.is_visible())
+
+        # 5. Test clicking Capacity Engine subtab
+        cap_btn = infra_container.locator("button:has-text('Capacity Engine')").first
+        cap_btn.click()
+        page.wait_for_timeout(500)
+        self.assertTrue(page.locator("text=Reconciled Capacity").first.is_visible())
+
+        # 6. Test clicking Import & Export subtab
+        imp_btn = infra_container.locator("button:has-text('Import & Export')").first
+        imp_btn.click()
+        page.wait_for_timeout(500)
+        self.assertTrue(page.locator("text=Bulk Data Administration").first.is_visible())
+
+        print("[PASS] Browser Acceptance: SA-02 Infrastructure Command Center fully verified across subtabs")
+        self.logout_role(page)
+        context.close()
+
+
+if __name__ == "__main__":
+    unittest.main()

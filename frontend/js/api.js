@@ -281,6 +281,32 @@ const API = {
     },
 
     /**
+     * Fetch SA-01 Super Admin Executive Overview with Q05 sub-10ms response guarantee.
+     */
+    async getExecutiveOverview(filters = {}, bypassCache = false) {
+        const params = new URLSearchParams();
+        if (filters.academic_session && filters.academic_session !== 'all') params.append("academic_session", filters.academic_session);
+        if (filters.campus && filters.campus !== 'all') params.append("campus", filters.campus);
+        if (filters.hostel_id && filters.hostel_id !== 'all') params.append("hostel_id", filters.hostel_id);
+        if (filters.department && filters.department !== 'all') params.append("department", filters.department);
+        if (filters.date_from) params.append("date_from", filters.date_from);
+        if (filters.date_to) params.append("date_to", filters.date_to);
+        if (bypassCache) params.append("bypass_cache", "true");
+
+        const qs = params.toString();
+        const url = `${this.baseUrl}/api/v1/dashboard/executive-overview${qs ? '?' + qs : ''}`;
+
+        const response = await this.request(url, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.detail || `HTTP ${response.status}`);
+        }
+        return await response.json();
+    },
+
+    /**
      * Fetch live or cached dashboard aggregation metrics with Q05 sub-10ms acceleration.
      */
     async getDashboardStats(hostelId = null, bypassCache = false) {
@@ -383,7 +409,7 @@ const API = {
             throw new Error(data.detail || "Failed to change password.");
         }
         if (data.access_token) {
-            localStorage.setItem('auth_token', data.access_token);
+            this.setToken(data.access_token);
         }
         return data;
     },
@@ -1857,11 +1883,72 @@ const API = {
         return await response.json();
     },
 
+    async createAdminRole(payload) {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/roles`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to create custom role.");
+        return res;
+    },
+
+    async deleteAdminRole(roleId) {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/roles/${roleId}`, {
+            method: "DELETE",
+            headers: this.getHeaders()
+        });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.detail || "Failed to delete role.");
+        return res;
+    },
+
     async getAdminPermissions() {
         const response = await this.request(`${this.baseUrl}/api/v1/admin/permissions`, {
             headers: this.getHeaders()
         });
         if (!response.ok) throw new Error((await response.json()).detail || "Failed to load permissions.");
+        return await response.json();
+    },
+
+    async getDepartments() {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/departments`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load departments.");
+        return await response.json();
+    },
+
+    async getDashboards() {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/dashboards`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load dashboards.");
+        return await response.json();
+    },
+
+    async getDashboardById(dashboardId) {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/dashboards/${dashboardId}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || `Failed to load dashboard ${dashboardId}.`);
+        return await response.json();
+    },
+
+    async getRoleHistory(limit = 100) {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/role-history?limit=${limit}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load role history.");
+        return await response.json();
+    },
+
+    async getPermissionHistory(limit = 100) {
+        const response = await this.request(`${this.baseUrl}/api/v1/admin/permission-history?limit=${limit}`, {
+            headers: this.getHeaders()
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || "Failed to load permission history.");
         return await response.json();
     },
 
@@ -1943,6 +2030,425 @@ const API = {
         const res = await response.json();
         if (!response.ok) throw new Error(res.detail || "Failed to process registration action.");
         return res;
+    },
+
+    // ==========================================
+    // SA-02: Complete Infrastructure API Suite
+    // ==========================================
+    async getInstitution() {
+        const res = await this.request(`${this.baseUrl}/api/v1/institutions`, { headers: this.getHeaders() });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to load institution profile.");
+        return await res.json();
+    },
+
+    async updateInstitution(data) {
+        const res = await this.request(`${this.baseUrl}/api/v1/institutions`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to update institution profile.");
+        return await res.json();
+    },
+
+    async updateInstitutionConfig(data) {
+        const res = await this.request(`${this.baseUrl}/api/v1/institutions/config`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to update institution config.");
+        return await res.json();
+    },
+
+    async getCampuses(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const res = await this.request(`${this.baseUrl}/api/v1/campuses${qs ? '?' + qs : ''}`, { headers: this.getHeaders() });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to load campuses.");
+        return await res.json();
+    },
+
+    async getCampus(id) {
+        const res = await this.request(`${this.baseUrl}/api/v1/campuses/${id}`, { headers: this.getHeaders() });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to load campus details.");
+        return await res.json();
+    },
+
+    async createCampus(data) {
+        const res = await this.request(`${this.baseUrl}/api/v1/campuses`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to create campus.");
+        return await res.json();
+    },
+
+    async updateCampus(id, data) {
+        const res = await this.request(`${this.baseUrl}/api/v1/campuses/${id}`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to update campus.");
+        return await res.json();
+    },
+
+    async setCampusStatus(id, operatingStatus, isActive = 1) {
+        const res = await this.request(`${this.baseUrl}/api/v1/campuses/${id}/status`, {
+            method: "PATCH",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ operating_status: operatingStatus, is_active: isActive })
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to update campus status.");
+        return await res.json();
+    },
+
+    async assignCampusAdmin(id, data) {
+        const res = await this.request(`${this.baseUrl}/api/v1/campuses/${id}/admin`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to assign campus admin.");
+        return await res.json();
+    },
+
+    async deleteCampus(id) {
+        const res = await this.request(`${this.baseUrl}/api/v1/campuses/${id}`, {
+            method: "DELETE",
+            headers: this.getHeaders()
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to delete campus.");
+        return await res.json();
+    },
+
+    async getHostelsExtended(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const res = await this.request(`${this.baseUrl}/api/v1/infrastructure/hostels${qs ? '?' + qs : ''}`, { headers: this.getHeaders() });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to load hostels.");
+        return await res.json();
+    },
+
+    async getHostelExtended(id) {
+        const res = await this.request(`${this.baseUrl}/api/v1/infrastructure/hostels/${id}`, { headers: this.getHeaders() });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to load hostel details.");
+        return await res.json();
+    },
+
+    async createHostelExtended(data) {
+        const res = await this.request(`${this.baseUrl}/api/v1/infrastructure/hostels`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to create hostel.");
+        return await res.json();
+    },
+
+    async updateHostelExtended(id, data) {
+        const res = await this.request(`${this.baseUrl}/api/v1/infrastructure/hostels/${id}`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to update hostel.");
+        return await res.json();
+    },
+
+    async assignHostelLeadership(id, data) {
+        const res = await this.request(`${this.baseUrl}/api/v1/infrastructure/hostels/${id}/leadership`, {
+            method: "PATCH",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to update hostel leadership.");
+        return await res.json();
+    },
+
+    async updateHostelCategory(id, category) {
+        const res = await this.request(`${this.baseUrl}/api/v1/infrastructure/hostels/${id}/category`, {
+            method: "PATCH",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ category })
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to update hostel category.");
+        return await res.json();
+    },
+
+    async deleteHostelExtended(id) {
+        const res = await this.request(`${this.baseUrl}/api/v1/infrastructure/hostels/${id}`, {
+            method: "DELETE",
+            headers: this.getHeaders()
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to delete hostel.");
+        return await res.json();
+    },
+
+    async getBuildingsExtended(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const res = await this.request(`${this.baseUrl}/api/v1/infrastructure/buildings${qs ? '?' + qs : ''}`, { headers: this.getHeaders() });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to load buildings.");
+        return await res.json();
+    },
+
+    async createBuildingExtended(data) {
+        const res = await this.request(`${this.baseUrl}/api/v1/infrastructure/buildings`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to create building.");
+        return await res.json();
+    },
+
+    async updateBuildingExtended(id, data) {
+        const res = await this.request(`${this.baseUrl}/api/v1/infrastructure/buildings/${id}`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to update building.");
+        return await res.json();
+    },
+
+    async deleteBuildingExtended(id) {
+        const res = await this.request(`${this.baseUrl}/api/v1/infrastructure/buildings/${id}`, {
+            method: "DELETE",
+            headers: this.getHeaders()
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to delete building.");
+        return await res.json();
+    },
+
+    async getBlocks(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const res = await this.request(`${this.baseUrl}/api/v1/blocks${qs ? '?' + qs : ''}`, { headers: this.getHeaders() });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to load blocks.");
+        return await res.json();
+    },
+
+    async createBlock(data) {
+        const res = await this.request(`${this.baseUrl}/api/v1/blocks`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to create block.");
+        return await res.json();
+    },
+
+    async updateBlock(id, data) {
+        const res = await this.request(`${this.baseUrl}/api/v1/blocks/${id}`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to update block.");
+        return await res.json();
+    },
+
+    async deleteBlock(id) {
+        const res = await this.request(`${this.baseUrl}/api/v1/blocks/${id}`, {
+            method: "DELETE",
+            headers: this.getHeaders()
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to delete block.");
+        return await res.json();
+    },
+
+    async getFloors(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const res = await this.request(`${this.baseUrl}/api/v1/floors${qs ? '?' + qs : ''}`, { headers: this.getHeaders() });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to load floors.");
+        return await res.json();
+    },
+
+    async createFloor(data) {
+        const res = await this.request(`${this.baseUrl}/api/v1/floors`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to create floor.");
+        return await res.json();
+    },
+
+    async updateFloor(id, data) {
+        const res = await this.request(`${this.baseUrl}/api/v1/floors/${id}`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to update floor.");
+        return await res.json();
+    },
+
+    async deleteFloor(id) {
+        const res = await this.request(`${this.baseUrl}/api/v1/floors/${id}`, {
+            method: "DELETE",
+            headers: this.getHeaders()
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to delete floor.");
+        return await res.json();
+    },
+
+    async getRooms(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const res = await this.request(`${this.baseUrl}/api/v1/rooms${qs ? '?' + qs : ''}`, { headers: this.getHeaders() });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to load rooms.");
+        return await res.json();
+    },
+
+    async getRoom(id) {
+        const res = await this.request(`${this.baseUrl}/api/v1/rooms/${id}`, { headers: this.getHeaders() });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to load room details.");
+        return await res.json();
+    },
+
+    async createRoom(data, autoCreateBeds = true) {
+        const res = await this.request(`${this.baseUrl}/api/v1/rooms?auto_create_beds=${autoCreateBeds}`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to create room.");
+        return await res.json();
+    },
+
+    async updateRoom(id, data) {
+        const res = await this.request(`${this.baseUrl}/api/v1/rooms/${id}`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to update room.");
+        return await res.json();
+    },
+
+    async updateRoomCapacity(id, capacity) {
+        const res = await this.request(`${this.baseUrl}/api/v1/rooms/${id}/capacity`, {
+            method: "PATCH",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ capacity })
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to update room capacity.");
+        return await res.json();
+    },
+
+    async updateRoomMaintenance(id, maintenanceStatus, status = null) {
+        const res = await this.request(`${this.baseUrl}/api/v1/rooms/${id}/maintenance`, {
+            method: "PATCH",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ maintenance_status: maintenanceStatus, status })
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to update room maintenance.");
+        return await res.json();
+    },
+
+    async deleteRoom(id) {
+        const res = await this.request(`${this.baseUrl}/api/v1/rooms/${id}`, {
+            method: "DELETE",
+            headers: this.getHeaders()
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to delete room.");
+        return await res.json();
+    },
+
+    async getBeds(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        const res = await this.request(`${this.baseUrl}/api/v1/beds${qs ? '?' + qs : ''}`, { headers: this.getHeaders() });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to load beds.");
+        return await res.json();
+    },
+
+    async getBed(id) {
+        const res = await this.request(`${this.baseUrl}/api/v1/beds/${id}`, { headers: this.getHeaders() });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to load bed details.");
+        return await res.json();
+    },
+
+    async createBed(data) {
+        const res = await this.request(`${this.baseUrl}/api/v1/beds`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to create bed.");
+        return await res.json();
+    },
+
+    async updateBed(id, data) {
+        const res = await this.request(`${this.baseUrl}/api/v1/beds/${id}`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to update bed.");
+        return await res.json();
+    },
+
+    async updateBedMaintenance(id, maintenanceStatus, status = null, notes = "") {
+        const res = await this.request(`${this.baseUrl}/api/v1/beds/${id}/maintenance`, {
+            method: "PATCH",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ maintenance_status: maintenanceStatus, status, notes })
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to update bed maintenance.");
+        return await res.json();
+    },
+
+    async deleteBed(id) {
+        const res = await this.request(`${this.baseUrl}/api/v1/beds/${id}`, {
+            method: "DELETE",
+            headers: this.getHeaders()
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to delete bed.");
+        return await res.json();
+    },
+
+    async getInfrastructureHierarchy(campusId = null, hostelId = null) {
+        const params = {};
+        if (campusId) params.campus_id = campusId;
+        if (hostelId) params.hostel_id = hostelId;
+        const qs = new URLSearchParams(params).toString();
+        const res = await this.request(`${this.baseUrl}/api/v1/infrastructure/hierarchy${qs ? '?' + qs : ''}`, { headers: this.getHeaders() });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to load infrastructure hierarchy.");
+        return await res.json();
+    },
+
+    async getCapacityMetrics(campusId = null, hostelId = null) {
+        const params = {};
+        if (campusId) params.campus_id = campusId;
+        if (hostelId) params.hostel_id = hostelId;
+        const qs = new URLSearchParams(params).toString();
+        const res = await this.request(`${this.baseUrl}/api/v1/infrastructure/capacity${qs ? '?' + qs : ''}`, { headers: this.getHeaders() });
+        if (!res.ok) throw new Error((await res.json()).detail || "Failed to load capacity metrics.");
+        return await res.json();
+    },
+
+    async bulkImportInfrastructure(entityType, records, dryRun = true) {
+        const res = await this.request(`${this.baseUrl}/api/v1/infrastructure/import`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ entity_type: entityType, records, dry_run: dryRun })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Bulk import failed.");
+        return data;
+    },
+
+    async bulkExportInfrastructure(entityType, campusId = null, hostelId = null, format = "json") {
+        const params = { entity_type: entityType, format };
+        if (campusId) params.campus_id = campusId;
+        if (hostelId) params.hostel_id = hostelId;
+        const qs = new URLSearchParams(params).toString();
+        const res = await this.request(`${this.baseUrl}/api/v1/infrastructure/export?${qs}`, { headers: this.getHeaders() });
+        if (!res.ok) throw new Error("Bulk export failed.");
+        if (format.toLowerCase() === "csv") {
+            return await res.text();
+        }
+        return await res.json();
     },
 };
 

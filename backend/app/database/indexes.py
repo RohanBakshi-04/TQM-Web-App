@@ -58,7 +58,20 @@ INITIAL_INDEXES_SQL = [
     "CREATE INDEX IF NOT EXISTS idx_meal_att_student_date ON meal_attendance(student_id, date);",
     "CREATE INDEX IF NOT EXISTS idx_inventory_item_code ON inventory_items(item_code);",
     "CREATE INDEX IF NOT EXISTS idx_inventory_category ON inventory_items(category_id);",
-    "CREATE INDEX IF NOT EXISTS idx_inv_trans_item ON inventory_transactions(item_id);"
+    "CREATE INDEX IF NOT EXISTS idx_inv_trans_item ON inventory_transactions(item_id);",
+
+    # Q05 Supplementary Telemetry & Audit Indexes
+    "CREATE INDEX IF NOT EXISTS idx_user_depts_dept ON user_departments(department_id);",
+    "CREATE INDEX IF NOT EXISTS idx_maintenance_created ON maintenance_tasks(created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_maintenance_building ON maintenance_tasks(building_id);",
+    "CREATE INDEX IF NOT EXISTS idx_leave_created ON leave_requests(created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_outpasses_created ON outpasses(created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_visitors_checkin ON visitor_logs(check_in_time);",
+    "CREATE INDEX IF NOT EXISTS idx_visitors_hostel ON visitor_logs(hostel_id);",
+    "CREATE INDEX IF NOT EXISTS idx_invoices_created ON invoices(created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_admissions_year ON admission_applications(academic_year);",
+    "CREATE INDEX IF NOT EXISTS idx_registrations_status ON registration_requests(status);"
 ]
 
 
@@ -73,9 +86,18 @@ def create_initial_indexes(conn: Optional[sqlite3.Connection] = None) -> List[st
     try:
         cursor = conn.cursor()
         for sql in INITIAL_INDEXES_SQL:
-            cursor.execute(sql)
-            idx_name = sql.split()[5]
-            created_indexes.append(idx_name)
+            try:
+                parts = sql.split(" ON ")
+                if len(parts) > 1:
+                    table_name = parts[1].split("(")[0].strip()
+                    cursor.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?;", (table_name,))
+                    if not cursor.fetchone():
+                        continue
+                cursor.execute(sql)
+                idx_name = sql.split()[5]
+                created_indexes.append(idx_name)
+            except Exception as e:
+                logger.warning(f"Skipping index creation for {sql}: {e}")
         conn.commit()
         logger.info(f"Created {len(created_indexes)} initial database indexes.")
         return created_indexes

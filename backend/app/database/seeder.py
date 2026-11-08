@@ -7,7 +7,14 @@ Quality Goal: Q05 - Reduce Response Time
 import sqlite3
 from typing import Optional
 from backend.app.database.connection import get_db_connection
-from backend.app.services.rbac_data import ROLES_LIST, PERMISSIONS_LIST, ROLE_PERMISSIONS_MAP
+from backend.app.services.rbac_data import (
+    ROLES_LIST,
+    ROLE_METADATA,
+    PERMISSIONS_LIST,
+    ROLE_PERMISSIONS_MAP,
+    DEPARTMENTS_LIST,
+    DASHBOARDS_LIST
+)
 from backend.app.services.security import hash_password
 from backend.app.utils.logger import logger
 
@@ -23,26 +30,84 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
         cursor = conn.cursor()
 
         # Check if users already exist to avoid duplicate seeding
-        cursor.execute("SELECT COUNT(*) FROM users;")
+        cursor.execute("SELECT COUNT(*) FROM users WHERE username = 'superadmin';")
         if cursor.fetchone()[0] > 0:
             logger.info("Database already seeded. Skipping seeder execution.")
             return False
 
         logger.info("Beginning database demonstration data seeding...")
 
-        # 1. Seed 12 User Roles
-        roles_data = [(name, desc, 1) for name, desc in ROLES_LIST]
-        cursor.executemany("INSERT INTO roles (name, description, is_system) VALUES (?, ?, ?);", roles_data)
+        # 0. Seed Departments and Dashboards
+        for d_code, d_name, d_desc in DEPARTMENTS_LIST:
+            cursor.execute("""
+                INSERT INTO departments (code, name, description, is_active)
+                VALUES (?, ?, ?, 1)
+                ON CONFLICT(code) DO UPDATE SET
+                    name = excluded.name,
+                    description = excluded.description;
+            """, (d_code, d_name, d_desc))
+
+        cursor.execute("SELECT id, code FROM departments;")
+        dept_id_map = {row[1]: row[0] for row in cursor.fetchall()}
+
+        for dash in DASHBOARDS_LIST:
+            dept_id = dept_id_map.get(dash["department_code"])
+            if dept_id:
+                cursor.execute("""
+                    INSERT INTO dashboards (dashboard_id, title, department_id, description, route, icon, is_active)
+                    VALUES (?, ?, ?, ?, ?, ?, 1)
+                    ON CONFLICT(dashboard_id) DO UPDATE SET
+                        title = excluded.title,
+                        department_id = excluded.department_id,
+                        description = excluded.description,
+                        route = excluded.route,
+                        icon = excluded.icon;
+                """, (dash["dashboard_id"], dash["title"], dept_id, dash["description"], dash["route"], dash["icon"]))
+
+        # 1. Seed Roles
+        cursor.execute("PRAGMA table_info(roles);")
+        role_cols = {col[1] for col in cursor.fetchall()}
+        if "code" not in role_cols:
+            cursor.execute("ALTER TABLE roles ADD COLUMN code TEXT;")
+        if "stakeholder_category" not in role_cols:
+            cursor.execute("ALTER TABLE roles ADD COLUMN stakeholder_category TEXT DEFAULT 'Operational / Student Life';")
+        if "is_system_role" not in role_cols:
+            cursor.execute("ALTER TABLE roles ADD COLUMN is_system_role INTEGER DEFAULT 1;")
+        if "department_code" not in role_cols:
+            cursor.execute("ALTER TABLE roles ADD COLUMN department_code TEXT;")
+
+        for name, desc in ROLES_LIST:
+            meta = ROLE_METADATA.get(name, {})
+            r_code = meta.get("code", name.upper())
+            r_cat = meta.get("category", "Operational / Student Life")
+            r_dept = meta.get("department_code", "EXEC_ADMIN")
+            cursor.execute("""
+                INSERT INTO roles (name, code, description, stakeholder_category, department_code, is_system, is_system_role)
+                VALUES (?, ?, ?, ?, ?, 1, 1)
+                ON CONFLICT(name) DO UPDATE SET
+                    code = excluded.code,
+                    description = excluded.description,
+                    stakeholder_category = excluded.stakeholder_category,
+                    department_code = excluded.department_code,
+                    is_system = 1,
+                    is_system_role = 1;
+            """, (name, r_code, desc, r_cat, r_dept))
+
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_roles_code ON roles(code);")
 
         # Build role_name -> role_id lookup
         cursor.execute("SELECT id, name FROM roles;")
         role_id_map = {name: r_id for r_id, name in cursor.fetchall()}
 
         # 2. Seed Granular Permissions
-        cursor.executemany(
-            "INSERT INTO permissions (name, module, description) VALUES (?, ?, ?);",
-            PERMISSIONS_LIST
-        )
+        for p_name, p_mod, p_desc in PERMISSIONS_LIST:
+            cursor.execute("""
+                INSERT INTO permissions (name, module, description)
+                VALUES (?, ?, ?)
+                ON CONFLICT(name) DO UPDATE SET
+                    module = excluded.module,
+                    description = excluded.description;
+            """, (p_name, p_mod, p_desc))
 
         # Build perm_name -> perm_id lookup
         cursor.execute("SELECT id, name FROM permissions;")
@@ -63,7 +128,22 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
             "INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?);",
             role_perm_rows
         )
-        logger.info(f"Seeded {len(roles_data)} roles and {len(role_perm_rows)} role-permission mappings.")
+        logger.info(f"Seeded {len(ROLES_LIST)} roles and {len(role_perm_rows)} role-permission mappings.")
+
+        # Seed dashboard_roles mappings
+        for dash in DASHBOARDS_LIST:
+            d_id = dash["dashboard_id"]
+            default_role = dash.get("default_role")
+            for r_name in dash.get("roles", []):
+                r_id = role_id_map.get(r_name)
+                if r_id:
+                    is_def = 1 if r_name == default_role else 0
+                    cursor.execute("""
+                        INSERT INTO dashboard_roles (dashboard_id, role_id, is_default)
+                        VALUES (?, ?, ?)
+                        ON CONFLICT(dashboard_id, role_id) DO UPDATE SET
+                            is_default = excluded.is_default;
+                    """, (d_id, r_id, is_def))
 
         # 3. Seed Demo Users for Primary Roles (bcrypt hashed)
         default_pw = "Password123!" # Consistent safe demo password for all demo accounts
@@ -81,7 +161,10 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
             ("security", "security@univ.edu", hashed_pw, "", "Baljit", "Singh", "9800000009", "security_guard", None, 1),
             ("admission", "admission@univ.edu", hashed_pw, "", "Geeta", "Iyer", "9800000010", "admission_officer", None, None),
             ("parent", "parent@univ.edu", hashed_pw, "", "Sunil", "Bakshi", "9800000011", "parent_guardian", 1, 1),
-            ("evaluator", "evaluator@univ.edu", hashed_pw, "", "TQM Faculty", "Auditor", "9800000012", "auditor", None, None)
+            ("evaluator", "evaluator@univ.edu", hashed_pw, "", "TQM Faculty", "Auditor", "9800000012", "auditor", None, None),
+            ("clerk", "clerk@univ.edu", hashed_pw, "", "Amit", "Patel", "9800000013", "hostel_clerk", None, 1),
+            ("secsupervisor", "secsupervisor@univ.edu", hashed_pw, "", "Gurpreet", "Singh", "9800000014", "security_supervisor", None, 1),
+            ("itadmin", "itadmin@univ.edu", hashed_pw, "", "Neha", "Verma", "9800000015", "it_admin", None, None)
         ]
 
         user_id_map = {}
@@ -95,10 +178,24 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
             user_id_map[uname] = u_id
             r_id = role_id_map[role_name]
             cursor.execute("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?);", (u_id, r_id))
-            staff_roles = {'super_admin', 'hostel_admin', 'warden', 'assistant_warden', 'accountant', 'mess_manager', 'maintenance_staff', 'security_guard', 'admission_officer', 'auditor'}
+            staff_roles = {
+                'super_admin', 'hostel_admin', 'warden', 'assistant_warden',
+                'hostel_clerk', 'accountant', 'mess_manager', 'maintenance_staff',
+                'security_supervisor', 'security_guard', 'admission_officer',
+                'it_admin', 'auditor'
+            }
             if role_name in staff_roles:
                 s_id = f"STF-{u_id:04d}"
                 cursor.execute("UPDATE users SET staff_id = ? WHERE id = ?;", (s_id, u_id))
+
+            # Department assignment based on role
+            meta = ROLE_METADATA.get(role_name, {})
+            dept_code = meta.get("department_code")
+            if dept_code and dept_code in dept_id_map:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO user_departments (user_id, department_id, is_primary)
+                    VALUES (?, ?, 1);
+                """, (u_id, dept_id_map[dept_code]))
 
         # 4. Seed Hostel, Buildings, Floors, Rooms & Beds
         cursor.execute("SELECT id FROM hostels WHERE code = 'RTH-01';")
@@ -204,13 +301,13 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
         # 5. Seed Students (Fictional Demo Records)
         rohan_user_id = user_id_map.get("rohan", 5)
         students_data = [
-            ("2410301057", rohan_user_id, "Rohan", "Bakshi", "rohan.bakshi@univ.edu", "9810301057", "Male", "2005-04-12", "B+", "CSE", "3rd Year", "5th", "Hostel Resident", "2026-08-01"),
-            ("2410301012", None, "Priya", "Sharma", "priya.sharma@univ.edu", "9811223344", "Female", "2006-02-18", "O+", "ECE", "2nd Year", "3rd", "East Wing", "2026-08-01"),
-            ("2410301034", None, "Aarav", "Patel", "aarav.patel@univ.edu", "9822334455", "Male", "2005-09-25", "A+", "CSE", "3rd Year", "5th", "North Wing", "2026-08-02")
+            ("2410301057", rohan_user_id, "Rohan", "Bakshi", "rohan.bakshi@univ.edu", "9810301057", "Male", "2005-04-12", "B+", "CSE", "3rd Year", "5th", "Hostel Resident", "2026-08-01", "Active"),
+            ("2410301012", None, "Priya", "Sharma", "priya.sharma@univ.edu", "9811223344", "Female", "2006-02-18", "O+", "ECE", "2nd Year", "3rd", "East Wing", "2026-08-01", "Active"),
+            ("2410301034", None, "Aarav", "Patel", "aarav.patel@univ.edu", "9822334455", "Male", "2005-09-25", "A+", "CSE", "3rd Year", "5th", "North Wing", "2026-08-02", "Active")
         ]
         cursor.executemany(
-            """INSERT INTO students (student_id, user_id, first_name, last_name, email, phone, gender, date_of_birth, blood_group, branch, academic_year, semester, address, admission_date)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+            """INSERT INTO students (student_id, user_id, first_name, last_name, email, phone, gender, date_of_birth, blood_group, branch, academic_year, semester, address, admission_date, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
             students_data
         )
         s_rohan = 1
@@ -224,6 +321,15 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
         )
         g_id = cursor.lastrowid
         cursor.execute("INSERT INTO student_guardians (student_id, guardian_id, is_primary) VALUES (?, ?, 1);", (s_rohan, g_id))
+
+        # Seed Parent-Student link for demo parent
+        p_user_id = user_id_map.get("parent")
+        if p_user_id:
+            cursor.execute(
+                """INSERT OR IGNORE INTO parent_student_links (parent_user_id, student_id, guardian_id, relationship, status)
+                   VALUES (?, ?, ?, 'Parent', 'Active');""",
+                (p_user_id, s_rohan, g_id)
+            )
 
         # Resolve beds and rooms for initial demo allocations
         cursor.execute("SELECT id FROM beds WHERE bed_number = '101-A' LIMIT 1;")
@@ -340,7 +446,7 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
         # Visitors & Active Gate Pass
         cursor.execute(
             """INSERT OR IGNORE INTO visitors (id, name, phone, id_proof_type, id_proof_number, address)
-               VALUES (101, 'Sunil Bakshi', '9810309999', 'Aadhaar Card', 'XXXX-XXXX-4589', 'D-42 Hauz Khas, New Delhi');"""
+               VALUES (101, 'Sunil Bakshi', '9810309999', 'Aadhaar', 'XXXX-XXXX-4589', 'D-42 Hauz Khas, New Delhi');"""
         )
         cursor.execute(
             """INSERT OR IGNORE INTO visitor_logs (pass_number, visitor_id, student_id, hostel_id, room_id, check_in_time, expected_exit_time, purpose, approval_status, status, approved_by)
@@ -415,6 +521,34 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
         # 12. Seed System Settings
         cursor.execute("INSERT OR IGNORE INTO system_settings (setting_key, setting_value, category, description) VALUES ('institution_name', 'University College of Engineering', 'general', 'Institute name');")
         cursor.execute("INSERT OR IGNORE INTO system_settings (setting_key, setting_value, category, description) VALUES ('q05_latency_target_ms', '10.0', 'performance', 'Target response time SLA');")
+
+        # 13. Reconcile SA-02 Infrastructure Hierarchy Foreign Keys
+        cursor.execute("UPDATE hostels SET institution_id = 1 WHERE institution_id IS NULL;")
+        cursor.execute("UPDATE hostels SET campus_id = 1 WHERE campus_id IS NULL AND (address LIKE '%North%' OR name LIKE '%North%');")
+        cursor.execute("UPDATE hostels SET campus_id = 2 WHERE campus_id IS NULL AND (address LIKE '%South%' OR name LIKE '%South%');")
+        cursor.execute("UPDATE hostels SET campus_id = 3 WHERE campus_id IS NULL AND (address LIKE '%East%' OR name LIKE '%East%');")
+        cursor.execute("UPDATE hostels SET campus_id = 4 WHERE campus_id IS NULL;")
+
+        cursor.execute("""
+            UPDATE buildings 
+            SET campus_id = (SELECT h.campus_id FROM hostels h WHERE h.id = buildings.hostel_id)
+            WHERE campus_id IS NULL;
+        """)
+        cursor.execute("UPDATE buildings SET campus_id = 1 WHERE campus_id IS NULL;")
+
+        # Ensure blocks exist for buildings
+        bld_rows = cursor.execute("SELECT id, hostel_id, name FROM buildings;").fetchall()
+        for b_id, h_id, b_name in bld_rows:
+            cursor.execute("""
+                INSERT OR IGNORE INTO blocks (building_id, hostel_id, name, code, description, is_active)
+                VALUES (?, ?, ?, 'BLK-MAIN', 'Primary residential wing', 1);
+            """, (b_id, h_id, f"{b_name} - Main Wing"))
+
+        cursor.execute("""
+            UPDATE floors 
+            SET block_id = (SELECT b.id FROM blocks b WHERE b.building_id = floors.building_id LIMIT 1)
+            WHERE block_id IS NULL;
+        """)
 
         conn.commit()
         logger.info(f"Database seeded with {len(demo_users)} demo users across all 12 roles.")
