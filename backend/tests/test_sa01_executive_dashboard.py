@@ -1,4 +1,4 @@
-﻿import os
+import os
 import shutil
 import statistics
 import tempfile
@@ -424,24 +424,86 @@ class TestSA01ExecutiveDashboard(unittest.TestCase):
         self.assertGreaterEqual(data_post["diagnostics"]["duration_ms"], 0.0)
 
     def test_13_database_integrity_concurrent_stampede_protection(self):
-        """Verify thread-safe locking prevents multiple simultaneous database page scans."""
+        """Verify thread-safe locking prevents multiple simultaneous database page scans under concurrent stampede."""
         import threading
+        import time
         from backend.app.services.database_integrity_service import integrity_monitor
 
-        results = []
-        def worker():
-            diag = integrity_monitor.check_integrity(force=False)
-            results.append(diag["status"])
+        # 1. Reset and force expired cache before starting concurrent workers
+        integrity_monitor.reset()
+        integrity_monitor.cached_until = time.time() - 100.0
+        integrity_monitor._last_verified_ts = 0.0
+        integrity_monitor.status = "unknown"
+        initial_scans = integrity_monitor.total_physical_scans
 
-        threads = [threading.Thread(target=worker) for _ in range(10)]
+        # 2. Use a synchronization barrier so all 10 workers attempt verification simultaneously
+        worker_count = 10
+        barrier = threading.Barrier(worker_count)
+        results = []
+        lock = threading.Lock()
+
+        def worker():
+            barrier.wait()
+            diag = integrity_monitor.check_integrity(force=False)
+            with lock:
+                results.append(diag)
+
+        threads = [threading.Thread(target=worker) for _ in range(worker_count)]
         for t in threads:
             t.start()
         for t in threads:
             t.join()
 
-        self.assertEqual(len(results), 10)
-        for s in results:
-            self.assertEqual(s, "healthy")
+        # 3. Exactly one physical scan must have occurred
+        scans_executed = integrity_monitor.total_physical_scans - initial_scans
+        self.assertEqual(
+            scans_executed, 1,
+            f"Cache stampede defect: expected exactly 1 physical scan, but {scans_executed} were executed."
+        )
+
+        # 4. Assert that all returned diagnostics are valid and consistent
+        self.assertEqual(len(results), worker_count)
+        for diag in results:
+            self.assertEqual(diag["status"], "healthy")
+            self.assertEqual(diag["raw_result"].lower(), "ok")
+            self.assertGreaterEqual(diag["duration_ms"], 0.0)
+            self.assertIsNotNone(diag["last_verified_at"])
+
+        # 5. Subsequent concurrent calls with valid cache must cause 0 physical scans
+        scans_before_cached = integrity_monitor.total_physical_scans
+        results_cached = []
+        barrier_cached = threading.Barrier(worker_count)
+
+        def worker_cached():
+            barrier_cached.wait()
+            diag = integrity_monitor.check_integrity(force=False)
+            with lock:
+                results_cached.append(diag)
+
+        threads_cached = [threading.Thread(target=worker_cached) for _ in range(worker_count)]
+        for t in threads_cached:
+            t.start()
+        for t in threads_cached:
+            t.join()
+
+        self.assertEqual(
+            integrity_monitor.total_physical_scans - scans_before_cached, 0,
+            "Valid cache should not trigger any physical scans"
+        )
+        self.assertEqual(len(results_cached), worker_count)
+        for diag in results_cached:
+            self.assertTrue(diag["is_cached"])
+            self.assertEqual(diag["status"], "healthy")
+
+        # 6. Test forced verification behavior (force=True must perform exactly 1 fresh scan)
+        scans_before_forced = integrity_monitor.total_physical_scans
+        forced_diag = integrity_monitor.check_integrity(force=True)
+        self.assertEqual(
+            integrity_monitor.total_physical_scans - scans_before_forced, 1,
+            "Forced verification must execute a physical scan"
+        )
+        self.assertFalse(forced_diag["is_cached"])
+        self.assertEqual(forced_diag["status"], "healthy")
 
     def test_14_database_integrity_simulation_and_recovery(self):
         """Verify integrity monitoring detects anomalies and recovers cleanly."""

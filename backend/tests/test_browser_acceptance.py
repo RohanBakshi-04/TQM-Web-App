@@ -277,6 +277,34 @@ class TestBrowserAcceptance(unittest.TestCase):
 
         context.close()
 
+    def verify_manual_integrity_scan(self, page, viewport_name: str):
+        """Verify the manual scan button end-to-end: visibility, loading state, network response schema, and re-enabling."""
+        scan_btn = page.locator("#sa01-verify-integrity-btn")
+        self.assertEqual(scan_btn.count(), 1, f"{viewport_name}: Expected exactly one #sa01-verify-integrity-btn in DOM")
+        scan_btn.scroll_into_view_if_needed()
+        self.assertTrue(scan_btn.is_visible(), f"{viewport_name}: #sa01-verify-integrity-btn is not visible")
+        self.assertTrue(scan_btn.is_enabled(), f"{viewport_name}: #sa01-verify-integrity-btn is not enabled")
+
+        # Click and wait for actual verify response
+        with page.expect_response(
+            lambda r: "/api/v1/metrics/integrity/verify" in r.url and r.request.method == "POST",
+            timeout=8000
+        ) as resp_info:
+            scan_btn.click()
+
+        resp = resp_info.value
+        self.assertEqual(resp.status, 200, f"{viewport_name}: Expected HTTP 200 from verify endpoint")
+        data = resp.json()
+        self.assertEqual(data.get("status"), "success", f"{viewport_name}: Expected status success")
+        self.assertIn("diagnostics", data)
+        self.assertEqual(data["diagnostics"].get("status"), "healthy")
+        self.assertEqual(data["diagnostics"].get("raw_result", "").lower(), "ok")
+        self.assertGreaterEqual(data["diagnostics"].get("duration_ms", 0), 0.0)
+
+        # Verify button re-enabled after scan completion
+        page.wait_for_function("() => !document.querySelector('#sa01-verify-integrity-btn').disabled", timeout=5000)
+        self.assertTrue(scan_btn.is_enabled(), f"{viewport_name}: Button did not re-enable after scan")
+        print(f"[PASS] {viewport_name}: Manual integrity scan HTTP 200, schema verified, and button re-enabled")
 
     def test_06_super_admin_executive_dashboard_all_13_sections(self):
         """Test SA-01 Executive Overview: Validate all 13 sections A-M on Desktop, Tablet, and Mobile viewports."""
@@ -323,14 +351,8 @@ class TestBrowserAcceptance(unittest.TestCase):
             self.assertTrue(locator.is_visible(), f"Desktop: #{sec_id} ({sec_title}) is not visible")
             print(f"[PASS] Desktop #{sec_id}: {sec_title} - Rendered and visible")
 
-        # Mandatory manual database integrity verification button test
-        scan_btn = page.locator("#sa01-verify-integrity-btn")
-        self.assertTrue(scan_btn.count() > 0, "Mandatory button #sa01-verify-integrity-btn missing from DOM")
-        scan_btn.scroll_into_view_if_needed()
-        self.assertTrue(scan_btn.is_visible(), "Mandatory button #sa01-verify-integrity-btn is not visible")
-        scan_btn.click()
-        page.wait_for_timeout(1000)
-        print("[PASS] Desktop: Mandatory Database Integrity Scan Triggered and Verified via UI")
+        # Mandatory manual database integrity verification button test on Desktop
+        self.verify_manual_integrity_scan(page, "Desktop")
 
         self.logout_role(page)
         context.close()
@@ -360,6 +382,9 @@ class TestBrowserAcceptance(unittest.TestCase):
             self.assertTrue(locator.is_visible(), f"Tablet: #{sec_id} ({sec_title}) is not visible")
             print(f"[PASS] Tablet #{sec_id}: {sec_title} - Rendered and visible")
 
+        # Mandatory manual database integrity verification button test on Tablet
+        self.verify_manual_integrity_scan(t_page, "Tablet")
+
         self.logout_role(t_page)
         tablet_ctx.close()
 
@@ -388,11 +413,70 @@ class TestBrowserAcceptance(unittest.TestCase):
             self.assertTrue(locator.is_visible(), f"Mobile: #{sec_id} ({sec_title}) is not visible")
             print(f"[PASS] Mobile #{sec_id}: {sec_title} - Rendered and visible")
 
+        # Mandatory manual database integrity verification button test on Mobile
+        self.verify_manual_integrity_scan(m_page, "Mobile")
+
         scroll_width = m_page.evaluate("() => document.body.scrollWidth")
         self.assertLessEqual(scroll_width, 420, f"Mobile layout horizontal overflow detected: scrollWidth={scroll_width}")
 
         self.logout_role(m_page)
         mobile_ctx.close()
+
+    def test_07_database_integrity_error_surfacing_in_browser(self):
+        """Verify errors during manual scan are surfaced in the UI instead of presented as successful scans."""
+        from backend.app.services.database_integrity_service import integrity_monitor
+
+        context = self.browser.new_context(viewport={"width": 1440, "height": 900})
+        page = context.new_page()
+        page.goto(self.base_url, wait_until="domcontentloaded")
+        self.login_role(page, "superadmin", "Password123!")
+
+        page.evaluate("""() => {
+            const data = document.querySelector('[x-data]')._x_dataStack[0];
+            data.activeSection = 'dashboard';
+            data.selectedDashboardGroup = 'super_admin';
+            if (typeof data.fetchSuperAdminExecutiveOverview === 'function') {
+                data.fetchSuperAdminExecutiveOverview();
+            }
+        }""")
+        page.wait_for_timeout(1000)
+
+        try:
+            # Inject simulated database anomaly
+            integrity_monitor.set_simulated_error("Page scan integrity violation at block 8192")
+
+            scan_btn = page.locator("#sa01-verify-integrity-btn")
+            scan_btn.scroll_into_view_if_needed()
+
+            with page.expect_response(
+                lambda r: "/api/v1/metrics/integrity/verify" in r.url and r.request.method == "POST",
+                timeout=8000
+            ) as resp_info:
+                scan_btn.click()
+
+            resp = resp_info.value
+            self.assertEqual(resp.status, 200)
+            data = resp.json()
+            self.assertEqual(data["diagnostics"]["status"], "failed")
+            self.assertIn("Page scan integrity violation", data["diagnostics"]["last_error"])
+
+            # Verify that UI displays the alert with the specific error message
+            page.wait_for_selector("text=Page scan integrity violation at block 8192", timeout=5000)
+            alert = page.locator("text=Page scan integrity violation at block 8192")
+            self.assertTrue(alert.is_visible(), "Error alert should be visible in the DOM upon failure")
+            print("[PASS] Browser Acceptance: Diagnostic error correctly surfaced in UI alert banner")
+
+        finally:
+            # Clear simulation and recover
+            integrity_monitor.set_simulated_error(None)
+            integrity_monitor.reset()
+            # Click scan again to verify recovery
+            scan_btn = page.locator("#sa01-verify-integrity-btn")
+            with page.expect_response(lambda r: "/api/v1/metrics/integrity/verify" in r.url, timeout=8000):
+                scan_btn.click()
+            page.wait_for_timeout(500)
+            self.logout_role(page)
+            context.close()
 
 
 if __name__ == "__main__":

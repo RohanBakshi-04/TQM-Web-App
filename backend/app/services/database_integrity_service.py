@@ -1,4 +1,4 @@
-﻿"""Database Integrity Monitor & Diagnostic Service with Freshness Tracking.
+"""Database Integrity Monitor & Diagnostic Service with Freshness Tracking.
 
 Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
 Quality Goal: Q05 - Reduce Response Time (<10ms SLA) & Poka-Yoke System Diagnostics
@@ -42,6 +42,7 @@ class DatabaseIntegrityMonitor:
         self.check_duration_ms: float = 0.0
         self.last_error: Optional[str] = None
         self.cached_until: float = 0.0
+        self.total_physical_scans: int = 0
         self._execution_lock = threading.Lock()
         self._simulated_error: Optional[str] = None
         self._initialized = True
@@ -149,6 +150,7 @@ class DatabaseIntegrityMonitor:
 
             t0 = time.perf_counter()
             cur = conn.cursor()
+            self.total_physical_scans += 1
             cur.execute("PRAGMA quick_check(1);")
             row = cur.fetchone()
             dur_ms = round((time.perf_counter() - t0) * 1000.0, 3)
@@ -237,6 +239,7 @@ class DatabaseIntegrityMonitor:
             self.check_duration_ms = 0.0
             self.last_error = None
             self.cached_until = 0.0
+            self.total_physical_scans = 0
             self._simulated_error = None
 
 

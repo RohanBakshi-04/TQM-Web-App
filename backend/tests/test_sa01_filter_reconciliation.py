@@ -1,4 +1,4 @@
-﻿"""Deterministic Test Suite for SA-01 Metric Reconciliation & Multi-Dimensional Filter Verification.
+"""Deterministic Test Suite for SA-01 Metric Reconciliation & Multi-Dimensional Filter Verification.
 
 Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
 Quality Target: Q05 Zero Defects - Independent SQL Reconciliation & Scope Isolation
@@ -34,6 +34,69 @@ class TestSA01FilterReconciliation(unittest.TestCase):
         assert res.status_code == 200, res.text
         cls.token = res.json()["access_token"]
         cls.headers = {"Authorization": f"Bearer {cls.token}"}
+
+        # Seed custom multi-campus fixtures (East Campus / Kaveri Hostel)
+        conn = get_db_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO hostels (name, code, hostel_type, address, contact_phone, contact_email)
+                VALUES ('Kaveri Innovation Hostel', 'KIH-01', 'Co-Ed', 'East Campus, Innovation Hub', '011-2700103', 'kaveri.hostel@univ.edu');
+            """)
+            cls.east_hostel_id = cur.lastrowid
+
+            cur.execute("INSERT INTO buildings (hostel_id, name, code, total_floors) VALUES (?, 'Turing Block', 'BLK-E1', 1);", (cls.east_hostel_id,))
+            bldg_id = cur.lastrowid
+
+            cur.execute("INSERT INTO floors (building_id, floor_number, floor_name) VALUES (?, 1, 'Ground Floor');", (bldg_id,))
+            flr_id = cur.lastrowid
+
+            cur.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status) VALUES (?, 'E101', 'Double', 2, 7000.0, 'Full');", (flr_id,))
+            r1 = cur.lastrowid
+            cur.execute("INSERT INTO rooms (floor_id, room_number, room_type, capacity, base_fee, status) VALUES (?, 'E102', 'Double', 2, 7000.0, 'Available');", (flr_id,))
+            r2 = cur.lastrowid
+
+            cur.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, 'E101-A', 'Occupied');", (r1,))
+            b_occ1 = cur.lastrowid
+            cur.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, 'E101-B', 'Occupied');", (r1,))
+            b_occ2 = cur.lastrowid
+            cur.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, 'E102-A', 'Available');", (r2,))
+            cur.execute("INSERT INTO beds (room_id, bed_number, status) VALUES (?, 'E102-B', 'Available');", (r2,))
+
+            # Students for East Campus
+            cur.execute("""
+                INSERT INTO students (student_id, first_name, last_name, email, phone, gender, branch, academic_year, admission_date, status)
+                VALUES ('STU-EAST-01', 'Aditi', 'Sen', 'aditi.sen@univ.edu', '9899001122', 'Female', 'IT', '2026-27', '2026-01-01', 'Active');
+            """)
+            cls.east_student1_id = cur.lastrowid
+
+            cur.execute("""
+                INSERT INTO students (student_id, first_name, last_name, email, phone, gender, branch, academic_year, admission_date, status)
+                VALUES ('STU-EAST-02', 'Vikram', 'Rathore', 'vikram.rathore@univ.edu', '9899001133', 'Male', 'CSE', '2026-27', '2026-01-01', 'Withdrawn');
+            """)
+            cls.east_student2_id = cur.lastrowid
+
+            # Invoices & Payments for East Campus students
+            cur.execute("""
+                INSERT INTO invoices (student_id, invoice_number, issue_date, due_date, total_amount, paid_amount, discount_amount, fine_amount, status, total_amount_paise, paid_amount_paise)
+                VALUES (?, 'INV-EAST-001', '2026-04-01', '2026-05-01', 5000.0, 5000.0, 0.0, 0.0, 'Paid', 500000, 500000);
+            """, (cls.east_student1_id,))
+            inv_id = cur.lastrowid
+
+            cur.execute("""
+                INSERT INTO payments (invoice_id, student_id, payment_reference, amount_paise, amount, payment_date, payment_method, status)
+                VALUES (?, ?, 'PAY-EAST-001', 500000, 5000.0, '2026-04-15', 'UPI', 'Completed');
+            """, (inv_id, cls.east_student1_id))
+
+            # Room allocation for student
+            cur.execute("""
+                INSERT INTO room_allocations (student_id, room_id, bed_id, start_date, allocation_status)
+                VALUES (?, ?, ?, '2026-01-01', 'Active');
+            """, (cls.east_student1_id, r1, b_occ1))
+
+            conn.commit()
+        finally:
+            conn.close()
 
     @classmethod
     def tearDownClass(cls):
@@ -254,6 +317,106 @@ class TestSA01FilterReconciliation(unittest.TestCase):
         self.assertEqual(data["institution_overview"]["hostels"], 0)
         self.assertEqual(len(data["infrastructure_table"]), 0)
         self.assertEqual(len(data["workforce_overview"]["department_distribution"]), 0)
+
+    def test_09_multi_campus_custom_fixtures_reconciliation(self):
+        """Verify newly seeded East Campus custom fixtures reconcile against direct independent SQL."""
+        res = self.client.get("/api/v1/dashboard/executive-overview?campus=East%20Campus&bypass_cache=true", headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+
+        conn = get_db_connection()
+        try:
+            cur = conn.cursor()
+            # 1. Hostels count for East Campus
+            east_h_count = cur.execute("SELECT COUNT(*) FROM hostels WHERE address LIKE '%East Campus%'").fetchone()[0]
+            self.assertEqual(data["institution_overview"]["hostels"], east_h_count)
+            self.assertEqual(east_h_count, 1)
+
+            # 2. Bed capacity for East Campus
+            east_beds = cur.execute("""
+                SELECT 
+                    COUNT(bd.id) AS total,
+                    SUM(CASE WHEN bd.status = 'Occupied' THEN 1 ELSE 0 END) AS occupied,
+                    SUM(CASE WHEN bd.status = 'Available' THEN 1 ELSE 0 END) AS available
+                FROM beds bd
+                JOIN rooms r ON bd.room_id = r.id
+                JOIN floors f ON r.floor_id = f.id
+                JOIN buildings b ON f.building_id = b.id
+                JOIN hostels h ON b.hostel_id = h.id
+                WHERE h.address LIKE '%East Campus%';
+            """).fetchone()
+            self.assertEqual(data["institution_overview"]["beds"], east_beds[0])
+            self.assertEqual(data["kpi_grid"]["hostels"]["total_capacity"], east_beds[0])
+            self.assertEqual(data["kpi_grid"]["hostels"]["occupied_beds"], east_beds[1])
+            self.assertEqual(data["kpi_grid"]["hostels"]["available_beds"], east_beds[2])
+
+            # 3. All items in infrastructure table belong to East Campus
+            self.assertEqual(len(data["infrastructure_table"]), 1)
+            self.assertIn("East Campus", data["infrastructure_table"][0]["campus"])
+            self.assertEqual(data["infrastructure_table"][0]["name"], "Kaveri Innovation Hostel")
+        finally:
+            conn.close()
+
+    def test_10_global_governance_invariance_under_all_filters(self):
+        """Verify global governance metrics (32 roles, 28 dashboards, 17 departments) remain invariant across all filter slices."""
+        conn = get_db_connection()
+        try:
+            cur = conn.cursor()
+            expected_roles = cur.execute("SELECT COUNT(*) FROM roles").fetchone()[0]
+            expected_dashboards = cur.execute("SELECT COUNT(*) FROM dashboards").fetchone()[0]
+            expected_departments = cur.execute("SELECT COUNT(*) FROM departments").fetchone()[0]
+        finally:
+            conn.close()
+
+        filter_urls = [
+            "/api/v1/dashboard/executive-overview?bypass_cache=true",
+            "/api/v1/dashboard/executive-overview?campus=North%20Campus&bypass_cache=true",
+            "/api/v1/dashboard/executive-overview?campus=South%20Campus&bypass_cache=true",
+            "/api/v1/dashboard/executive-overview?campus=East%20Campus&bypass_cache=true",
+            f"/api/v1/dashboard/executive-overview?hostel_id={self.east_hostel_id}&bypass_cache=true",
+            "/api/v1/dashboard/executive-overview?department=MAINTENANCE&bypass_cache=true",
+            "/api/v1/dashboard/executive-overview?academic_session=2026-27&bypass_cache=true",
+            "/api/v1/dashboard/executive-overview?date_from=2026-01-01&date_to=2026-12-31&bypass_cache=true"
+        ]
+
+        for url in filter_urls:
+            res = self.client.get(url, headers=self.headers)
+            self.assertEqual(res.status_code, 200, f"Filter URL failed: {url}")
+            data = res.json()
+            inst = data["institution_overview"]
+            self.assertEqual(inst["stakeholders"], expected_roles, f"Role count varied on {url}")
+            self.assertEqual(inst["dashboards"], expected_dashboards, f"Dashboard count varied on {url}")
+            self.assertEqual(inst["departments"], expected_departments, f"Department count varied on {url}")
+
+    def test_11_boundary_and_empty_filter_conditions(self):
+        """Verify boundary dates and empty result sets produce well-formed empty states without exceptions."""
+        # 1. Non-existent future date range
+        res_future = self.client.get(
+            "/api/v1/dashboard/executive-overview?date_from=2099-01-01&date_to=2099-12-31&bypass_cache=true",
+            headers=self.headers
+        )
+        self.assertEqual(res_future.status_code, 200)
+        d_future = res_future.json()
+        self.assertEqual(len(d_future["recent_activity"]), 0)
+        self.assertEqual(len(d_future["critical_alerts"]), 1)
+        self.assertEqual(d_future["critical_alerts"][0]["type"], "all_clear")
+
+        # 2. Non-existent campus
+        res_empty_campus = self.client.get(
+            "/api/v1/dashboard/executive-overview?campus=NonExistentCampusXYZ&bypass_cache=true",
+            headers=self.headers
+        )
+        self.assertEqual(res_empty_campus.status_code, 200)
+        d_empty = res_empty_campus.json()
+        self.assertEqual(d_empty["institution_overview"]["hostels"], 0)
+        self.assertEqual(len(d_empty["infrastructure_table"]), 0)
+
+        # 3. Empty string / whitespace filters handled gracefully
+        res_ws = self.client.get(
+            "/api/v1/dashboard/executive-overview?campus=%20%20&department=%20%20&bypass_cache=true",
+            headers=self.headers
+        )
+        self.assertEqual(res_ws.status_code, 200)
 
 
 if __name__ == "__main__":

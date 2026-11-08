@@ -485,6 +485,13 @@ class DashboardService:
                 c_name = "North Campus"
             elif "South" in addr:
                 c_name = "South Campus"
+            elif "East" in addr:
+                c_name = "East Campus"
+            elif "West" in addr:
+                c_name = "West Campus"
+            elif "Campus" in addr:
+                parts = [p.strip() for p in addr.split(",") if "Campus" in p]
+                c_name = parts[0] if parts else "Main Campus"
             else:
                 c_name = "Main Campus"
             h_dict["campus"] = c_name
@@ -836,7 +843,8 @@ class DashboardService:
             ORDER BY d.id ASC;
         """, (department, department, department))
         dept_rows = cursor.fetchall()
-        total_departments_count = len(dept_rows)
+        cursor.execute("SELECT COUNT(*) FROM departments;")
+        total_departments_count = cursor.fetchone()[0]
         total_staff_in_depts = sum(r["staff_count"] for r in dept_rows)
         active_staff_in_depts = sum(r["active_count"] for r in dept_rows)
 
