@@ -3076,11 +3076,11 @@
                                 </div>
 
                                 <div class="flex items-center space-x-2">
-                                    <button type="button" @click="runLiveDatabaseIntegrityScan()"
+                                    <button type="button" id="sa01-verify-integrity-btn" @click="runLiveDatabaseIntegrityScan()"
                                             class="px-3.5 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-bold transition flex items-center space-x-1.5 shadow-xs"
                                             :disabled="integrityScanning">
                                         <i class="fa-solid fa-stethoscope text-xs text-brand-600" :class="integrityScanning ? 'fa-spin' : ''"></i>
-                                        <span>Run Live Integrity Scan</span>
+                                        <span x-text="integrityScanning ? 'Scanning Database...' : 'Run Live Integrity Scan'"></span>
                                     </button>
                                 </div>
                             </div>

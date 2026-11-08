@@ -279,15 +279,32 @@ class TestBrowserAcceptance(unittest.TestCase):
 
 
     def test_06_super_admin_executive_dashboard_all_13_sections(self):
-        """Test SA-01 Executive Overview: Validate all 13 sections A-M, dynamic bindings, and responsiveness."""
+        """Test SA-01 Executive Overview: Validate all 13 sections A-M on Desktop, Tablet, and Mobile viewports."""
+        sections = [
+            ("sa01-section-a", "Section A: Executive Header & Metadata"),
+            ("sa01-section-b", "Section B: Institutional Overview (10 Entities)"),
+            ("sa01-section-c", "Section C: Critical KPI Grid (4 Domains)"),
+            ("sa01-section-d", "Section D: Operational Performance & SLA"),
+            ("sa01-section-e", "Section E: Institutional Financial Overview"),
+            ("sa01-section-f", "Section F: Admissions Intake & Branch Distribution"),
+            ("sa01-section-g", "Section G: Infrastructure Hierarchy & Live Occupancy"),
+            ("sa01-section-h", "Section H: Workforce & 17 Departments Overview"),
+            ("sa01-section-i", "Section I: Institutional Operational Visualizer (SVG Charts)"),
+            ("sa01-section-j", "Section J: Live Transaction Activity Trail"),
+            ("sa01-section-k", "Section K: Real-Time Critical Incident & Security Alert Center"),
+            ("sa01-section-l", "Section L: Executive Quick Actions & Navigation Shortcuts"),
+            ("sa01-section-m", "Section M: Institutional Infrastructure & System Health Telemetry")
+        ]
+
+        # -------------------------------------------------------------
         # 1. Desktop Viewport (1440x900)
+        # -------------------------------------------------------------
         context = self.browser.new_context(viewport={"width": 1440, "height": 900})
         page = context.new_page()
 
         page.goto(self.base_url, wait_until="domcontentloaded")
         self.login_role(page, "superadmin", "Password123!")
 
-        # Ensure activeSection is 'dashboard' and selectedDashboardGroup is 'super_admin'
         page.evaluate("""() => {
             const data = document.querySelector('[x-data]')._x_dataStack[0];
             data.activeSection = 'dashboard';
@@ -298,43 +315,29 @@ class TestBrowserAcceptance(unittest.TestCase):
         }""")
         page.wait_for_timeout(1000)
 
-        # List of all 13 sections A through M
-        sections = [
-            ("sa01-section-a", "Executive Header & Metadata"),
-            ("sa01-section-b", "Institutional Overview (10 Entities)"),
-            ("sa01-section-c", "Critical KPI Grid (4 Domains)"),
-            ("sa01-section-d", "Operational Performance & SLA"),
-            ("sa01-section-e", "Institutional Financial Overview"),
-            ("sa01-section-f", "Admissions Intake & Branch Distribution"),
-            ("sa01-section-g", "Infrastructure Hierarchy & Live Occupancy"),
-            ("sa01-section-h", "Workforce & 17 Departments Overview"),
-            ("sa01-section-i", "Institutional Operational Visualizer (SVG Charts)"),
-            ("sa01-section-j", "Live Transaction Activity Trail"),
-            ("sa01-section-k", "Real-Time Critical Incident & Security Alert Center"),
-            ("sa01-section-l", "Executive Quick Actions & Navigation Shortcuts"),
-            ("sa01-section-m", "Institutional Infrastructure & System Health Telemetry")
-        ]
-
-        print("\n--- BROWSER VERIFICATION: ALL 13 EXECUTIVE DASHBOARD SECTIONS ---")
+        print("\n--- BROWSER VERIFICATION: DESKTOP (1440x900) ALL 13 SECTIONS ---")
         for sec_id, sec_title in sections:
             locator = page.locator(f"#{sec_id}")
-            self.assertTrue(locator.count() > 0, f"Section #{sec_id} ({sec_title}) missing from DOM")
+            self.assertTrue(locator.count() > 0, f"Desktop: #{sec_id} ({sec_title}) missing from DOM")
             locator.scroll_into_view_if_needed()
-            self.assertTrue(locator.is_visible(), f"Section #{sec_id} ({sec_title}) is not visible")
-            print(f"[PASS] Section #{sec_id}: {sec_title} - Rendered and visible")
+            self.assertTrue(locator.is_visible(), f"Desktop: #{sec_id} ({sec_title}) is not visible")
+            print(f"[PASS] Desktop #{sec_id}: {sec_title} - Rendered and visible")
 
-        # Verify live integrity verify button in Section M
+        # Mandatory manual database integrity verification button test
         scan_btn = page.locator("#sa01-verify-integrity-btn")
-        if scan_btn.count() > 0:
-            scan_btn.scroll_into_view_if_needed()
-            scan_btn.click()
-            page.wait_for_timeout(1000)
-            print("[PASS] Manual Database Integrity Scan Triggered and Verified via UI")
+        self.assertTrue(scan_btn.count() > 0, "Mandatory button #sa01-verify-integrity-btn missing from DOM")
+        scan_btn.scroll_into_view_if_needed()
+        self.assertTrue(scan_btn.is_visible(), "Mandatory button #sa01-verify-integrity-btn is not visible")
+        scan_btn.click()
+        page.wait_for_timeout(1000)
+        print("[PASS] Desktop: Mandatory Database Integrity Scan Triggered and Verified via UI")
 
         self.logout_role(page)
         context.close()
 
+        # -------------------------------------------------------------
         # 2. Tablet Viewport (768x1024)
+        # -------------------------------------------------------------
         tablet_ctx = self.browser.new_context(viewport={"width": 768, "height": 1024})
         t_page = tablet_ctx.new_page()
         t_page.goto(self.base_url, wait_until="domcontentloaded")
@@ -343,14 +346,26 @@ class TestBrowserAcceptance(unittest.TestCase):
             const data = document.querySelector('[x-data]')._x_dataStack[0];
             data.activeSection = 'dashboard';
             data.selectedDashboardGroup = 'super_admin';
+            if (typeof data.fetchSuperAdminExecutiveOverview === 'function') {
+                data.fetchSuperAdminExecutiveOverview();
+            }
         }""")
-        t_page.wait_for_timeout(600)
-        self.assertTrue(t_page.locator("#sa01-section-a").is_visible())
-        self.assertTrue(t_page.locator("#sa01-section-m").is_visible())
+        t_page.wait_for_timeout(1000)
+
+        print("\n--- BROWSER VERIFICATION: TABLET (768x1024) ALL 13 SECTIONS ---")
+        for sec_id, sec_title in sections:
+            locator = t_page.locator(f"#{sec_id}")
+            self.assertTrue(locator.count() > 0, f"Tablet: #{sec_id} ({sec_title}) missing from DOM")
+            locator.scroll_into_view_if_needed()
+            self.assertTrue(locator.is_visible(), f"Tablet: #{sec_id} ({sec_title}) is not visible")
+            print(f"[PASS] Tablet #{sec_id}: {sec_title} - Rendered and visible")
+
         self.logout_role(t_page)
         tablet_ctx.close()
 
+        # -------------------------------------------------------------
         # 3. Mobile Viewport (390x844)
+        # -------------------------------------------------------------
         mobile_ctx = self.browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
         m_page = mobile_ctx.new_page()
         m_page.goto(self.base_url, wait_until="domcontentloaded")
@@ -359,12 +374,23 @@ class TestBrowserAcceptance(unittest.TestCase):
             const data = document.querySelector('[x-data]')._x_dataStack[0];
             data.activeSection = 'dashboard';
             data.selectedDashboardGroup = 'super_admin';
+            if (typeof data.fetchSuperAdminExecutiveOverview === 'function') {
+                data.fetchSuperAdminExecutiveOverview();
+            }
         }""")
-        m_page.wait_for_timeout(600)
-        self.assertTrue(m_page.locator("#sa01-section-a").is_visible())
-        self.assertTrue(m_page.locator("#sa01-section-m").is_visible())
+        m_page.wait_for_timeout(1000)
+
+        print("\n--- BROWSER VERIFICATION: MOBILE (390x844) ALL 13 SECTIONS ---")
+        for sec_id, sec_title in sections:
+            locator = m_page.locator(f"#{sec_id}")
+            self.assertTrue(locator.count() > 0, f"Mobile: #{sec_id} ({sec_title}) missing from DOM")
+            locator.scroll_into_view_if_needed()
+            self.assertTrue(locator.is_visible(), f"Mobile: #{sec_id} ({sec_title}) is not visible")
+            print(f"[PASS] Mobile #{sec_id}: {sec_title} - Rendered and visible")
+
         scroll_width = m_page.evaluate("() => document.body.scrollWidth")
-        self.assertLessEqual(scroll_width, 420, "Mobile layout horizontal overflow detected in executive dashboard")
+        self.assertLessEqual(scroll_width, 420, f"Mobile layout horizontal overflow detected: scrollWidth={scroll_width}")
+
         self.logout_role(m_page)
         mobile_ctx.close()
 

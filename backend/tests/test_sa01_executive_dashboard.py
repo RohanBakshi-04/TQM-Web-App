@@ -462,5 +462,79 @@ class TestSA01ExecutiveDashboard(unittest.TestCase):
         self.assertIsNone(res_recover.json()["diagnostics"]["last_error"])
 
 
+    def test_15_database_integrity_double_checked_locking_and_ttl(self):
+        """Verify double-checked locking, TTL expiration, and timestamp correctness."""
+        from backend.app.services.database_integrity_service import integrity_monitor
+        import time
+
+        # 1. Healthy scan primes cache
+        diag1 = integrity_monitor.check_integrity(force=True)
+        self.assertEqual(diag1["status"], "healthy")
+        self.assertFalse(diag1["is_cached"])
+        first_verified_at = diag1["last_verified_at"]
+        self.assertIsNotNone(first_verified_at)
+
+        # 2. Subsequent call within TTL returns cached result without live scan
+        diag2 = integrity_monitor.check_integrity(force=False)
+        self.assertEqual(diag2["status"], "healthy")
+        self.assertTrue(diag2["is_cached"])
+        self.assertEqual(diag2["last_verified_at"], first_verified_at)
+
+        # 3. Simulate TTL expiration by adjusting cached_until into past
+        integrity_monitor.cached_until = time.time() - 1.0
+        diag3 = integrity_monitor.check_integrity(force=False)
+        self.assertFalse(diag3["is_cached"], "Expired TTL must trigger live physical scan")
+        self.assertEqual(diag3["status"], "healthy")
+
+        # 4. Verify failed verification preserves last successful verification timestamp
+        prior_verified_at = integrity_monitor.last_verified_at
+        integrity_monitor.set_simulated_error("Simulated B-Tree corrupt node error")
+        diag_fail = integrity_monitor.check_integrity(force=True)
+        self.assertEqual(diag_fail["status"], "failed")
+        # last_verified_at must NOT be updated on failure
+        self.assertEqual(diag_fail["last_verified_at"], prior_verified_at)
+        # last_attempted_at must be updated
+        self.assertIsNotNone(diag_fail["last_attempted_at"])
+
+        # Reset simulation
+        integrity_monitor.reset()
+        diag_clean = integrity_monitor.check_integrity(force=True)
+        self.assertEqual(diag_clean["status"], "healthy")
+
+    def test_16_rbac_unauthorized_access_matrix(self):
+        """Verify non-executive roles receive 403 Forbidden on executive overview & integrity verify."""
+        unauthorized_users = [
+            ("rohan", "Password123!", "student"),
+            ("parent", "Password123!", "parent_guardian"),
+            ("maintenance", "Password123!", "maintenance_staff"),
+            ("security", "Password123!", "security_guard"),
+            ("clerk", "Password123!", "hostel_clerk"),
+            ("accountant", "Password123!", "accountant"),
+        ]
+
+        for username, password, role_name in unauthorized_users:
+            login_res = self.client.post("/api/v1/auth/login", json={
+                "username_or_email": username,
+                "password": password
+            })
+            self.assertEqual(login_res.status_code, 200, f"Login failed for demo user {username}")
+            token = login_res.json()["access_token"]
+            headers = {"Authorization": f"Bearer {token}"}
+
+            # 1. Executive overview endpoint (Super Admin only)
+            res_exec = self.client.get("/api/v1/dashboard/executive-overview", headers=headers)
+            self.assertEqual(
+                res_exec.status_code, 403,
+                f"Role {role_name} ({username}) must be rejected with 403 Forbidden from executive overview"
+            )
+
+            # 2. Trigger manual integrity scan endpoint (Super Admin & IT Admin only)
+            res_verify = self.client.post("/api/v1/metrics/integrity/verify", headers=headers)
+            self.assertEqual(
+                res_verify.status_code, 403,
+                f"Role {role_name} ({username}) must be rejected with 403 Forbidden from integrity scan trigger"
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

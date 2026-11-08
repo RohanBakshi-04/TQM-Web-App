@@ -99,15 +99,37 @@ class DatabaseIntegrityMonitor:
 
         should_close_conn = False
         try:
+            now_ts = time.time()
+            now_dt = datetime.datetime.now()
+
+            # Double-Checked Locking:
+            # Recheck cache validity AFTER acquiring execution lock in case another thread just completed verification
+            if not force and self.status != "unknown" and now_ts < self.cached_until and self._last_verified_ts > 0:
+                freshness_sec = round(now_ts - self._last_verified_ts, 1)
+                freshness_label = f"Cached — {int(freshness_sec)}s old" if freshness_sec < 60 else f"Cached — {int(freshness_sec // 60)}m old"
+                return {
+                    "status": self.status,
+                    "raw_result": self.raw_result,
+                    "is_cached": True,
+                    "last_verified_at": self.last_verified_at,
+                    "last_attempted_at": self.last_attempted_at,
+                    "duration_ms": self.check_duration_ms,
+                    "freshness_seconds": freshness_sec,
+                    "freshness_label": freshness_label,
+                    "next_refresh_eligible_at": datetime.datetime.fromtimestamp(self.cached_until).strftime("%Y-%m-%d %H:%M:%S"),
+                    "last_error": self.last_error
+                }
+
             self.last_attempted_at = now_dt.strftime("%Y-%m-%d %H:%M:%S")
 
-            # Simulated error support for testing
+            # Simulated error support for testing (isolated)
             if self._simulated_error:
                 self.status = "failed"
                 self.raw_result = self._simulated_error
                 self.last_error = self._simulated_error
                 self.check_duration_ms = 0.5
                 self.cached_until = now_ts + 5.0
+                prior_freshness = round(now_ts - self._last_verified_ts, 1) if self._last_verified_ts > 0 else 0.0
                 return {
                     "status": "failed",
                     "raw_result": self._simulated_error,
@@ -115,7 +137,7 @@ class DatabaseIntegrityMonitor:
                     "last_verified_at": self.last_verified_at,
                     "last_attempted_at": self.last_attempted_at,
                     "duration_ms": self.check_duration_ms,
-                    "freshness_seconds": 0.0,
+                    "freshness_seconds": prior_freshness,
                     "freshness_label": "Failed verification",
                     "next_refresh_eligible_at": datetime.datetime.fromtimestamp(self.cached_until).strftime("%Y-%m-%d %H:%M:%S"),
                     "last_error": self._simulated_error
@@ -142,12 +164,14 @@ class DatabaseIntegrityMonitor:
                 self._last_verified_ts = time.time()
                 self.cached_until = self._last_verified_ts + self.ttl_seconds
                 freshness_label = "Live verification"
+                freshness_sec = 0.0
             else:
                 self.status = "warning" if "warn" in raw_str.lower() else "failed"
                 self.last_error = raw_str
-                # For failures, allow re-check sooner (15s)
+                # For failures, allow re-check sooner (15s) and preserve last successful verification timestamp
                 self.cached_until = time.time() + 15.0
                 freshness_label = "Verification detected anomaly"
+                freshness_sec = round(time.time() - self._last_verified_ts, 1) if self._last_verified_ts > 0 else 0.0
 
             return {
                 "status": self.status,
@@ -156,7 +180,7 @@ class DatabaseIntegrityMonitor:
                 "last_verified_at": self.last_verified_at,
                 "last_attempted_at": self.last_attempted_at,
                 "duration_ms": self.check_duration_ms,
-                "freshness_seconds": 0.0,
+                "freshness_seconds": freshness_sec,
                 "freshness_label": freshness_label,
                 "next_refresh_eligible_at": datetime.datetime.fromtimestamp(self.cached_until).strftime("%Y-%m-%d %H:%M:%S"),
                 "last_error": self.last_error
@@ -168,6 +192,7 @@ class DatabaseIntegrityMonitor:
             self.last_error = str(exc)
             self.raw_result = "error"
             self.cached_until = time.time() + 10.0
+            prior_freshness = round(time.time() - self._last_verified_ts, 1) if self._last_verified_ts > 0 else 0.0
             return {
                 "status": "failed",
                 "raw_result": "error",
@@ -175,7 +200,7 @@ class DatabaseIntegrityMonitor:
                 "last_verified_at": self.last_verified_at,
                 "last_attempted_at": self.last_attempted_at,
                 "duration_ms": 0.0,
-                "freshness_seconds": 0.0,
+                "freshness_seconds": prior_freshness,
                 "freshness_label": "Verification error",
                 "next_refresh_eligible_at": datetime.datetime.fromtimestamp(self.cached_until).strftime("%Y-%m-%d %H:%M:%S"),
                 "last_error": str(exc)
