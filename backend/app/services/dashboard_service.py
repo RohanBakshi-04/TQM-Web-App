@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Set
 from backend.app.database.connection import get_db_path
 from backend.app.services.cache_service import cache_service, make_dashboard_cache_key
 from backend.app.utils.logger import logger
+from backend.app.services.database_integrity_service import integrity_monitor
 
 
 
@@ -33,6 +34,18 @@ def _get_database_integrity(conn: sqlite3.Connection) -> str:
         return res
     except Exception:
         return "ok"
+
+def _clean_date_iso(val):
+    if not val or not str(val).strip():
+        return None
+    val_str = str(val).strip()
+    try:
+        from datetime import datetime
+        dt = datetime.fromisoformat(val_str.split("T")[0])
+        return dt.strftime("%Y-%m-%d")
+    except Exception:
+        return None
+
 
 class DashboardService:
     """Computes and caches comprehensive operational dashboard metrics with strict multi-tenant isolation."""
@@ -356,12 +369,12 @@ class DashboardService:
         """Fetch SA-01 Super Admin Executive Overview with Q05 in-memory caching (<10ms SLA)."""
         t0 = time.perf_counter()
 
-        # Sanitize filter inputs
+        # Sanitize filter inputs with Poka-Yoke validation
         clean_campus = campus.strip() if campus and campus.strip() and campus.lower() != "all" else None
         clean_dept = department.strip() if department and department.strip() and department.lower() != "all" else None
         clean_session = academic_session.strip() if academic_session and academic_session.strip() and academic_session.lower() != "all" else None
-        clean_date_from = date_from.strip() if date_from and date_from.strip() else None
-        clean_date_to = date_to.strip() if date_to and date_to.strip() else None
+        clean_date_from = _clean_date_iso(date_from)
+        clean_date_to = _clean_date_iso(date_to)
 
         primary_role = next(iter(user_roles or []), "super_admin")
         cache_key = f"sa_executive_{primary_role}_{hostel_id}_{clean_campus}_{clean_dept}_{clean_session}_{clean_date_from}_{clean_date_to}"
@@ -918,16 +931,28 @@ class DashboardService:
         recent_activity_logs = [dict(r) for r in cursor.fetchall()]
 
         # ------------------------------------------------------------------
-        # 9. Section M: System Health Telemetry
+        # 9. Section M: System Health Telemetry & Database Integrity Freshness
         # ------------------------------------------------------------------
         journal_mode = "unknown"
-        integrity_status = "unknown"
+        integrity_diag = {
+            "status": "unknown",
+            "raw_result": "unknown",
+            "is_cached": False,
+            "last_verified_at": None,
+            "duration_ms": 0.0,
+            "freshness_seconds": 0.0,
+            "freshness_label": "Unknown",
+            "next_refresh_eligible_at": None,
+            "last_error": None
+        }
         try:
             cursor.execute("PRAGMA journal_mode;")
             journal_mode = str(cursor.fetchone()[0]).lower()
-            integrity_status = _get_database_integrity(conn)
-        except Exception:
-            pass
+            integrity_diag = integrity_monitor.check_integrity(conn)
+        except Exception as exc:
+            logger.error(f"Failed to check SQLite journal_mode/integrity: {exc}")
+            integrity_diag["status"] = "failed"
+            integrity_diag["last_error"] = str(exc)
 
         db_path = get_db_path()
         db_size_bytes = os.path.getsize(db_path) if os.path.exists(db_path) else 0
@@ -1067,7 +1092,8 @@ class DashboardService:
             "system_health": {
                 "db_connected": True,
                 "journal_mode": journal_mode,
-                "integrity_check": integrity_status,
+                "integrity_check": integrity_diag["status"],
+                "integrity_diagnostics": integrity_diag,
                 "db_size_bytes": db_size_bytes,
                 "db_size_mb": db_size_mb,
                 "cache_stats": cache_stats,

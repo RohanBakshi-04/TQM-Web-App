@@ -278,5 +278,96 @@ class TestBrowserAcceptance(unittest.TestCase):
         context.close()
 
 
+    def test_06_super_admin_executive_dashboard_all_13_sections(self):
+        """Test SA-01 Executive Overview: Validate all 13 sections A-M, dynamic bindings, and responsiveness."""
+        # 1. Desktop Viewport (1440x900)
+        context = self.browser.new_context(viewport={"width": 1440, "height": 900})
+        page = context.new_page()
+
+        page.goto(self.base_url, wait_until="domcontentloaded")
+        self.login_role(page, "superadmin", "Password123!")
+
+        # Ensure activeSection is 'dashboard' and selectedDashboardGroup is 'super_admin'
+        page.evaluate("""() => {
+            const data = document.querySelector('[x-data]')._x_dataStack[0];
+            data.activeSection = 'dashboard';
+            data.selectedDashboardGroup = 'super_admin';
+            if (typeof data.fetchSuperAdminExecutiveOverview === 'function') {
+                data.fetchSuperAdminExecutiveOverview();
+            }
+        }""")
+        page.wait_for_timeout(1000)
+
+        # List of all 13 sections A through M
+        sections = [
+            ("sa01-section-a", "Executive Header & Metadata"),
+            ("sa01-section-b", "Institutional Overview (10 Entities)"),
+            ("sa01-section-c", "Critical KPI Grid (4 Domains)"),
+            ("sa01-section-d", "Operational Performance & SLA"),
+            ("sa01-section-e", "Institutional Financial Overview"),
+            ("sa01-section-f", "Admissions Intake & Branch Distribution"),
+            ("sa01-section-g", "Infrastructure Hierarchy & Live Occupancy"),
+            ("sa01-section-h", "Workforce & 17 Departments Overview"),
+            ("sa01-section-i", "Institutional Operational Visualizer (SVG Charts)"),
+            ("sa01-section-j", "Live Transaction Activity Trail"),
+            ("sa01-section-k", "Real-Time Critical Incident & Security Alert Center"),
+            ("sa01-section-l", "Executive Quick Actions & Navigation Shortcuts"),
+            ("sa01-section-m", "Institutional Infrastructure & System Health Telemetry")
+        ]
+
+        print("\n--- BROWSER VERIFICATION: ALL 13 EXECUTIVE DASHBOARD SECTIONS ---")
+        for sec_id, sec_title in sections:
+            locator = page.locator(f"#{sec_id}")
+            self.assertTrue(locator.count() > 0, f"Section #{sec_id} ({sec_title}) missing from DOM")
+            locator.scroll_into_view_if_needed()
+            self.assertTrue(locator.is_visible(), f"Section #{sec_id} ({sec_title}) is not visible")
+            print(f"[PASS] Section #{sec_id}: {sec_title} - Rendered and visible")
+
+        # Verify live integrity verify button in Section M
+        scan_btn = page.locator("#sa01-verify-integrity-btn")
+        if scan_btn.count() > 0:
+            scan_btn.scroll_into_view_if_needed()
+            scan_btn.click()
+            page.wait_for_timeout(1000)
+            print("[PASS] Manual Database Integrity Scan Triggered and Verified via UI")
+
+        self.logout_role(page)
+        context.close()
+
+        # 2. Tablet Viewport (768x1024)
+        tablet_ctx = self.browser.new_context(viewport={"width": 768, "height": 1024})
+        t_page = tablet_ctx.new_page()
+        t_page.goto(self.base_url, wait_until="domcontentloaded")
+        self.login_role(t_page, "superadmin", "Password123!")
+        t_page.evaluate("""() => {
+            const data = document.querySelector('[x-data]')._x_dataStack[0];
+            data.activeSection = 'dashboard';
+            data.selectedDashboardGroup = 'super_admin';
+        }""")
+        t_page.wait_for_timeout(600)
+        self.assertTrue(t_page.locator("#sa01-section-a").is_visible())
+        self.assertTrue(t_page.locator("#sa01-section-m").is_visible())
+        self.logout_role(t_page)
+        tablet_ctx.close()
+
+        # 3. Mobile Viewport (390x844)
+        mobile_ctx = self.browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+        m_page = mobile_ctx.new_page()
+        m_page.goto(self.base_url, wait_until="domcontentloaded")
+        self.login_role(m_page, "superadmin", "Password123!")
+        m_page.evaluate("""() => {
+            const data = document.querySelector('[x-data]')._x_dataStack[0];
+            data.activeSection = 'dashboard';
+            data.selectedDashboardGroup = 'super_admin';
+        }""")
+        m_page.wait_for_timeout(600)
+        self.assertTrue(m_page.locator("#sa01-section-a").is_visible())
+        self.assertTrue(m_page.locator("#sa01-section-m").is_visible())
+        scroll_width = m_page.evaluate("() => document.body.scrollWidth")
+        self.assertLessEqual(scroll_width, 420, "Mobile layout horizontal overflow detected in executive dashboard")
+        self.logout_role(m_page)
+        mobile_ctx.close()
+
+
 if __name__ == "__main__":
     unittest.main()

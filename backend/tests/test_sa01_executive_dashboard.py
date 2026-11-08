@@ -142,7 +142,12 @@ class TestSA01ExecutiveDashboard(unittest.TestCase):
         health = data["system_health"]
         self.assertTrue(health["db_connected"])
         self.assertEqual(health["journal_mode"], "wal")
-        self.assertEqual(health["integrity_check"], "ok")
+        self.assertIn(health["integrity_check"], ["ok", "healthy"])
+        self.assertIn("integrity_diagnostics", health)
+        diag = health["integrity_diagnostics"]
+        self.assertIn(diag["status"], ["ok", "healthy"])
+        self.assertIn("freshness_seconds", diag)
+        self.assertIn("freshness_label", diag)
         self.assertIn("cache_stats", health)
         self.assertEqual(health["api_latency_target_ms"], 10.0)
 
@@ -344,13 +349,27 @@ class TestSA01ExecutiveDashboard(unittest.TestCase):
         self.assertEqual(res3.json()["metadata"]["cache_status"], "MISS")
 
     def test_11_q05_benchmarking_telemetry(self):
-        """Honest benchmark telemetry for Q05 (< 10ms SLA) across cold and warm request iterations."""
+        """Honest benchmark telemetry for Q05 (< 10ms SLA) across cold (N=100) and warm (N=100) requests."""
         cache_service.clear()
+
+        def compute_stats(data):
+            sorted_data = sorted(data)
+            n = len(sorted_data)
+            return {
+                "count": n,
+                "median": round(statistics.median(sorted_data), 3),
+                "p90": round(sorted_data[min(int(n * 0.90), n - 1)], 3),
+                "p95": round(sorted_data[min(int(n * 0.95), n - 1)], 3),
+                "p99": round(sorted_data[min(int(n * 0.99), n - 1)], 3),
+                "min": round(min(sorted_data), 3),
+                "max": round(max(sorted_data), 3),
+                "mean": round(statistics.mean(sorted_data), 3),
+                "stddev": round(statistics.stdev(sorted_data) if n > 1 else 0.0, 3)
+            }
 
         cold_client_latencies = []
         cold_server_latencies = []
-        # Run 30 cold requests
-        for _ in range(30):
+        for _ in range(100):
             t0 = time.perf_counter()
             res = self.client.get("/api/v1/dashboard/executive-overview?bypass_cache=true", headers=self.superadmin_headers)
             dt = (time.perf_counter() - t0) * 1000.0
@@ -360,8 +379,7 @@ class TestSA01ExecutiveDashboard(unittest.TestCase):
 
         warm_client_latencies = []
         warm_server_latencies = []
-        # Run 30 warm requests
-        for _ in range(30):
+        for _ in range(100):
             t0 = time.perf_counter()
             res = self.client.get("/api/v1/dashboard/executive-overview", headers=self.superadmin_headers)
             dt = (time.perf_counter() - t0) * 1000.0
@@ -369,27 +387,79 @@ class TestSA01ExecutiveDashboard(unittest.TestCase):
             warm_client_latencies.append(dt)
             warm_server_latencies.append(res.json()["metadata"]["execution_time_ms"])
 
-        cold_client_latencies.sort()
-        warm_client_latencies.sort()
+        cold_client_stats = compute_stats(cold_client_latencies)
+        cold_server_stats = compute_stats(cold_server_latencies)
+        warm_client_stats = compute_stats(warm_client_latencies)
+        warm_server_stats = compute_stats(warm_server_latencies)
 
-        cold_median = statistics.median(cold_client_latencies)
-        cold_p95 = cold_client_latencies[int(len(cold_client_latencies) * 0.95)]
-        cold_max = max(cold_client_latencies)
+        print("\n=================== Q05 BENCHMARK REPORT (N=100) ===================")
+        print(f"Cold HTTP Roundtrip (ms):  {cold_client_stats}")
+        print(f"Cold Internal Service (ms): {cold_server_stats}")
+        print(f"Warm HTTP Roundtrip (ms):  {warm_client_stats}")
+        print(f"Warm Internal Service (ms): {warm_server_stats}")
+        print("===================================================================")
 
-        warm_median = statistics.median(warm_client_latencies)
-        warm_p95 = warm_client_latencies[int(len(warm_client_latencies) * 0.95)]
-        warm_max = max(warm_client_latencies)
+        # Q05 Verification: Internal service execution is strictly < 10ms SLA
+        self.assertLess(warm_server_stats["p95"], 10.0)
+        self.assertLess(cold_server_stats["median"], 10.0)
 
-        server_warm_median = statistics.median(warm_server_latencies)
-        server_warm_p95 = warm_server_latencies[int(len(warm_server_latencies) * 0.95)]
+    def test_12_database_integrity_monitor_endpoints(self):
+        """Verify DatabaseIntegrityMonitor endpoints and diagnostic state payload."""
+        # GET /api/v1/metrics/integrity
+        res_get = self.client.get("/api/v1/metrics/integrity", headers=self.superadmin_headers)
+        self.assertEqual(res_get.status_code, 200)
+        data_get = res_get.json()
+        self.assertIn("status", data_get)
+        self.assertIn(data_get["status"], ["healthy", "warning", "failed", "unknown"])
+        self.assertIn("freshness_label", data_get)
+        self.assertIn("freshness_seconds", data_get)
+        self.assertIn("last_verified_at", data_get)
 
-        print(f"\n[Q05 BENCHMARK REPORT]")
-        print(f"Cold Client Roundtrip (N=30): Median={cold_median:.2f}ms, P95={cold_p95:.2f}ms, Max={cold_max:.2f}ms")
-        print(f"Warm Client Roundtrip (N=30): Median={warm_median:.2f}ms, P95={warm_p95:.2f}ms, Max={warm_max:.2f}ms")
-        print(f"Warm Server Query Execution (N=30): Median={server_warm_median:.3f}ms, P95={server_warm_p95:.3f}ms")
+        # POST /api/v1/metrics/integrity/verify (Manual trigger)
+        res_post = self.client.post("/api/v1/metrics/integrity/verify", headers=self.superadmin_headers)
+        self.assertEqual(res_post.status_code, 200)
+        data_post = res_post.json()
+        self.assertEqual(data_post["status"], "success")
+        self.assertEqual(data_post["diagnostics"]["status"], "healthy")
+        self.assertGreaterEqual(data_post["diagnostics"]["duration_ms"], 0.0)
 
-        # Assert internal server execution time strictly satisfies Q05 (< 10ms SLA)
-        self.assertLess(server_warm_median, 10.0, f"Warm server execution time {server_warm_median:.3f}ms must satisfy Q05 < 10ms SLA")
+    def test_13_database_integrity_concurrent_stampede_protection(self):
+        """Verify thread-safe locking prevents multiple simultaneous database page scans."""
+        import threading
+        from backend.app.services.database_integrity_service import integrity_monitor
+
+        results = []
+        def worker():
+            diag = integrity_monitor.check_integrity(force=False)
+            results.append(diag["status"])
+
+        threads = [threading.Thread(target=worker) for _ in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(len(results), 10)
+        for s in results:
+            self.assertEqual(s, "healthy")
+
+    def test_14_database_integrity_simulation_and_recovery(self):
+        """Verify integrity monitoring detects anomalies and recovers cleanly."""
+        from backend.app.services.database_integrity_service import integrity_monitor
+
+        # Simulate warning state
+        integrity_monitor.simulate_status("warning", error="Simulated page scan degradation")
+        res_warn = self.client.get("/api/v1/metrics/integrity", headers=self.superadmin_headers)
+        self.assertEqual(res_warn.status_code, 200)
+        self.assertEqual(res_warn.json()["status"], "warning")
+        self.assertEqual(res_warn.json()["last_error"], "Simulated page scan degradation")
+
+        # Recover using real scan
+        res_recover = self.client.post("/api/v1/metrics/integrity/verify", headers=self.superadmin_headers)
+        self.assertEqual(res_recover.status_code, 200)
+        self.assertEqual(res_recover.json()["status"], "success")
+        self.assertEqual(res_recover.json()["diagnostics"]["status"], "healthy")
+        self.assertIsNone(res_recover.json()["diagnostics"]["last_error"])
 
 
 if __name__ == "__main__":

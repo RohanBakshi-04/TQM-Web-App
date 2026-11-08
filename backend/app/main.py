@@ -161,9 +161,12 @@ async def on_startup():
         from backend.app.database.connection import get_db_connection
         from backend.app.services.dashboard_service import DashboardService
         conn = get_db_connection()
+        from backend.app.services.database_integrity_service import integrity_monitor
+        integrity_monitor.check_integrity(conn)
         DashboardService.get_dashboard_metrics(conn, user_roles=["super_admin"])
+        DashboardService.get_super_admin_executive_metrics(conn, user_roles=["super_admin"])
         conn.close()
-        logger.info("Pre-warmed in-memory dashboard cache successfully.")
+        logger.info("Pre-warmed in-memory dashboard cache and integrity monitor successfully.")
     except Exception as e:
         logger.warning(f"Dashboard cache pre-warm skipped: {e}")
 

@@ -777,6 +777,7 @@ document.addEventListener("alpine:init", () => {
         executiveOverviewError: null,
         executiveOverviewStale: false,
         executiveLastSynced: null,
+        integrityScanning: false,
         executiveFilters: {
             academic_session: "2026-27",
             campus: "all",
@@ -1258,6 +1259,24 @@ selectPreset(preset) {
                 date_to: ""
             };
             this.loadExecutiveOverview(true);
+        },
+
+        async runLiveDatabaseIntegrityScan() {
+            this.integrityScanning = true;
+            try {
+                const res = await window.API.request("/api/v1/metrics/integrity/verify", { method: "POST" });
+                if (res && res.status === "success") {
+                    this.showToast(res.message || "Database integrity scan completed.", "success");
+                } else {
+                    this.showToast("Integrity scan reported diagnostic alert.", "warning");
+                }
+                await this.loadExecutiveOverview(true);
+            } catch (err) {
+                console.error("Integrity scan failed:", err);
+                this.showToast("Integrity scan failed: " + (err.message || "Network error"), "error");
+            } finally {
+                this.integrityScanning = false;
+            }
         },
 
         async loadDashboardStats() {

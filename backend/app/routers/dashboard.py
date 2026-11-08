@@ -117,3 +117,27 @@ def clear_cache(
         "message": "In-memory cache flushed successfully.",
         "stats": cache_service.get_stats()
     }
+
+
+@metrics_router.get("/integrity")
+def get_integrity_status(
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "it_admin", "auditor"))
+) -> Dict[str, Any]:
+    """Retrieve database integrity verification telemetry and freshness."""
+    from backend.app.services.database_integrity_service import integrity_monitor
+    return integrity_monitor.check_integrity(force=False)
+
+
+@metrics_router.post("/integrity/verify")
+def trigger_integrity_verification(
+    current_user: Dict[str, Any] = Depends(require_roles("super_admin", "it_admin"))
+) -> Dict[str, Any]:
+    """Execute live physical SQLite PRAGMA quick_check integrity scan immediately."""
+    from backend.app.services.database_integrity_service import integrity_monitor
+    res = integrity_monitor.check_integrity(force=True)
+    cache_service.invalidate_by_tag("dashboard")
+    return {
+        "status": "success",
+        "message": f"Database integrity scan completed with status '{res['status']}'.",
+        "diagnostics": res
+    }
