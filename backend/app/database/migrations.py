@@ -3883,6 +3883,261 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
             applied_now.append("021_enterprise_28_dashboards_and_departments")
             logger.info("Migration 021_enterprise_28_dashboards_and_departments applied successfully.")
 
+        # Migration 022: SA-02 Complete Institution, Campus, Hostel, Building, Block, Floor, Room and Bed Management
+        if "022_sa02_institution_campus_hostel_management" not in applied:
+            logger.info("Applying Migration 022_sa02_institution_campus_hostel_management...")
+            begin_migration_transaction(conn)
+            cursor = conn.cursor()
+
+            # 1. Create institutions table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS institutions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    code TEXT NOT NULL UNIQUE,
+                    legal_name TEXT,
+                    established_year INTEGER,
+                    affiliation TEXT,
+                    website TEXT,
+                    contact_email TEXT,
+                    contact_phone TEXT,
+                    address TEXT,
+                    city TEXT,
+                    state TEXT,
+                    country TEXT DEFAULT 'India',
+                    postal_code TEXT,
+                    logo_url TEXT,
+                    timezone TEXT DEFAULT 'Asia/Kolkata',
+                    academic_year_start TEXT DEFAULT '07-01',
+                    academic_year_end TEXT DEFAULT '06-30',
+                    currency TEXT DEFAULT 'INR',
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # 2. Create campuses table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS campuses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    institution_id INTEGER NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+                    name TEXT NOT NULL,
+                    code TEXT NOT NULL UNIQUE,
+                    address TEXT NOT NULL,
+                    city TEXT,
+                    state TEXT,
+                    country TEXT DEFAULT 'India',
+                    postal_code TEXT,
+                    contact_person TEXT,
+                    contact_email TEXT,
+                    contact_phone TEXT,
+                    admin_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    emergency_contact TEXT,
+                    operating_status TEXT DEFAULT 'Active' CHECK(operating_status IN ('Active', 'Inactive', 'Under_Maintenance')),
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # 3. Create blocks table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS blocks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    building_id INTEGER NOT NULL REFERENCES buildings(id) ON DELETE CASCADE,
+                    hostel_id INTEGER NOT NULL REFERENCES hostels(id) ON DELETE CASCADE,
+                    name TEXT NOT NULL,
+                    code TEXT NOT NULL,
+                    description TEXT,
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(building_id, code)
+                );
+            """)
+
+            # 4. Alter hostels table
+            hostel_cols = [c[1] for c in cursor.execute("PRAGMA table_info(hostels);").fetchall()]
+            if "institution_id" not in hostel_cols:
+                cursor.execute("ALTER TABLE hostels ADD COLUMN institution_id INTEGER REFERENCES institutions(id) ON DELETE CASCADE;")
+            if "campus_id" not in hostel_cols:
+                cursor.execute("ALTER TABLE hostels ADD COLUMN campus_id INTEGER REFERENCES campuses(id) ON DELETE CASCADE;")
+            if "category" not in hostel_cols:
+                cursor.execute("ALTER TABLE hostels ADD COLUMN category TEXT DEFAULT 'General';")
+            if "assistant_warden_id" not in hostel_cols:
+                cursor.execute("ALTER TABLE hostels ADD COLUMN assistant_warden_id INTEGER REFERENCES users(id) ON DELETE SET NULL;")
+            if "supervisor_id" not in hostel_cols:
+                cursor.execute("ALTER TABLE hostels ADD COLUMN supervisor_id INTEGER REFERENCES users(id) ON DELETE SET NULL;")
+            if "curfew_time" not in hostel_cols:
+                cursor.execute("ALTER TABLE hostels ADD COLUMN curfew_time TEXT DEFAULT '22:00';")
+            if "visitor_hours" not in hostel_cols:
+                cursor.execute("ALTER TABLE hostels ADD COLUMN visitor_hours TEXT DEFAULT '16:00 - 19:00';")
+            if "mess_type" not in hostel_cols:
+                cursor.execute("ALTER TABLE hostels ADD COLUMN mess_type TEXT DEFAULT 'Veg and Non-Veg';")
+            if "amenities" not in hostel_cols:
+                cursor.execute("ALTER TABLE hostels ADD COLUMN amenities TEXT DEFAULT '[]';")
+            if "rules_policies" not in hostel_cols:
+                cursor.execute("ALTER TABLE hostels ADD COLUMN rules_policies TEXT DEFAULT '';")
+
+            # 5. Alter buildings table
+            bld_cols = [c[1] for c in cursor.execute("PRAGMA table_info(buildings);").fetchall()]
+            if "campus_id" not in bld_cols:
+                cursor.execute("ALTER TABLE buildings ADD COLUMN campus_id INTEGER REFERENCES campuses(id) ON DELETE CASCADE;")
+            if "construction_year" not in bld_cols:
+                cursor.execute("ALTER TABLE buildings ADD COLUMN construction_year INTEGER;")
+            if "condition_rating" not in bld_cols:
+                cursor.execute("ALTER TABLE buildings ADD COLUMN condition_rating TEXT DEFAULT 'Good';")
+            if "fire_safety_cert_date" not in bld_cols:
+                cursor.execute("ALTER TABLE buildings ADD COLUMN fire_safety_cert_date TEXT;")
+            if "emergency_exits_count" not in bld_cols:
+                cursor.execute("ALTER TABLE buildings ADD COLUMN emergency_exits_count INTEGER DEFAULT 2;")
+            if "elevators_count" not in bld_cols:
+                cursor.execute("ALTER TABLE buildings ADD COLUMN elevators_count INTEGER DEFAULT 0;")
+            if "latitude" not in bld_cols:
+                cursor.execute("ALTER TABLE buildings ADD COLUMN latitude REAL;")
+            if "longitude" not in bld_cols:
+                cursor.execute("ALTER TABLE buildings ADD COLUMN longitude REAL;")
+            if "updated_at" not in bld_cols:
+                cursor.execute("ALTER TABLE buildings ADD COLUMN updated_at TIMESTAMP;")
+                cursor.execute("UPDATE buildings SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL;")
+
+            # 6. Alter floors table
+            flr_cols = [c[1] for c in cursor.execute("PRAGMA table_info(floors);").fetchall()]
+            if "block_id" not in flr_cols:
+                cursor.execute("ALTER TABLE floors ADD COLUMN block_id INTEGER REFERENCES blocks(id) ON DELETE SET NULL;")
+            if "is_active" not in flr_cols:
+                cursor.execute("ALTER TABLE floors ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1;")
+            if "updated_at" not in flr_cols:
+                cursor.execute("ALTER TABLE floors ADD COLUMN updated_at TIMESTAMP;")
+                cursor.execute("UPDATE floors SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL;")
+
+            # 7. Alter rooms table
+            rm_cols = [c[1] for c in cursor.execute("PRAGMA table_info(rooms);").fetchall()]
+            if "maintenance_status" not in rm_cols:
+                cursor.execute("ALTER TABLE rooms ADD COLUMN maintenance_status TEXT NOT NULL DEFAULT 'Operational';")
+            if "condition_rating" not in rm_cols:
+                cursor.execute("ALTER TABLE rooms ADD COLUMN condition_rating TEXT DEFAULT 'Good';")
+            if "amenities" not in rm_cols:
+                cursor.execute("ALTER TABLE rooms ADD COLUMN amenities TEXT DEFAULT '[]';")
+            if "is_ac" not in rm_cols:
+                cursor.execute("ALTER TABLE rooms ADD COLUMN is_ac INTEGER NOT NULL DEFAULT 0;")
+            if "attached_washroom" not in rm_cols:
+                cursor.execute("ALTER TABLE rooms ADD COLUMN attached_washroom INTEGER NOT NULL DEFAULT 0;")
+
+            # 8. Alter beds table
+            bd_cols = [c[1] for c in cursor.execute("PRAGMA table_info(beds);").fetchall()]
+            if "is_active" not in bd_cols:
+                cursor.execute("ALTER TABLE beds ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1;")
+            if "maintenance_status" not in bd_cols:
+                cursor.execute("ALTER TABLE beds ADD COLUMN maintenance_status TEXT NOT NULL DEFAULT 'Operational';")
+            if "monthly_rate" not in bd_cols:
+                cursor.execute("ALTER TABLE beds ADD COLUMN monthly_rate REAL DEFAULT 0.0;")
+
+            # 9. Seed default institution
+            cursor.execute("""
+                INSERT OR IGNORE INTO institutions (id, name, code, legal_name, established_year, affiliation, website, contact_email, contact_phone, address, city, state, country, postal_code, timezone, currency, is_active)
+                VALUES (1, 'University Campus of Excellence', 'UCE-01', 'University Campus of Excellence Trust', 1985, 'State Technical University', 'https://uce.edu.in', 'admin@uce.edu.in', '+91-11-23456789', 'Institutional Area, Knowledge Park', 'New Delhi', 'Delhi', 'India', '110001', 'Asia/Kolkata', 'INR', 1);
+            """)
+
+            # 10. Seed default campuses
+            default_campuses = [
+                (1, 1, 'North Campus', 'NC-01', 'North Campus, Tech Avenue', 'New Delhi', 'Delhi', 'Dr. Ramesh Sharma', 'north.admin@uce.edu.in', '+91-11-23456701', 'Active'),
+                (2, 1, 'South Campus', 'SC-01', 'South Campus, Green Way', 'New Delhi', 'Delhi', 'Dr. Sunita Rao', 'south.admin@uce.edu.in', '+91-11-23456702', 'Active'),
+                (3, 1, 'East Campus', 'EC-01', 'East Campus, Innovation Hub', 'New Delhi', 'Delhi', 'Dr. Anil Mehta', 'east.admin@uce.edu.in', '+91-11-23456703', 'Active'),
+                (4, 1, 'Main Campus', 'MC-01', 'Main Campus Enclave', 'New Delhi', 'Delhi', 'Dr. K. S. Verma', 'main.admin@uce.edu.in', '+91-11-23456704', 'Active'),
+            ]
+            for c_id, inst_id, c_name, c_code, c_addr, c_city, c_state, c_contact, c_email, c_phone, c_status in default_campuses:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO campuses (id, institution_id, name, code, address, city, state, contact_person, contact_email, contact_phone, operating_status, is_active)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1);
+                """, (c_id, inst_id, c_name, c_code, c_addr, c_city, c_state, c_contact, c_email, c_phone, c_status))
+
+            # 11. Backfill hostels campus_id and institution_id
+            cursor.execute("UPDATE hostels SET institution_id = 1 WHERE institution_id IS NULL;")
+            cursor.execute("UPDATE hostels SET campus_id = 1 WHERE campus_id IS NULL AND (address LIKE '%North%' OR name LIKE '%North%');")
+            cursor.execute("UPDATE hostels SET campus_id = 2 WHERE campus_id IS NULL AND (address LIKE '%South%' OR name LIKE '%South%');")
+            cursor.execute("UPDATE hostels SET campus_id = 3 WHERE campus_id IS NULL AND (address LIKE '%East%' OR name LIKE '%East%');")
+            cursor.execute("UPDATE hostels SET campus_id = 4 WHERE campus_id IS NULL;")
+
+            # 12. Backfill buildings campus_id
+            cursor.execute("""
+                UPDATE buildings
+                SET campus_id = (SELECT h.campus_id FROM hostels h WHERE h.id = buildings.hostel_id)
+                WHERE campus_id IS NULL;
+            """)
+            cursor.execute("UPDATE buildings SET campus_id = 1 WHERE campus_id IS NULL;")
+
+            # 13. Seed default blocks for existing buildings and map floors
+            buildings_rows = cursor.execute("SELECT id, hostel_id, name, code FROM buildings;").fetchall()
+            for b_id, h_id, b_name, b_code in buildings_rows:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO blocks (building_id, hostel_id, name, code, description, is_active)
+                    VALUES (?, ?, ?, ?, ?, 1);
+                """, (b_id, h_id, f"{b_name} - Main Wing", "BLK-MAIN", "Primary residential wing"))
+
+            cursor.execute("""
+                UPDATE floors
+                SET block_id = (SELECT b.id FROM blocks b WHERE b.building_id = floors.building_id LIMIT 1)
+                WHERE block_id IS NULL;
+            """)
+
+            # 14. Seed B-Tree indexes
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_campuses_institution ON campuses(institution_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_campuses_code ON campuses(code);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_hostels_campus ON hostels(campus_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_hostels_institution ON hostels(institution_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_buildings_campus ON buildings(campus_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_blocks_building ON blocks(building_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_blocks_hostel ON blocks(hostel_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_floors_block ON floors(block_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_rooms_floor ON rooms(floor_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_rooms_maintenance ON rooms(maintenance_status);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_beds_room ON beds(room_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_beds_status_active ON beds(status, is_active);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_beds_maintenance ON beds(maintenance_status);")
+
+            # 15. Synchronize permissions & role_permissions
+            cursor.execute("SELECT id, name FROM roles;")
+            role_id_map = {r[1]: r[0] for r in cursor.fetchall()}
+
+            for p_name, p_mod, p_desc in PERMISSIONS_LIST:
+                cursor.execute("""
+                    INSERT INTO permissions (name, module, description)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(name) DO UPDATE SET
+                        module = excluded.module,
+                        description = excluded.description;
+                """, (p_name, p_mod, p_desc))
+
+            cursor.execute("SELECT id, name FROM permissions;")
+            perm_id_map = {p[1]: p[0] for p in cursor.fetchall()}
+
+            for r_name, p_names in ROLE_PERMISSIONS_MAP.items():
+                r_id = role_id_map.get(r_name)
+                if not r_id:
+                    continue
+                for p_name in p_names:
+                    p_id = perm_id_map.get(p_name)
+                    if p_id:
+                        cursor.execute("""
+                            INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
+                            VALUES (?, ?);
+                        """, (r_id, p_id))
+
+            # 16. Validate foreign key integrity
+            violations = cursor.execute("PRAGMA foreign_key_check;").fetchall()
+            if violations:
+                violation_summary = [f"table={v[0]}, rowid={v[1]}, target={v[2]}, fkid={v[3]}" for v in violations]
+                err_msg = f"Migration 022 foreign key validation failed: {violation_summary}"
+                logger.error(err_msg)
+                raise RuntimeError(err_msg)
+
+            record_migration(conn, "022_sa02_institution_campus_hostel_management", "SA-02 Complete Institution, Campus, Hostel, Building, Block, Floor, Room and Bed Management", commit=False)
+            conn.commit()
+            applied_now.append("022_sa02_institution_campus_hostel_management")
+            logger.info("Migration 022_sa02_institution_campus_hostel_management applied successfully.")
+
         return applied_now
 
     except Exception as e:

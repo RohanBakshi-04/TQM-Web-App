@@ -522,6 +522,34 @@ def seed_database(conn: Optional[sqlite3.Connection] = None) -> bool:
         cursor.execute("INSERT OR IGNORE INTO system_settings (setting_key, setting_value, category, description) VALUES ('institution_name', 'University College of Engineering', 'general', 'Institute name');")
         cursor.execute("INSERT OR IGNORE INTO system_settings (setting_key, setting_value, category, description) VALUES ('q05_latency_target_ms', '10.0', 'performance', 'Target response time SLA');")
 
+        # 13. Reconcile SA-02 Infrastructure Hierarchy Foreign Keys
+        cursor.execute("UPDATE hostels SET institution_id = 1 WHERE institution_id IS NULL;")
+        cursor.execute("UPDATE hostels SET campus_id = 1 WHERE campus_id IS NULL AND (address LIKE '%North%' OR name LIKE '%North%');")
+        cursor.execute("UPDATE hostels SET campus_id = 2 WHERE campus_id IS NULL AND (address LIKE '%South%' OR name LIKE '%South%');")
+        cursor.execute("UPDATE hostels SET campus_id = 3 WHERE campus_id IS NULL AND (address LIKE '%East%' OR name LIKE '%East%');")
+        cursor.execute("UPDATE hostels SET campus_id = 4 WHERE campus_id IS NULL;")
+
+        cursor.execute("""
+            UPDATE buildings 
+            SET campus_id = (SELECT h.campus_id FROM hostels h WHERE h.id = buildings.hostel_id)
+            WHERE campus_id IS NULL;
+        """)
+        cursor.execute("UPDATE buildings SET campus_id = 1 WHERE campus_id IS NULL;")
+
+        # Ensure blocks exist for buildings
+        bld_rows = cursor.execute("SELECT id, hostel_id, name FROM buildings;").fetchall()
+        for b_id, h_id, b_name in bld_rows:
+            cursor.execute("""
+                INSERT OR IGNORE INTO blocks (building_id, hostel_id, name, code, description, is_active)
+                VALUES (?, ?, ?, 'BLK-MAIN', 'Primary residential wing', 1);
+            """, (b_id, h_id, f"{b_name} - Main Wing"))
+
+        cursor.execute("""
+            UPDATE floors 
+            SET block_id = (SELECT b.id FROM blocks b WHERE b.building_id = floors.building_id LIMIT 1)
+            WHERE block_id IS NULL;
+        """)
+
         conn.commit()
         logger.info(f"Database seeded with {len(demo_users)} demo users across all 12 roles.")
         return True

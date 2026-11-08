@@ -3827,8 +3827,394 @@ selectPreset(preset) {
         adminAuditLogsEndDate: '',
         selectedAuditLog: null,
         adminAuditLogDetailModalOpen: false,
-        adminBackupsList: [],
-        backupNote: '',
+        adminBackupsList: [],
+        backupNote: '',
+
+        // --- SA-02: ENTERPRISE INFRASTRUCTURE & CAMPUS GOVERNANCE STATE ---
+        infraSubTab: 'hierarchy', // hierarchy | campuses | hostels | buildings_blocks | rooms_beds | capacity | import_export | profile
+        infraLoading: false,
+        infraInstitution: null,
+        infraCampusesList: [],
+        infraHostelsList: [],
+        infraBuildingsList: [],
+        infraBlocksList: [],
+        infraFloorsList: [],
+        infraRoomsList: [],
+        infraRoomsTotal: 0,
+        infraRoomsPage: 1,
+        infraBedsList: [],
+        infraBedsTotal: 0,
+        infraBedsPage: 1,
+        infraHierarchy: null,
+        infraHierarchyLatency: 0,
+        infraCapacityMetrics: null,
+        infraCapacityLatency: 0,
+        infraSelectedCampusId: '',
+        infraSelectedHostelId: '',
+        infraSearchQuery: '',
+
+        // Modals state
+        infraCampusModalOpen: false,
+        infraCampusForm: {
+            name: '',
+            code: '',
+            address: '',
+            city: '',
+            state: '',
+            contact_person: '',
+            contact_email: '',
+            contact_phone: '',
+            operating_status: 'Active',
+            is_active: 1
+        },
+        infraCampusAdminModalOpen: false,
+        infraCampusAdminForm: {
+            campus_id: null,
+            admin_id: null,
+            contact_person: '',
+            contact_email: '',
+            contact_phone: ''
+        },
+        infraHostelModalOpen: false,
+        infraHostelForm: {
+            name: '',
+            code: '',
+            campus_id: '',
+            hostel_type: 'Co-Ed',
+            category: 'General',
+            curfew_time: '22:00',
+            visitor_hours: '16:00 - 19:00',
+            mess_type: 'Veg and Non-Veg',
+            address: '',
+            is_active: 1
+        },
+        infraHostelLeadershipModalOpen: false,
+        infraHostelLeadershipForm: {
+            hostel_id: null,
+            warden_id: '',
+            assistant_warden_id: '',
+            supervisor_id: ''
+        },
+        infraBuildingModalOpen: false,
+        infraBuildingForm: {
+            name: '',
+            code: '',
+            hostel_id: '',
+            total_floors: 3,
+            construction_year: 2022,
+            condition_rating: 'Good',
+            elevators_count: 0,
+            emergency_exits_count: 2,
+            is_active: 1
+        },
+        infraBlockModalOpen: false,
+        infraBlockForm: {
+            name: '',
+            code: '',
+            building_id: '',
+            description: '',
+            is_active: 1
+        },
+        infraFloorModalOpen: false,
+        infraFloorForm: {
+            floor_name: '',
+            floor_number: 1,
+            building_id: '',
+            block_id: '',
+            is_active: 1
+        },
+        infraRoomModalOpen: false,
+        infraRoomForm: {
+            room_number: '',
+            floor_id: '',
+            room_type: 'Double',
+            capacity: 2,
+            base_fee: 5000.0,
+            status: 'Available',
+            maintenance_status: 'Operational',
+            is_ac: 0,
+            attached_washroom: 0,
+            auto_create_beds: true,
+            is_active: 1
+        },
+        infraRoomCapacityModalOpen: false,
+        infraRoomCapacityForm: {
+            room_id: null,
+            room_number: '',
+            current_capacity: 0,
+            new_capacity: 0,
+            occupied_count: 0
+        },
+        infraBedMaintenanceModalOpen: false,
+        infraBedMaintenanceForm: {
+            bed_id: null,
+            bed_number: '',
+            maintenance_status: 'Under_Repair',
+            notes: ''
+        },
+        infraImportModalOpen: false,
+        infraImportForm: {
+            entity_type: 'campuses',
+            records_raw: '',
+            dry_run: true
+        },
+        infraImportResult: null,
+
+        async loadInfrastructureData() {
+            this.infraLoading = true;
+            try {
+                const [inst, campuses, hierarchy, capacity] = await Promise.all([
+                    window.API.getInstitution().catch(() => null),
+                    window.API.getCampuses().catch(() => []),
+                    window.API.getInfrastructureHierarchy().catch(() => null),
+                    window.API.getCapacityMetrics().catch(() => null)
+                ]);
+                this.infraInstitution = inst;
+                this.infraCampusesList = campuses || [];
+                if (hierarchy) {
+                    this.infraHierarchy = hierarchy.hierarchy;
+                    this.infraHierarchyLatency = hierarchy.latency_ms;
+                }
+                if (capacity) {
+                    this.infraCapacityMetrics = capacity;
+                    this.infraCapacityLatency = capacity.latency_ms;
+                }
+                if (this.infraSubTab === 'hostels') await this.loadInfraHostels();
+                if (this.infraSubTab === 'buildings_blocks') await this.loadInfraBuildingsAndBlocks();
+                if (this.infraSubTab === 'rooms_beds') await this.loadInfraRooms();
+            } catch (err) {
+                console.error("Infrastructure loading error:", err);
+            } finally {
+                this.infraLoading = false;
+            }
+        },
+
+        async loadInfraHostels() {
+            try {
+                const params = {};
+                if (this.infraSelectedCampusId) params.campus_id = this.infraSelectedCampusId;
+                if (this.infraSearchQuery) params.search = this.infraSearchQuery;
+                this.infraHostelsList = await window.API.getHostelsExtended(params);
+            } catch (err) {
+                this.showToast(`Failed to load hostels: ${err.message}`, "error");
+            }
+        },
+
+        async loadInfraBuildingsAndBlocks() {
+            try {
+                const bParams = {};
+                if (this.infraSelectedHostelId) bParams.hostel_id = this.infraSelectedHostelId;
+                const [blds, blks, flrs] = await Promise.all([
+                    window.API.getBuildingsExtended(bParams),
+                    window.API.getBlocks(bParams),
+                    window.API.getFloors()
+                ]);
+                this.infraBuildingsList = blds || [];
+                this.infraBlocksList = blks || [];
+                this.infraFloorsList = flrs || [];
+            } catch (err) {
+                this.showToast(`Failed to load buildings & blocks: ${err.message}`, "error");
+            }
+        },
+
+        async loadInfraRooms() {
+            try {
+                const params = { page: this.infraRoomsPage, limit: 50 };
+                if (this.infraSelectedHostelId) params.hostel_id = this.infraSelectedHostelId;
+                if (this.infraSearchQuery) params.search = this.infraSearchQuery;
+                const res = await window.API.getRooms(params);
+                this.infraRoomsList = res.rooms || [];
+                this.infraRoomsTotal = res.total || 0;
+            } catch (err) {
+                this.showToast(`Failed to load rooms: ${err.message}`, "error");
+            }
+        },
+
+        async loadInfraBeds(roomId = null) {
+            try {
+                const params = { page: this.infraBedsPage, limit: 50 };
+                if (roomId) params.room_id = roomId;
+                const res = await window.API.getBeds(params);
+                this.infraBedsList = res.beds || [];
+                this.infraBedsTotal = res.total || 0;
+            } catch (err) {
+                this.showToast(`Failed to load beds: ${err.message}`, "error");
+            }
+        },
+
+        async handleCreateCampus() {
+            try {
+                await window.API.createCampus(this.infraCampusForm);
+                this.showToast("Campus created successfully!", "success");
+                this.infraCampusModalOpen = false;
+                await this.loadInfrastructureData();
+            } catch (err) {
+                this.showToast(err.message, "error");
+            }
+        },
+
+        async handleCreateHostel() {
+            try {
+                await window.API.createHostelExtended(this.infraHostelForm);
+                this.showToast("Hostel registered successfully!", "success");
+                this.infraHostelModalOpen = false;
+                await this.loadInfraHostels();
+                await this.loadInfrastructureData();
+            } catch (err) {
+                this.showToast(err.message, "error");
+            }
+        },
+
+        async handleAssignHostelLeadership() {
+            try {
+                const hid = this.infraHostelLeadershipForm.hostel_id;
+                await window.API.assignHostelLeadership(hid, {
+                    warden_id: this.infraHostelLeadershipForm.warden_id ? parseInt(this.infraHostelLeadershipForm.warden_id) : null,
+                    assistant_warden_id: this.infraHostelLeadershipForm.assistant_warden_id ? parseInt(this.infraHostelLeadershipForm.assistant_warden_id) : null,
+                    supervisor_id: this.infraHostelLeadershipForm.supervisor_id ? parseInt(this.infraHostelLeadershipForm.supervisor_id) : null,
+                });
+                this.showToast("Hostel leadership assigned successfully!", "success");
+                this.infraHostelLeadershipModalOpen = false;
+                await this.loadInfraHostels();
+            } catch (err) {
+                this.showToast(err.message, "error");
+            }
+        },
+
+        async handleCreateBuilding() {
+            try {
+                await window.API.createBuildingExtended(this.infraBuildingForm);
+                this.showToast("Building registered successfully!", "success");
+                this.infraBuildingModalOpen = false;
+                await this.loadInfraBuildingsAndBlocks();
+                await this.loadInfrastructureData();
+            } catch (err) {
+                this.showToast(err.message, "error");
+            }
+        },
+
+        async handleCreateBlock() {
+            try {
+                await window.API.createBlock(this.infraBlockForm);
+                this.showToast("Block registered successfully!", "success");
+                this.infraBlockModalOpen = false;
+                await this.loadInfraBuildingsAndBlocks();
+            } catch (err) {
+                this.showToast(err.message, "error");
+            }
+        },
+
+        async handleCreateFloor() {
+            try {
+                await window.API.createFloor(this.infraFloorForm);
+                this.showToast("Floor registered successfully!", "success");
+                this.infraFloorModalOpen = false;
+                await this.loadInfraBuildingsAndBlocks();
+            } catch (err) {
+                this.showToast(err.message, "error");
+            }
+        },
+
+        async handleCreateRoom() {
+            try {
+                await window.API.createRoom(this.infraRoomForm, this.infraRoomForm.auto_create_beds);
+                this.showToast("Room registered successfully with auto beds!", "success");
+                this.infraRoomModalOpen = false;
+                await this.loadInfraRooms();
+                await this.loadInfrastructureData();
+            } catch (err) {
+                this.showToast(err.message, "error");
+            }
+        },
+
+        async handleUpdateRoomCapacity() {
+            try {
+                const rid = this.infraRoomCapacityForm.room_id;
+                await window.API.updateRoomCapacity(rid, parseInt(this.infraRoomCapacityForm.new_capacity));
+                this.showToast("Room capacity updated successfully!", "success");
+                this.infraRoomCapacityModalOpen = false;
+                await this.loadInfraRooms();
+                await this.loadInfrastructureData();
+            } catch (err) {
+                this.showToast(err.message, "error");
+            }
+        },
+
+        async handleToggleBedMaintenance() {
+            try {
+                const bid = this.infraBedMaintenanceForm.bed_id;
+                await window.API.updateBedMaintenance(
+                    bid,
+                    this.infraBedMaintenanceForm.maintenance_status,
+                    null,
+                    this.infraBedMaintenanceForm.notes
+                );
+                this.showToast("Bed maintenance status updated!", "success");
+                this.infraBedMaintenanceModalOpen = false;
+                await this.loadInfraRooms();
+                await this.loadInfrastructureData();
+            } catch (err) {
+                this.showToast(err.message, "error");
+            }
+        },
+
+        async handleExecuteBulkImport(dryRun = true) {
+            try {
+                let records;
+                const raw = this.infraImportForm.records_raw.trim();
+                if (raw.startsWith('[') || raw.startsWith('{')) {
+                    records = JSON.parse(raw);
+                    if (!Array.isArray(records)) records = [records];
+                } else {
+                    const lines = raw.split('\n').map(l => l.trim()).filter(l => l);
+                    const headers = lines[0].split(',').map(h => h.trim());
+                    records = lines.slice(1).map(line => {
+                        const vals = line.split(',').map(v => v.trim());
+                        const obj = {};
+                        headers.forEach((h, idx) => { obj[h] = vals[idx]; });
+                        return obj;
+                    });
+                }
+                const res = await window.API.bulkImportInfrastructure(this.infraImportForm.entity_type, records, dryRun);
+                this.infraImportResult = res;
+                if (!dryRun && res.success) {
+                    this.showToast(`Imported ${res.created_count} records successfully!`, "success");
+                    await this.loadInfrastructureData();
+                } else if (dryRun && res.success) {
+                    this.showToast(`Dry run successful! ${res.valid_rows} rows valid.`, "info");
+                }
+            } catch (err) {
+                this.showToast(`Import error: ${err.message}`, "error");
+            }
+        },
+
+        async handleExportInfrastructure(entityType, format = "csv") {
+            try {
+                const data = await window.API.bulkExportInfrastructure(entityType, null, null, format);
+                if (format === "csv") {
+                    const blob = new Blob([data], { type: "text/csv;charset=utf-8;" });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", url);
+                    link.setAttribute("download", `${entityType}_export.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                } else {
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", url);
+                    link.setAttribute("download", `${entityType}_export.json`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }
+                this.showToast(`Exported ${entityType} successfully!`, "success");
+            } catch (err) {
+                this.showToast(`Export failed: ${err.message}`, "error");
+            }
+        },
 
         async loadAdminSettings() {
             try {

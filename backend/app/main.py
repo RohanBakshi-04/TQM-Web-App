@@ -33,6 +33,7 @@ from backend.app.routers.inventory import inventory_router
 from backend.app.routers.notifications import router as notifications_router
 from backend.app.routers.announcements import router as announcements_router
 from backend.app.routers.admin import admin_router
+from backend.app.routers.infrastructure import router as infrastructure_router
 from backend.app.routers.dashboard import metrics_router, router as dashboard_router
 from backend.app.routers.health import router as health_router
 from backend.app.routers.hostels import building_router, router as hostels_router
@@ -104,6 +105,7 @@ app.include_router(inventory_router)
 app.include_router(notifications_router)
 app.include_router(announcements_router)
 app.include_router(admin_router)
+app.include_router(infrastructure_router)
 
 
 # Mount static assets if directory exists

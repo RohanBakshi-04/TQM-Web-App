@@ -478,6 +478,80 @@ class TestBrowserAcceptance(unittest.TestCase):
             self.logout_role(page)
             context.close()
 
+    def test_08_sa02_infrastructure_command_center_and_subtabs(self):
+        """Test SA-02 Enterprise Infrastructure Command Center & sub-tabs in browser."""
+        context = self.browser.new_context(viewport={"width": 1440, "height": 900})
+        page = context.new_page()
+        page.goto(self.base_url, wait_until="domcontentloaded")
+
+        self.login_role(page, "superadmin", "Password123!")
+
+        # Navigate directly to Infrastructure Command Center
+        page.evaluate("""async () => {
+            const data = document.querySelector('[x-data]')._x_dataStack[0];
+            data.activeSection = 'admin';
+            data.adminTab = 'infrastructure';
+            if (typeof data.loadInfrastructureData === 'function') {
+                await data.loadInfrastructureData();
+            }
+        }""")
+        page.wait_for_timeout(1000)
+
+        diag = page.evaluate("""() => {
+            const data = document.querySelector('[x-data]')._x_dataStack[0];
+            const infraDiv = document.querySelector('[x-show*=\"infrastructure\"]');
+            return {
+                activeSection: data.activeSection,
+                adminTab: data.adminTab,
+                infraLoading: data.infraLoading,
+                infraDivExists: Boolean(infraDiv),
+                infraDivDisplay: infraDiv ? window.getComputedStyle(infraDiv).display : null,
+                infraInstitution: data.infraInstitution
+            };
+        }""")
+        print("\n[DIAGNOSTICS]", diag)
+
+        infra_container = page.locator('[x-show*="infrastructure"]')
+        
+        # 1. Assert institutional banner is visible
+        inst_title = infra_container.locator("text=University Campus of Excellence").first
+        inst_title.wait_for(state="visible", timeout=5000)
+        self.assertTrue(inst_title.is_visible(), "Institution title should be visible in Command Center")
+
+        # 2. Test clicking Hierarchy Tree subtab
+        tree_btn = infra_container.locator("button:has-text('Hierarchy Tree')").first
+        tree_btn.click()
+        page.wait_for_timeout(500)
+        self.assertTrue(page.locator("text=Institutional Structural Hierarchy").first.is_visible())
+
+        # 3. Test clicking Campuses subtab
+        campuses_btn = infra_container.locator("button:has-text('Campuses')").first
+        campuses_btn.click()
+        page.wait_for_timeout(500)
+        self.assertTrue(page.locator("text=Campuses Management").first.is_visible())
+
+        # 4. Test clicking Hostels subtab
+        hostels_btn = infra_container.locator("button:has-text('Hostels')").first
+        hostels_btn.click()
+        page.wait_for_timeout(500)
+        self.assertTrue(page.locator("text=Hostels & Categories").first.is_visible())
+
+        # 5. Test clicking Capacity Engine subtab
+        cap_btn = infra_container.locator("button:has-text('Capacity Engine')").first
+        cap_btn.click()
+        page.wait_for_timeout(500)
+        self.assertTrue(page.locator("text=Reconciled Capacity").first.is_visible())
+
+        # 6. Test clicking Import & Export subtab
+        imp_btn = infra_container.locator("button:has-text('Import & Export')").first
+        imp_btn.click()
+        page.wait_for_timeout(500)
+        self.assertTrue(page.locator("text=Bulk Data Administration").first.is_visible())
+
+        print("[PASS] Browser Acceptance: SA-02 Infrastructure Command Center fully verified across subtabs")
+        self.logout_role(page)
+        context.close()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1085,6 +1085,41 @@ PERMISSIONS_LIST: List[Tuple[str, str, str]] = [
     ("hostels.facility.delete", "hostels", "Decommission hostel blocks and structures"),
     ("hostels.facility.manage", "hostels", "Full authority over hostel facility entities"),
 
+    # --- SA-02: Institution Governance ---
+    ("institution:read", "institution", "View university institutional profile and configurations"),
+    ("institution:update", "institution", "Modify university institutional profile and settings"),
+    ("institution:manage", "institution", "Full administrative control over institutional governance"),
+    ("institutions.profile.read", "institution", "View detailed institutional profile and legal metadata"),
+    ("institutions.profile.update", "institution", "Update institutional contact, address, and branding"),
+    ("institutions.config.update", "institution", "Configure institutional timezone, currency, and academic calendar"),
+
+    # --- SA-02: Campus Management ---
+    ("campuses:create", "campuses", "Establish new university campus locations"),
+    ("campuses:read", "campuses", "Inspect campus details and infrastructure hierarchy"),
+    ("campuses:update", "campuses", "Update campus parameters and operational status"),
+    ("campuses:delete", "campuses", "Decommission campus entities"),
+    ("campuses:manage", "campuses", "Full administrative governance over campus entities"),
+    ("campuses.facility.create", "campuses", "Create new university campus locations"),
+    ("campuses.facility.read", "campuses", "View campus details and infrastructure rosters"),
+    ("campuses.facility.update", "campuses", "Update campus parameters and administrator assignments"),
+    ("campuses.facility.delete", "campuses", "Decommission campus locations"),
+    ("campuses.facility.manage", "campuses", "Complete administrative control over campus infrastructure"),
+
+    # --- SA-02: Multi-Tier Infrastructure Hierarchy, Blocks & Capacity ---
+    ("infrastructure:read", "infrastructure", "Explore complete multi-tier infrastructure hierarchy"),
+    ("infrastructure:manage", "infrastructure", "Comprehensive infrastructure management across all facilities"),
+    ("infrastructure:import", "infrastructure", "Execute bulk CSV/JSON infrastructure imports"),
+    ("infrastructure:export", "infrastructure", "Export campus and hostel infrastructure inventories"),
+    ("infrastructure.hierarchy.read", "infrastructure", "View multi-tier hierarchical infrastructure tree"),
+    ("infrastructure.capacity.read", "infrastructure", "Inspect capacity, occupancy, and availability analytics"),
+    ("infrastructure.capacity.manage", "infrastructure", "Adjust physical room capacities and operational thresholds"),
+    ("infrastructure.data.import", "infrastructure", "Bulk import infrastructure records with rollback"),
+    ("infrastructure.data.export", "infrastructure", "Export verified infrastructure datasets"),
+    ("blocks:manage", "blocks", "Manage hostel residential and academic blocks"),
+    ("floors:manage", "floors", "Manage building floor configurations"),
+    ("rooms:manage", "rooms", "Manage room inventory, occupancy categories, and maintenance"),
+    ("beds:manage", "beds", "Manage bed availability, operational states, and maintenance locks"),
+
     # --- Student Profiles & Records ---
     ("student:create", "students", "Register new student profiles"),
     ("student:read", "students", "View student records and directory"),
@@ -1289,7 +1324,11 @@ ROLE_PERMISSIONS_MAP: Dict[str, List[str]] = {
         "attendance.record.export", "leave.request.read", "leave.request.approve",
         "leave.request.reject", "complaints.ticket.read", "complaints.ticket.update",
         "maintenance.order.read", "finance.invoice.read", "audit.log.read",
-        "system.health.read", "departments.structure.read", "dashboards.group.read"
+        "system.health.read", "departments.structure.read", "dashboards.group.read",
+        # SA-02 Infrastructure Management
+        "campuses:read", "campuses.facility.read", "infrastructure:read", "infrastructure.hierarchy.read",
+        "infrastructure.capacity.read", "infrastructure:export", "infrastructure.data.export",
+        "blocks:manage", "floors:manage", "rooms:manage", "beds:manage"
     ],
 
     # 3. Institutional Administrator (institutional_admin): University Registry & Welfare
@@ -1298,7 +1337,10 @@ ROLE_PERMISSIONS_MAP: Dict[str, List[str]] = {
         "student:read", "student:export", "students.profile.read", "students.profile.export",
         "attendance:read", "attendance.record.read", "audit:read", "audit.log.read",
         "system.health.read", "departments:read", "departments.structure.read",
-        "dashboards:read", "dashboards.group.read", "grievances:read", "grievances.incident.read"
+        "dashboards:read", "dashboards.group.read", "grievances:read", "grievances.incident.read",
+        # SA-02 Institutional & Campus Read
+        "institution:read", "institutions.profile.read", "campuses:read", "campuses.facility.read",
+        "infrastructure:read", "infrastructure.hierarchy.read", "infrastructure.capacity.read"
     ],
 
     # 4. Chief Warden (warden): Primary Hostel Operational Head
