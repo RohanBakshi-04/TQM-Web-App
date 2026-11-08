@@ -4125,7 +4125,22 @@ def run_migrations(conn: Optional[sqlite3.Connection] = None) -> List[str]:
                             VALUES (?, ?);
                         """, (r_id, p_id))
 
-            # 16. Validate foreign key integrity
+            # 16. Create backup metadata telemetry table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS backup_metadata (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    filename TEXT NOT NULL UNIQUE,
+                    file_path TEXT NOT NULL,
+                    size_bytes INTEGER NOT NULL,
+                    checksum_sha256 TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'Completed',
+                    initiated_by TEXT NOT NULL DEFAULT 'system',
+                    notes TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # 17. Validate foreign key integrity
             violations = cursor.execute("PRAGMA foreign_key_check;").fetchall()
             if violations:
                 violation_summary = [f"table={v[0]}, rowid={v[1]}, target={v[2]}, fkid={v[3]}" for v in violations]

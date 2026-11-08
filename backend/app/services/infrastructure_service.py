@@ -66,6 +66,7 @@ class InfrastructureService:
                 """,
                 (user_id, username or "system", action, entity_name, str(entity_id), details, latency_ms),
             )
+            conn.commit()
         except Exception as e:
             logger.warning(f"Failed to record audit log: {e}")
 

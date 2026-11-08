@@ -4,6 +4,7 @@ Course: BBAT104 - Fundamentals of Total Quality Management (TQM)
 Quality Goal: Q05 - Reduce Response Time (< 10ms SLA)
 """
 
+import hashlib
 import os
 import sqlite3
 from datetime import datetime
@@ -63,11 +64,27 @@ class BackupService:
                 raise RuntimeError(f"Backup integrity verification failed: {integrity['error']}")
 
             file_size = os.path.getsize(backup_path)
-            logger.info(f"Database backup created successfully: {backup_filename} ({file_size} bytes)")
+            h = hashlib.sha256()
+            with open(backup_path, "rb") as bf:
+                while chunk := bf.read(65536):
+                    h.update(chunk)
+            checksum = h.hexdigest()
+            logger.info(f"Database backup created successfully: {backup_filename} ({file_size} bytes, sha256: {checksum[:8]}...)")
 
-            # Record audit trail
+            # Record backup telemetry and audit trail
             try:
                 cursor = src_conn.cursor()
+                try:
+                    cursor.execute(
+                        """
+                        INSERT INTO backup_metadata (filename, file_path, size_bytes, checksum_sha256, status, initiated_by, notes)
+                        VALUES (?, ?, ?, ?, 'Completed', ?, ?);
+                        """,
+                        (backup_filename, backup_path, file_size, checksum, username or "system", note or "Automated backup")
+                    )
+                except sqlite3.OperationalError:
+                    pass
+
                 cursor.execute(
                     """
                     INSERT INTO audit_logs (user_id, username, action, entity_name, entity_id, details)
@@ -84,6 +101,7 @@ class BackupService:
                 "filename": backup_filename,
                 "path": backup_path,
                 "size_bytes": file_size,
+                "checksum_sha256": checksum,
                 "timestamp": timestamp,
                 "table_count": integrity["table_count"],
                 "note": note or "Automated backup"
@@ -115,9 +133,16 @@ class BackupService:
             cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%';")
             table_count = cursor.fetchone()[0]
             conn.close()
-            return {"is_valid": True, "error": None, "table_count": table_count}
+
+            h = hashlib.sha256()
+            with open(backup_path, "rb") as bf:
+                while chunk := bf.read(65536):
+                    h.update(chunk)
+            checksum = h.hexdigest()
+
+            return {"is_valid": True, "error": None, "table_count": table_count, "checksum_sha256": checksum}
         except Exception as e:
-            return {"is_valid": False, "error": str(e), "table_count": 0}
+            return {"is_valid": False, "error": str(e), "table_count": 0, "checksum_sha256": None}
 
     @classmethod
     def list_backups(cls, custom_backup_dir: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -203,10 +228,29 @@ class BackupService:
             )
             raise RuntimeError("Database restore failed integrity check. Reverted to pre-restore snapshot.")
 
-        # Record audit trail
+        # Record audit trail and backup metadata tracking
         try:
             audit_conn = get_db_connection(custom_db_path) if custom_db_path else get_db_connection()
             cursor = audit_conn.cursor()
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO backup_metadata (filename, file_path, size_bytes, checksum_sha256, status, initiated_by, notes)
+                    VALUES (?, ?, ?, ?, 'Restored', ?, ?)
+                    ON CONFLICT(filename) DO UPDATE SET status = 'Restored', notes = excluded.notes;
+                    """,
+                    (
+                        clean_filename,
+                        backup_path,
+                        os.path.getsize(backup_path),
+                        integrity.get("checksum_sha256", "restored"),
+                        username or "system",
+                        f"Restored into database. Safety snapshot: {safety_snapshot['filename']}"
+                    )
+                )
+            except sqlite3.OperationalError:
+                pass
+
             cursor.execute(
                 """
                 INSERT INTO audit_logs (user_id, username, action, entity_name, entity_id, details)
